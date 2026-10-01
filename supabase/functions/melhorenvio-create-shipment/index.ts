@@ -64,7 +64,7 @@ Deno.serve(async(req)=>{
     declaredProducts.push({name:String(item.product_name),quantity:String(q),unitary_value:String(Number(item.unit_price||0))});
   }
 
-  const payload={
+  const quotedPackages = Array.isArray(option.packages) ? option.packages : [];\n  if (quotedPackages.length > 1 && [1,2,17].includes(service)) return json({error:"A cotação retornou múltiplos volumes para um serviço que exige etiquetas separadas. Gere uma nova cotação com outro serviço."},400);\n  const quotedVolumes = quotedPackages.map((pkg:any)=>({\n    height:Number(pkg?.dimensions?.height||5),\n    width:Number(pkg?.dimensions?.width||10),\n    length:Number(pkg?.dimensions?.length||15),\n    weight:Number(pkg?.weight||0.1),\n  }));\n\n  const payload={
     service,
     from:{...sender},
     to:{
@@ -74,11 +74,11 @@ Deno.serve(async(req)=>{
       country_id:"BR",state_abbr:String(addr.state||"").slice(0,2).toUpperCase(),document:String(addr.recipient_code||"").replace(/\D/g,"")
     },
     products:declaredProducts,
-    volumes:[{height,width,length,weight}],
+    volumes:quotedVolumes.length ? quotedVolumes : [{height,width,length,weight}],
     options:{
       platform:"Karine Joias",
       reminder:`Pedido ${order.order_number}`,
-      insurance_value:Number(order.total_amount||0),
+      insurance_value:Math.max(0,Number(order.total_amount||0)-Number(order.shipping_amount||0)),
       receipt:false,own_hand:false,reverse:false,
       tags:[{tag:order.order_number,url:null}]
     }
