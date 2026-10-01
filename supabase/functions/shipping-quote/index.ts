@@ -17,13 +17,12 @@ Deno.serve(async (req) => {
     if (!/^\d{8}$/.test(postalCode)) throw new Error("CEP inválido");
     if (!items.length || items.length > 30) throw new Error("Carrinho inválido");
 
-    const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
-    const serviceKey = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const melhorEnvioToken = Deno.env.get("MELHOR_ENVIO_TOKEN");
-    const userAgent = Deno.env.get("MELHOR_ENVIO_USER_AGENT") || "Karine Joias (contato@karinejoias.com.br)";
+    const userAgent = Deno.env.get("MELHOR_ENVIO_USER_AGENT");
 
-    if (!serviceKey || !supabaseUrl || !melhorEnvioToken) {
+    if (!serviceKey || !supabaseUrl || !melhorEnvioToken || !userAgent) {
       return Response.json({ error: "Frete ainda não configurado no servidor" }, { status: 503, headers: cors });
     }
 
