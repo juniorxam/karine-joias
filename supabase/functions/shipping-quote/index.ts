@@ -74,7 +74,6 @@ Deno.serve(async (req) => {
         width,
         height,
         length,
-        unitary_value: unitValue,
         insurance_value: unitValue,
       });
     }
@@ -109,7 +108,7 @@ Deno.serve(async (req) => {
         id: option.id,
         company: option.company?.name || "Transportadora",
         service: option.name || option.service || "Envio",
-        price: Number(option.price),
+        price: Number(option.custom_price ?? option.price),
         delivery_time: Number(option.custom_delivery_time || option.delivery_time || 0),
       }));
 
