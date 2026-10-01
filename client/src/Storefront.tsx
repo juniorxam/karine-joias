@@ -97,11 +97,12 @@ export default function Storefront() {
       toast.error("A loja ainda não está conectada ao Supabase.");
       return;
     }
-    const { data, error } = await supabase.rpc("create_store_order", {
-      p_customer: customer,
-      p_shipping: shipping,
-      p_items: cart.map(item => ({ product_id: Number(item.id), quantity: item.quantity })),
-      p_payment_method: "PENDING",
+    const { data, error } = await supabase.functions.invoke("create-order", {
+      body: {
+        customer,
+        shipping,
+        items: cart.map(item => ({ product_id: Number(item.id), quantity: item.quantity })),
+      },
     });
     if (error) {
       toast.error("Não foi possível criar o pedido", { description: error.message });
