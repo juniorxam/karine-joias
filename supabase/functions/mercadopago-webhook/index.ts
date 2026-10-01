@@ -49,12 +49,63 @@ Deno.serve(async (req) => {
       return new Response("ok");
     }
     if (status === "approved") {
-      await admin.from("orders").update({ payment_status: "PAID", status: "PAID", updated_at: new Date().toISOString() }).eq("id", order.id);
+      // Idempotent transition: a repeated Mercado Pago notification must not
+      // rewrite an already processed order or race a second state transition.
+      const { data: updatedOrder, error: updateError } = await admin
+        .from("orders")
+        .update({
+          payment_status: "PAID",
+          status: "PAID",
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", order.id)
+        .eq("payment_status", "PENDING")
+        .select("id")
+        .maybeSingle();
+
+      if (updateError) {
+        console.error("Failed to mark order as paid", updateError);
+        return new Response("Database update failed", { status: 500 });
+      }
+
+      if (!updatedOrder) {
+        console.log("Ignoring duplicate/non-pending approved notification", ref);
+      }
 
     } else if (status === "rejected" || status === "cancelled") {
-      await admin.rpc("restore_order_stock", { p_order_id: order.id });
-      await admin.from("orders").update({ payment_status: String(status).toUpperCase(), status: "CANCELLED", updated_at: new Date().toISOString() }).eq("id", order.id);
+      // restore_order_stock locks the order and only restores while
+      // stock_reserved=true, making repeated notifications harmless.
+      const { error: restoreError } = await admin.rpc("restore_order_stock", {
+        p_order_id: order.id
+      });
 
+      if (restoreError) {
+        console.error("Failed to restore order stock", restoreError);
+        return new Response("Stock restoration failed", { status: 500 });
+      }
+
+      // Only the first cancellation transition is allowed to change a
+      // still-pending payment. A repeated webhook becomes a no-op.
+      const { data: updatedOrder, error: updateError } = await admin
+        .from("orders")
+        .update({
+          payment_status: String(status).toUpperCase(),
+          status: "CANCELLED",
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", order.id)
+        .eq("payment_status", "PENDING")
+        .select("id")
+        .maybeSingle();
+
+      if (updateError) {
+        console.error("Failed to cancel order", updateError);
+        return new Response("Database update failed", { status: 500 });
+      }
+
+      if (!updatedOrder) {
+        console.log("Ignoring duplicate/non-pending cancellation notification", ref);
+      }
     }
 
     return new Response("ok");
