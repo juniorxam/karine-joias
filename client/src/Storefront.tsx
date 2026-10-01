@@ -226,12 +226,16 @@ function Checkout({ cart, subtotal, onBack, onFinish, onChangeQty }: { cart: Car
     } finally { setShippingLoading(false); }
   };
 
-  const submit = async (event: React.FormEvent) =>
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!cart.length) return toast.error("Seu carrinho está vazio");
     if (!shippingOption) return toast.error("Calcule e selecione uma opção de frete");
     setBusy(true);
-    try { await onFinish(customer, { ...shipping, shipping_option: shippingOption }); } finally { setBusy(false); }
+    try {
+      await onFinish(customer, { ...shipping, shipping_option: shippingOption });
+    } finally {
+      setBusy(false);
+    }
   };
 
   return <div className="storefront checkout-page">
