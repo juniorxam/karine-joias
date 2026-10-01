@@ -8,7 +8,7 @@ Deno.serve(async(req)=>{
  if(req.method==="OPTIONS") return new Response("ok",{headers:cors});
  try{
   const url=Deno.env.get("SUPABASE_URL")!;
-  const key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS")||"{}").default;
+  const key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if(!url||!key) return json({error:"Servidor não configurado"},503);
   const auth=req.headers.get("Authorization")||"";
   if(!auth.startsWith("Bearer ")) return json({error:"Não autorizado"},401);
@@ -21,7 +21,7 @@ Deno.serve(async(req)=>{
   if(!owned?.length) return json({error:"Usuário sem loja autorizada"},403);
 
   if(req.method==="GET"){
-    const {data,error}=await admin.from("coupons").select("*").order("created_at",{ascending:false});
+    const {data,error}=await admin.from("coupons").select("*").eq("owner_id",user.id).order("created_at",{ascending:false});
     if(error) throw error;
     return json({coupons:data||[]});
   }
@@ -33,7 +33,7 @@ Deno.serve(async(req)=>{
     const value=Number(body.discount_value);
     if(!/^[A-Z0-9_-]{3,30}$/.test(code)) return json({error:"Código inválido"},400);
     if(!["PERCENT","FIXED"].includes(type)||!Number.isFinite(value)||value<=0||(type==="PERCENT"&&value>100)) return json({error:"Desconto inválido"},400);
-    const {data,error}=await admin.from("coupons").insert({code,discount_type:type,discount_value:value,min_order_amount:Math.max(0,Number(body.min_order_amount)||0),starts_at:body.starts_at||null,expires_at:body.expires_at?new Date(body.expires_at+"T23:59:59").toISOString():null,max_uses:body.max_uses?Math.max(1,Number(body.max_uses)):null,active:body.active!==false}).select().single();
+    const {data,error}=await admin.from("coupons").insert({code,discount_type:type,discount_value:value,min_order_amount:Math.max(0,Number(body.min_order_amount)||0),starts_at:body.starts_at||null,expires_at:body.expires_at?new Date(body.expires_at+"T23:59:59").toISOString():null,max_uses:body.max_uses?Math.max(1,Number(body.max_uses)):null,active:body.active!==false,owner_id:user.id}).select().single();
     if(error) return json({error:error.code==="23505"?"Código já existe":error.message},400);
     return json({coupon:data},201);
   }
@@ -47,14 +47,14 @@ Deno.serve(async(req)=>{
     if(body.min_order_amount!==undefined) patch.min_order_amount=Math.max(0,Number(body.min_order_amount));
     if(body.max_uses!==undefined) patch.max_uses=body.max_uses===null?null:Math.max(1,Number(body.max_uses));
     if(body.expires_at!==undefined) patch.expires_at=body.expires_at?new Date(body.expires_at+"T23:59:59").toISOString():null;
-    const {data,error}=await admin.from("coupons").update(patch).eq("id",id).select().single();
+    const {data,error}=await admin.from("coupons").update(patch).eq("id",id).eq("owner_id",user.id).select().single();
     if(error) throw error;
     return json({coupon:data});
   }
 
   if(req.method==="DELETE"){
     const id=String(body.id||"");
-    const {error}=await admin.from("coupons").delete().eq("id",id);
+    const {error}=await admin.from("coupons").delete().eq("id",id).eq("owner_id",user.id);
     if(error) throw error;
     return json({ok:true});
   }
