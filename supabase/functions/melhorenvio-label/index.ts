@@ -22,7 +22,7 @@ function findUrl(value: unknown): string | null {
   }
   const obj = value as Record<string, unknown>;
   for (const key of ["url", "link", "label_url", "print_url"]) {
-    if (typeof obj[key] === "string" && /^https?:\\/\\//.test(obj[key] as string)) return obj[key] as string;
+    if (typeof obj[key] === "string" && /^https?:\/\//.test(obj[key] as string)) return obj[key] as string;
   }
   for (const value of Object.values(obj)) {
     const found = findUrl(value);
