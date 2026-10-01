@@ -71,7 +71,7 @@ Deno.serve(async(req)=>{
       name:String(order.customer_name),email:String(order.customer_email),phone:String(order.customer_phone),
       address:String(addr.address||""),number:String(addr.number||""),complement:String(addr.complement||""),
       district:String(addr.neighborhood||""),city:String(addr.city||""),postal_code:String(addr.postal_code||""),
-      country_id:"BR",state_abbr:String(addr.state||"").slice(0,2).toUpperCase()
+      country_id:"BR",state_abbr:String(addr.state||"").slice(0,2).toUpperCase(),document:String(addr.recipient_code||"").replace(/\D/g,"")
     },
     products:declaredProducts,
     volumes:[{height,width,length,weight}],
@@ -84,8 +84,7 @@ Deno.serve(async(req)=>{
     }
   };
 
-  if(!payload.to.address||!payload.to.number||!payload.to.district||!payload.to.city||!/^d{8}$/.test(payload.to.postal_code.replace(/D/g,"")))
-    return json({error:"Endereço do destinatário incompleto"},400);
+  if(!payload.to.address||!payload.to.number||!payload.to.district||!payload.to.city||!/^\\d{8}$/.test(payload.to.postal_code.replace(/\\D/g,"")))\n    return json({error:"Endereço do destinatário incompleto"},400);\n  if(!/^\\d{11}$/.test(payload.to.document))\n    return json({error:"Documento do destinatário inválido"},400);
 
   const response=await fetch("https://www.melhorenvio.com.br/api/v2/me/cart",{method:"POST",headers:{Accept:"application/json",Authorization:`Bearer ${token}`,"Content-Type":"application/json","User-Agent":ua},body:JSON.stringify(payload)});
   const result=await response.json();
