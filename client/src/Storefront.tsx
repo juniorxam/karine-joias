@@ -105,13 +105,16 @@ export default function Storefront() {
     }
     setOrder(data);
     setCart([]);
+    const payment = await supabase.functions.invoke("create-payment", { body: { order_number: data.order_number, email: customer.email } });
+    if (payment.data?.init_point) { window.location.href = payment.data.init_point; return; }
+    if (payment.error) toast.success("Pedido criado", { description: "O pagamento online ainda não está configurado." });
     window.history.pushState({}, "", "/loja/pedido");
     setView("success");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   if (view === "checkout") {
-    return <Checkout cart={cart} subtotal={subtotal} onBack={backToStore} onFinish={finishOrder} />;
+    return <Checkout cart={cart} subtotal={subtotal} onBack={backToStore} onFinish={finishOrder} onChangeQty={changeQty} />;
   }
 
   if (view === "success" && order) {
@@ -176,7 +179,7 @@ function ProductCard({ product, onAdd, onAsk, featured = false }: { product: Cat
   </article>;
 }
 
-function Checkout({ cart, subtotal, onBack, onFinish }: { cart: CartItem[]; subtotal: number; onBack: () => void; onFinish: (customer: Customer, shipping: Shipping) => Promise<void> }) {
+function Checkout({ cart, subtotal, onBack, onFinish, onChangeQty }: { cart: CartItem[]; subtotal: number; onBack: () => void; onFinish: (customer: Customer, shipping: Shipping) => Promise<void>; onChangeQty: (id: CatalogProduct["id"], delta: number) => void }) {
   const [customer, setCustomer] = useState<Customer>({ name: "", email: "", phone: "" });
   const [shipping, setShipping] = useState<Shipping>({ postal_code: "", address: "", number: "", complement: "", neighborhood: "", city: "", state: "" });
   const [busy, setBusy] = useState(false);
@@ -216,7 +219,7 @@ function Checkout({ cart, subtotal, onBack, onFinish }: { cart: CartItem[]; subt
         <section className="checkout-section"><h2>Pagamento</h2><div className="payment-placeholder"><ShoppingBag size={18}/><div><strong>Pagamento online será liberado na próxima etapa</strong><p>Seu pedido será criado com status aguardando pagamento. A integração PIX/cartão pode ser conectada ao Mercado Pago sem alterar o checkout.</p></div></div></section>
         <button className="checkout-submit" disabled={busy || !cart.length}>{busy ? "Criando pedido..." : "Confirmar pedido"}</button>
       </form>
-      <aside className="checkout-summary"><h2>Seu pedido</h2>{cart.map(item => <div className="checkout-item" key={item.id}><div><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span></div><div className="qty-controls"><button type="button" onClick={() => { if (item.quantity === 1) return; item.quantity; }} aria-label="Diminuir">−</button><span>{item.quantity}</span><button type="button" aria-label="Aumentar">+</button></div><b>{formatMoney(item.price * item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total grand"><span>Total</span><strong>{formatMoney(subtotal)}</strong></div><p className="checkout-note">Frete e pagamento serão calculados na próxima etapa.</p></aside>
+      <aside className="checkout-summary"><h2>Seu pedido</h2>{cart.map(item => <div className="checkout-item" key={item.id}><div><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span></div><div className="qty-controls"><button type="button" onClick={() => onChangeQty(item.id, -1)} aria-label="Diminuir">−</button><span>{item.quantity}</span><button type="button" onClick={() => onChangeQty(item.id, 1)} aria-label="Aumentar">+</button></div><b>{formatMoney(item.price * item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total grand"><span>Total</span><strong>{formatMoney(subtotal)}</strong></div><p className="checkout-note">Frete e pagamento serão calculados na próxima etapa.</p></aside>
     </main>
   </div>;
 }
