@@ -112,6 +112,14 @@ Deno.serve(async (req) => {
         service: option.name || option.service || "Envio",
         price: Number(option.custom_price ?? option.price),
         delivery_time: Number(option.custom_delivery_time || option.delivery_time || 0),
+        packages: Array.isArray(option.packages) ? option.packages.map((pkg: any) => ({
+          dimensions: {
+            height: Number(pkg?.dimensions?.height || 0),
+            width: Number(pkg?.dimensions?.width || 0),
+            length: Number(pkg?.dimensions?.length || 0),
+          },
+          weight: Number(pkg?.weight || 0),
+        })) : [],
       }));
 
     if (!options.length) throw new Error("Nenhuma opção de frete disponível");
