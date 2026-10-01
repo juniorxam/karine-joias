@@ -28,7 +28,7 @@ function Promos({promos,setPromos}:any){
  const [serverCoupons,setServerCoupons]=useState<any[]>([]);
  const [form,setForm]=useState({code:"",type:"Percentual",value:"",min:"0",ends:"",maxUses:""});
  const [busy,setBusy]=useState(false);
- const load=async()=>{if(!supabase)return;const {data,error}=await supabase.functions.invoke("admin-coupons");if(!error&&data?.coupons)setServerCoupons(data.coupons);};
+ const load=async()=>{if(!supabase)return;const {data,error}=await supabase.functions.invoke("admin-coupons",{method:"GET"});if(!error&&data?.coupons)setServerCoupons(data.coupons);};
  useEffect(()=>{load();},[]);
  const create=async(e:any)=>{e.preventDefault();if(!supabase)return;setBusy(true);try{
    const {data,error}=await supabase.functions.invoke("admin-coupons",{body:{discount_type:form.type==="Percentual"?"PERCENT":"FIXED",discount_value:Number(form.value),min_order_amount:Number(form.min||0),expires_at:form.ends||null,max_uses:form.maxUses?Number(form.maxUses):null,active:true,code:form.code}});
