@@ -51,24 +51,17 @@ Deno.serve(async (req) => {
     if (status === "approved") {
       // Idempotent transition: a repeated Mercado Pago notification must not
       // rewrite an already processed order or race a second state transition.
-      const { data: updatedOrder, error: updateError } = await admin
-        .from("orders")
-        .update({
-          payment_status: "PAID",
-          status: "PAID",
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", order.id)
-        .eq("payment_status", "PENDING")
-        .select("id")
-        .maybeSingle();
+      // Atomic, service-role-only transition guarded by a row lock.
+      const { data: paid, error: paidError } = await admin.rpc("mark_order_paid_service", {
+        p_order_id: order.id
+      });
 
-      if (updateError) {
-        console.error("Failed to mark order as paid", updateError);
+      if (paidError) {
+        console.error("Failed to mark order as paid", paidError);
         return new Response("Database update failed", { status: 500 });
       }
 
-      if (!updatedOrder) {
+      if (!paid) {
         console.log("Ignoring duplicate/non-pending approved notification", ref);
       }
 
