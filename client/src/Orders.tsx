@@ -69,17 +69,18 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
 
   const saveShipment=async()=>{
     if(!supabase||!selected)return;
-    const payload={order_id:selected.id,tracking_code:tracking.trim()||null,shipping_status:tracking.trim()?"POSTED":"PENDING",updated_at:new Date().toISOString()};
-    const {error}=await supabase.from("shipments").upsert(payload,{onConflict:"order_id"});
+    const {error}=await supabase.rpc("save_order_shipment_service",{
+      p_order_id: selected.id,
+      p_owner_id: ownerId,
+      p_tracking_code: tracking.trim(),
+      p_carrier: shipment?.carrier||null,
+      p_service: shipment?.service||null,
+      p_tracking_url: shipment?.tracking_url||null
+    });
     if(error){toast.error("Não foi possível salvar o rastreio",{description:error.message});return;}
-    if(tracking.trim() && selected.status==="READY_TO_SHIP") {
-      await updateStatus(selected,"SHIPPED");
-    } else if(tracking.trim() && !["SHIPPED","DELIVERED"].includes(selected.status)) {
-      toast.success("Rastreamento salvo. Avance o pedido para “Pronto para envio” antes de marcar como enviado.");
-    } else {
-      toast.success("Rastreamento atualizado");
-    }
-    await openOrder(selected);
+    toast.success(tracking.trim() && selected.status==="READY_TO_SHIP" ? "Rastreamento salvo e pedido enviado" : "Rastreamento atualizado");
+    await load();
+    await openOrder({...selected,status:tracking.trim() && selected.status==="READY_TO_SHIP"?"SHIPPED":selected.status});
   };
 
   const updateStatus=async(order:Order,status:string)=>{
