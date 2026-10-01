@@ -88,9 +88,9 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
 
     const allowed: Record<string,string[]> = {
       PENDING_PAYMENT:["CANCELLED"],
-      PAID:["PROCESSING"],
-      PROCESSING:["READY_TO_SHIP"],
-      READY_TO_SHIP:["SHIPPED"],
+      PAID:["PROCESSING","REFUNDED"],
+      PROCESSING:["READY_TO_SHIP","REFUNDED"],
+      READY_TO_SHIP:["SHIPPED","REFUNDED"],
       SHIPPED:["DELIVERED"],
       DELIVERED:[],
       CANCELLED:[],
@@ -117,6 +117,14 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
       });
       if(error){
         toast.error("Não foi possível cancelar o pedido",{description:error.message});
+        return;
+      }
+    } else if(status==="REFUNDED") {
+      const {error}=await supabase.functions.invoke("admin-refund",{
+        body:{order_id:order.id}
+      });
+      if(error){
+        toast.error("Não foi possível reembolsar",{description:error.message});
         return;
       }
     } else {
