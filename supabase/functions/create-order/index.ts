@@ -21,6 +21,7 @@ Deno.serve(async (req) => {
     const customer = body.customer || {};
     const shipping = body.shipping || {};
     const items = Array.isArray(body.items) ? body.items : [];
+    const couponCode = String(body.coupon_code || "").trim().toUpperCase();
 
     if (items.length < 1 || items.length > 30) throw new Error("Carrinho inválido");
     if (!customer.name || String(customer.name).trim().length < 2) throw new Error("Nome inválido");
@@ -94,6 +95,7 @@ Deno.serve(async (req) => {
       p_items: items,
       p_shipping_amount: shippingAmount,
       p_payment_method: "PENDING",
+      p_coupon_code: couponCode || null,
     });
 
     if (error) throw error;
