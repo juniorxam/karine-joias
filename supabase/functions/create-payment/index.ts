@@ -39,6 +39,55 @@ Deno.serve(async (req) => {
       return Response.json({ error: "Este pedido não pode receber pagamento" }, { status: 409, headers: cors });
     }
 
+    // Claim payment-preference creation atomically. This closes the race where
+    // two rapid clicks both observe an order without a Mercado Pago preference.
+    const claimToken = crypto.randomUUID();
+    const { data: claimedOrder, error: claimError } = await admin
+      .from("orders")
+      .update({
+        payment_creation_token: claimToken,
+        payment_creation_started_at: new Date().toISOString()
+      })
+      .eq("id", order.id)
+      .eq("payment_status", "PENDING")
+      .is("payment_provider_id", null)
+      .or("payment_creation_token.is.null,payment_creation_started_at.lt." + new Date(Date.now() - 15 * 60 * 1000).toISOString())
+      .select("id")
+      .maybeSingle();
+
+    if (claimError) {
+      console.error("Falha ao reservar criação do pagamento", claimError);
+      return Response.json({ error: "Não foi possível iniciar o pagamento" }, { status: 500, headers: cors });
+    }
+
+    if (!claimedOrder) {
+      // Another request is currently creating the preference. Give it a few
+      // seconds to finish, then return the persisted preference if available.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const { data: current } = await admin
+          .from("orders")
+          .select("payment_status,payment_provider,payment_provider_id,payment_url")
+          .eq("id", order.id)
+          .single();
+
+        if (current?.payment_status === "PENDING" &&
+            current.payment_provider === "mercadopago" &&
+            current.payment_provider_id &&
+            current.payment_url) {
+          return Response.json({
+            init_point: current.payment_url,
+            preference_id: current.payment_provider_id,
+            reused: true
+          }, { headers: cors });
+        }
+
+        if (current?.payment_status !== "PENDING") break;
+      }
+
+      return Response.json({ error: "O pagamento está sendo preparado. Tente novamente em alguns segundos." }, { status: 409, headers: cors });
+    }
+
     const { data: items, error: itemsError } = await admin
       .from("order_items")
       .select("product_name,quantity,unit_price")
@@ -110,15 +159,33 @@ Deno.serve(async (req) => {
     const preference = await mpResponse.json();
     if (!mpResponse.ok) {
       console.error("Mercado Pago:", preference);
+      await admin.from("orders")
+        .update({ payment_creation_token: null, payment_creation_started_at: null })
+        .eq("id", order.id)
+        .eq("payment_creation_token", claimToken);
       return Response.json({ error: "Mercado Pago recusou a preferência" }, { status: 502, headers: cors });
     }
 
-    await admin.from("orders").update({
-      payment_provider: "mercadopago",
-      payment_provider_id: preference.id,
-      payment_url: preference.init_point,
-      payment_status: "PENDING",
-    }).eq("id", order.id).eq("payment_status", "PENDING");
+    const { data: savedOrder, error: saveError } = await admin
+      .from("orders")
+      .update({
+        payment_provider: "mercadopago",
+        payment_provider_id: preference.id,
+        payment_url: preference.init_point,
+        payment_status: "PENDING",
+        payment_creation_token: null,
+        payment_creation_started_at: null,
+      })
+      .eq("id", order.id)
+      .eq("payment_status", "PENDING")
+      .eq("payment_creation_token", claimToken)
+      .select("id")
+      .maybeSingle();
+
+    if (saveError || !savedOrder) {
+      console.error("Não foi possível persistir a preferência criada", saveError);
+      return Response.json({ error: "Não foi possível finalizar a preparação do pagamento. Tente novamente." }, { status: 500, headers: cors });
+    }
 
     return Response.json({ init_point: preference.init_point, preference_id: preference.id }, { headers: cors });
   } catch (error) {
