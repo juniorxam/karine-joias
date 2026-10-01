@@ -23,6 +23,7 @@ Deno.serve(async(req)=>{
     city:Deno.env.get("MELHOR_ENVIO_SENDER_CITY")||"",
     postal_code:Deno.env.get("MELHOR_ENVIO_SENDER_POSTAL_CODE")||"",
     state_abbr:Deno.env.get("MELHOR_ENVIO_SENDER_STATE")||"TO",
+    state_register:"ISENTO",
     complement:Deno.env.get("MELHOR_ENVIO_SENDER_COMPLEMENT")||"",
   };
   if(!sender.name||!sender.email||!sender.phone||!sender.document||!sender.address||!sender.number||!sender.district||!sender.city||!sender.postal_code)
@@ -64,7 +65,16 @@ Deno.serve(async(req)=>{
     declaredProducts.push({name:String(item.product_name),quantity:String(q),unitary_value:String(Number(item.unit_price||0))});
   }
 
-  const quotedPackages = Array.isArray(option.packages) ? option.packages : [];\n  if (quotedPackages.length > 1 && [1,2,17].includes(service)) return json({error:"A cotação retornou múltiplos volumes para um serviço que exige etiquetas separadas. Gere uma nova cotação com outro serviço."},400);\n  const quotedVolumes = quotedPackages.map((pkg:any)=>({\n    height:Number(pkg?.dimensions?.height||5),\n    width:Number(pkg?.dimensions?.width||10),\n    length:Number(pkg?.dimensions?.length||15),\n    weight:Number(pkg?.weight||0.1),\n  }));\n\n  const payload={
+  const quotedPackages = Array.isArray(option.packages) ? option.packages : [];
+  if (quotedPackages.length > 1 && [1,2,17].includes(service)) return json({error:"A cotação retornou múltiplos volumes para um serviço que exige etiquetas separadas. Gere uma nova cotação com outro serviço."},400);
+  const quotedVolumes = quotedPackages.map((pkg:any)=>({
+    height:Number(pkg?.dimensions?.height||5),
+    width:Number(pkg?.dimensions?.width||10),
+    length:Number(pkg?.dimensions?.length||15),
+    weight:Number(pkg?.weight||0.1),
+  }));
+
+  const payload={
     service,
     from:{...sender},
     to:{
@@ -84,7 +94,10 @@ Deno.serve(async(req)=>{
     }
   };
 
-  if(!payload.to.address||!payload.to.number||!payload.to.district||!payload.to.city||!/^\\d{8}$/.test(payload.to.postal_code.replace(/\\D/g,"")))\n    return json({error:"Endereço do destinatário incompleto"},400);\n  if(!/^\\d{11}$/.test(payload.to.document))\n    return json({error:"Documento do destinatário inválido"},400);
+  if(!payload.to.address||!payload.to.number||!payload.to.district||!payload.to.city||!/^\d{8}$/.test(payload.to.postal_code.replace(/\D/g,"")))
+    return json({error:"Endereço do destinatário incompleto"},400);
+  if(!/^\d{11}$/.test(payload.to.document))
+    return json({error:"Documento do destinatário inválido"},400);
 
   const response=await fetch("https://www.melhorenvio.com.br/api/v2/me/cart",{method:"POST",headers:{Accept:"application/json",Authorization:`Bearer ${token}`,"Content-Type":"application/json","User-Agent":ua},body:JSON.stringify(payload)});
   const result=await response.json();
