@@ -73,37 +73,20 @@ Deno.serve(async (req) => {
       }
 
     } else if (status === "rejected" || status === "cancelled") {
-      // restore_order_stock locks the order and only restores while
-      // stock_reserved=true, making repeated notifications harmless.
-      const { error: restoreError } = await admin.rpc("restore_order_stock", {
-        p_order_id: order.id
+      // Atomic transition: lock the order, restore stock if reserved, and
+      // cancel the payment in one database transaction. This avoids the
+      // previous gap where stock could be restored but the order update fail.
+      const { data: cancelled, error: cancelError } = await admin.rpc("cancel_order_payment_service", {
+        p_order_id: order.id,
+        p_payment_status: String(status).toUpperCase()
       });
 
-      if (restoreError) {
-        console.error("Failed to restore order stock", restoreError);
-        return new Response("Stock restoration failed", { status: 500 });
-      }
-
-      // Only the first cancellation transition is allowed to change a
-      // still-pending payment. A repeated webhook becomes a no-op.
-      const { data: updatedOrder, error: updateError } = await admin
-        .from("orders")
-        .update({
-          payment_status: String(status).toUpperCase(),
-          status: "CANCELLED",
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", order.id)
-        .eq("payment_status", "PENDING")
-        .select("id")
-        .maybeSingle();
-
-      if (updateError) {
-        console.error("Failed to cancel order", updateError);
+      if (cancelError) {
+        console.error("Failed to atomically cancel order", cancelError);
         return new Response("Database update failed", { status: 500 });
       }
 
-      if (!updatedOrder) {
+      if (!cancelled) {
         console.log("Ignoring duplicate/non-pending cancellation notification", ref);
       }
     }
