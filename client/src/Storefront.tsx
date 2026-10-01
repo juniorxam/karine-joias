@@ -30,9 +30,10 @@ export default function Storefront() {
   const [view, setView] = useState<"store" | "checkout" | "success" | "product">(
     window.location.pathname.includes("/checkout") ? "checkout" : window.location.pathname.includes("/pedido") ? "success" : window.location.pathname.includes("/produto/") ? "product" : "store"
   );
-  const [order, setOrder] = useState<{ order_number: string; total_amount: number; payment_status?: string } | null>(
+  const [order, setOrder] = useState<{ order_number: string; total_amount: number; payment_status?: string; payment_url?: string } | null>(
     returnedOrder ? { order_number: returnedOrder, total_amount: 0, payment_status: returnParams.get("status") || "success" } : null
   );
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   useEffect(() => {
     loadPublicCatalog().then(setProducts);
@@ -121,7 +122,10 @@ export default function Storefront() {
     setOrder(data);
     setCart([]);
     const payment = await supabase.functions.invoke("create-payment", { body: { order_number: data.order_number, email: customer.email } });
-    if (payment.data?.init_point) { window.location.href = payment.data.init_point; return; }
+    if (payment.data?.init_point || payment.data?.sandbox_init_point) {
+      window.location.href = payment.data.init_point || payment.data.sandbox_init_point;
+      return;
+    }
     if (payment.error) toast.success("Pedido criado", { description: "O pagamento online ainda não está configurado." });
     window.history.pushState({}, "", "/loja/pedido");
     setView("success");
@@ -138,7 +142,16 @@ export default function Storefront() {
   }
 
   if (view === "success" && order) {
-    return <OrderSuccess order={order} onStore={backToStore} />;
+    return <OrderSuccess order={order} onStore={backToStore} onPay={async () => {
+      if (!supabase || !order.order_number) return;
+      setPaymentLoading(true);
+      const email = window.prompt("Digite o e-mail usado no pedido para continuar o pagamento:");
+      if (!email) { setPaymentLoading(false); return; }
+      const payment = await supabase.functions.invoke("create-payment", { body: { order_number: order.order_number, email } });
+      setPaymentLoading(false);
+      if (payment.data?.init_point || payment.data?.sandbox_init_point) window.location.href = payment.data.init_point || payment.data.sandbox_init_point;
+      else toast.error("Não foi possível gerar o pagamento", { description: payment.error?.message || "Verifique a configuração do Mercado Pago." });
+    }} paymentLoading={paymentLoading} />;
   }
 
   return <div className="storefront">
@@ -279,6 +292,6 @@ function Checkout({ cart, subtotal, onBack, onFinish, onChangeQty }: { cart: Car
   </div>;
 }
 
-function OrderSuccess({ order, onStore }: { order: { order_number: string; total_amount: number; payment_status?: string }; onStore: () => void }) {
-  return <div className="storefront success-page"><main className="success-card"><div className="success-icon"><Check size={30}/></div><p className="store-kicker">PEDIDO RECEBIDO</p><h1>Obrigada pela sua compra.</h1><p>Seu pedido <strong>{order.order_number}</strong> foi recebido. {order.payment_status === "success" ? "O pagamento foi encaminhado para confirmação." : "Acompanhe a confirmação do pagamento pelo Mercado Pago."}</p>{order.total_amount > 0 && <div className="success-total">Total do pedido <strong>{formatMoney(Number(order.total_amount))}</strong></div>}<button className="store-primary-cta" onClick={onStore}>Voltar para a loja <ArrowRight size={16}/></button></main></div>;
+function OrderSuccess({ order, onStore, onPay, paymentLoading }: { order: { order_number: string; total_amount: number; payment_status?: string }; onStore: () => void; onPay: () => void; paymentLoading: boolean }) {
+  return <div className="storefront success-page"><main className="success-card"><div className="success-icon"><Check size={30}/></div><p className="store-kicker">PEDIDO RECEBIDO</p><h1>Obrigada pela sua compra.</h1><p>Seu pedido <strong>{order.order_number}</strong> foi recebido. {order.payment_status === "success" ? "O pagamento foi encaminhado para confirmação." : "Acompanhe a confirmação do pagamento pelo Mercado Pago."}</p>{order.total_amount > 0 && <div className="success-total">Total do pedido <strong>{formatMoney(Number(order.total_amount))}</strong></div>}{order.payment_status !== "success" && <button className="checkout-submit" onClick={onPay} disabled={paymentLoading}>{paymentLoading ? "Gerando pagamento..." : "Continuar para pagamento"}</button>}<button className="store-primary-cta" onClick={onStore}>Voltar para a loja <ArrowRight size={16}/></button></main></div>;
 }
