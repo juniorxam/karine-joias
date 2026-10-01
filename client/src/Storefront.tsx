@@ -48,6 +48,7 @@ export default function Storefront() {
     returnedOrder ? { order_number: returnedOrder, total_amount: 0, payment_status: returnParams.get("status") || "success" } : null
   );
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [trackingLoading, setTrackingLoading] = useState(false);
 
   useEffect(() => {
     loadPublicCatalog().then(setProducts);
@@ -183,7 +184,16 @@ export default function Storefront() {
   }
 
   if (view === "success" && order) {
-    return <OrderSuccess order={order} onStore={backToStore} onPay={async () => {
+    return <OrderSuccess order={order} onStore={backToStore} onTrack={async () => {
+      if (!supabase || !order.order_number) return;
+      const token = localStorage.getItem("kj-last-order-token") || "";
+      if (!token) return toast.error("Token de acompanhamento não encontrado", { description: "Este pedido só pode ser consultado pelo link recebido após a compra." });
+      setTrackingLoading(true);
+      const { data, error } = await supabase.functions.invoke("order-status", { body: { order_number: order.order_number, token } });
+      setTrackingLoading(false);
+      if (error || !data?.order) return toast.error("Não foi possível consultar o pedido", { description: error?.message || data?.error || "Tente novamente." });
+      setOrder({ ...order, ...data.order });
+    }} onPay={async () => {
       if (!supabase || !order.order_number) return;
       setPaymentLoading(true);
       const email = localStorage.getItem("kj-last-order-email") || "";
@@ -196,7 +206,7 @@ export default function Storefront() {
       setPaymentLoading(false);
       if (payment.data?.init_point || payment.data?.sandbox_init_point) window.location.href = payment.data.init_point || payment.data.sandbox_init_point;
       else toast.error("Não foi possível gerar o pagamento", { description: payment.error?.message || "Verifique a configuração do Mercado Pago." });
-    }} paymentLoading={paymentLoading} />;
+    }} paymentLoading={paymentLoading} trackingLoading={trackingLoading} />;
   }
 
   return <div className="storefront">
@@ -360,6 +370,25 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   </div>;
 }
 
-function OrderSuccess({ order, onStore, onPay, paymentLoading }: { order: { order_number: string; total_amount: number; payment_status?: string; status?: string }; onStore: () => void; onPay: () => void; paymentLoading: boolean }) {
-  return <div className="storefront success-page"><main className="success-card"><div className="success-icon"><Check size={30}/></div><p className="store-kicker">PEDIDO RECEBIDO</p><h1>Obrigada pela sua compra.</h1><p>Seu pedido <strong>{order.order_number}</strong> foi recebido. {order.payment_status === "PAID" ? "Pagamento confirmado." : "O pagamento ainda está aguardando confirmação."}</p><p className="checkout-note">Status do pedido: <strong>{order.status || "PENDING_PAYMENT"}</strong></p>{order.total_amount > 0 && <div className="success-total">Total do pedido <strong>{formatMoney(Number(order.total_amount))}</strong></div>}{order.payment_status !== "PAID" && <button className="checkout-submit" onClick={onPay} disabled={paymentLoading}>{paymentLoading ? "Gerando pagamento..." : "Continuar para pagamento"}</button>}<button className="store-primary-cta" onClick={onStore}>Voltar para a loja <ArrowRight size={16}/></button></main></div>;
+function OrderSuccess({ order, onStore, onPay, onTrack, paymentLoading, trackingLoading }: { order: { order_number: string; total_amount: number; payment_status?: string; status?: string }; onStore: () => void; onPay: () => void; onTrack: () => void; paymentLoading: boolean; trackingLoading: boolean }) {
+  const steps = [
+    ["PENDING_PAYMENT", "Pedido recebido"],
+    ["PAID", "Pagamento confirmado"],
+    ["PROCESSING", "Preparando pedido"],
+    ["READY_TO_SHIP", "Pronto para envio"],
+    ["SHIPPED", "Pedido enviado"],
+    ["DELIVERED", "Entregue"],
+  ] as const;
+  const statusIndex = Math.max(0, steps.findIndex(([status]) => status === order.status));
+  return <div className="storefront success-page"><main className="success-card">
+    <div className="success-icon"><Check size={30}/></div>
+    <p className="store-kicker">ACOMPANHAMENTO DO PEDIDO</p>
+    <h1>Pedido {order.order_number}</h1>
+    <p>{order.payment_status === "PAID" ? "Pagamento confirmado." : "O pagamento ainda está aguardando confirmação."}</p>
+    <div className="success-total">Total do pedido <strong>{formatMoney(Number(order.total_amount))}</strong></div>
+    <div className="order-timeline">{steps.map(([status, label], index) => <div className={index <= statusIndex ? "timeline-step done" : "timeline-step"} key={status}><span>{index < statusIndex ? "✓" : index + 1}</span><div><strong>{label}</strong><small>{index === statusIndex ? "Status atual" : index < statusIndex ? "Concluído" : "Aguardando"}</small></div></div>)}</div>
+    {order.payment_status !== "PAID" && <button className="checkout-submit" onClick={onPay} disabled={paymentLoading}>{paymentLoading ? "Gerando pagamento..." : "Continuar para pagamento"}</button>}
+    <button className="shipping-quote-button" onClick={onTrack} disabled={trackingLoading}>{trackingLoading ? "Atualizando..." : "Atualizar status do pedido"}</button>
+    <button className="store-primary-cta" onClick={onStore}>Voltar para a loja <ArrowRight size={16}/></button>
+  </main></div>;
 }
