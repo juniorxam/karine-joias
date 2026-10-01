@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceKey);
     const { data: order, error: orderError } = await admin
       .from("orders")
-      .select("id,order_number,customer_name,customer_email,total_amount,shipping_amount,status,payment_status")
+      .select("id,order_number,customer_name,customer_email,total_amount,shipping_amount,discount_amount,status,payment_status")
       .eq("order_number", order_number)
       .eq("customer_email", String(email).trim().toLowerCase())
       .single();
@@ -45,11 +45,37 @@ Deno.serve(async (req) => {
     if (itemsError || !items?.length) return Response.json({ error: "Itens do pedido não encontrados" }, { status: 400, headers: cors });
 
     const itemsTotal = items.reduce((sum, item) => sum + Number(item.unit_price) * Number(item.quantity), 0);
-    const expectedTotal = itemsTotal + Number(order.shipping_amount || 0);
+    const discountAmount = Math.max(0, Number(order.discount_amount || 0));
+    const expectedTotal = itemsTotal - discountAmount + Number(order.shipping_amount || 0);
     if (Math.abs(expectedTotal - Number(order.total_amount)) > 0.01) {
       console.error("Pedido com total inconsistente", { order: order.order_number, expectedTotal, total: order.total_amount });
       return Response.json({ error: "Total do pedido inconsistente" }, { status: 409, headers: cors });
     }
+
+    // O Checkout Pro soma os itens enviados. Para preservar exatamente o total do pedido
+    // com cupom, distribuímos o desconto nas unidades dos produtos, sem enviar preços negativos.
+    let remainingDiscountCents = Math.round(discountAmount * 100);
+    const paymentItems: Array<{ title: string; quantity: number; unit_price: number; currency_id: string }> = [];
+    for (const item of items) {
+      const quantity = Number(item.quantity);
+      const originalUnitCents = Math.round(Number(item.unit_price) * 100);
+      if (remainingDiscountCents <= 0) {
+        paymentItems.push({ title: item.product_name, quantity, unit_price: originalUnitCents / 100, currency_id: "BRL" });
+        continue;
+      }
+      const lineCents = originalUnitCents * quantity;
+      const lineDiscount = Math.min(remainingDiscountCents, lineCents);
+      const adjustedLineCents = lineCents - lineDiscount;
+      const baseUnitCents = Math.floor(adjustedLineCents / quantity);
+      let remainder = adjustedLineCents - baseUnitCents * quantity;
+      for (let unit = 0; unit < quantity; unit++) {
+        const unitCents = baseUnitCents + (remainder > 0 ? 1 : 0);
+        if (remainder > 0) remainder--;
+        paymentItems.push({ title: item.product_name, quantity: 1, unit_price: unitCents / 100, currency_id: "BRL" });
+      }
+      remainingDiscountCents -= lineDiscount;
+    }
+    if (remainingDiscountCents > 0) return Response.json({ error: "Desconto do pedido excede o valor dos produtos" }, { status: 409, headers: cors });
 
     const mpResponse = await fetch("https://api.mercadopago.com/checkout/preferences", {
       method: "POST",
@@ -59,12 +85,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         items: [
-          ...items.map((item) => ({
-            title: item.product_name,
-            quantity: item.quantity,
-            unit_price: Number(item.unit_price),
-            currency_id: "BRL",
-          })),
+          ...paymentItems,
           ...(Number(order.shipping_amount) > 0 ? [{
             title: "Frete",
             quantity: 1,
