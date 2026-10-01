@@ -14,8 +14,7 @@ Deno.serve(async (req) => {
 
     const token = Deno.env.get("MP_ACCESS_TOKEN") || "";
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-    const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
-    const serviceKey = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     if (!token || !supabaseUrl || !serviceKey) return new Response("Not configured", { status: 503 });
 
     const paymentRes = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(dataId)}`, { headers: { Authorization: `Bearer ${token}` } });
