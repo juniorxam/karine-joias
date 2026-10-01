@@ -1,0 +1,54 @@
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { WebhookSignatureValidator } from "npm:mercadopago";
+
+Deno.serve(async (req) => {
+  try {
+    const url = new URL(req.url);
+    const dataId = url.searchParams.get("data.id") || "";
+    const signature = req.headers.get("x-signature") || "";
+    const requestId = req.headers.get("x-request-id") || "";
+    const key = Deno.env.get("MP_WEBHOOK_KEY") || "";
+    if (!dataId || !signature || !key) return new Response("Unauthorized", { status: 401 });
+
+    WebhookSignatureValidator.validate({ xSignature: signature, xRequestId: requestId, dataId, secret: key });
+
+    const token = Deno.env.get("MP_ACCESS_TOKEN") || "";
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
+    const serviceKey = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    if (!token || !supabaseUrl || !serviceKey) return new Response("Not configured", { status: 503 });
+
+    const paymentRes = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(dataId)}`, { headers: { Authorization: `Bearer ${token}` } });
+    const payment = await paymentRes.json();
+    if (!paymentRes.ok) return new Response("Payment lookup failed", { status: 502 });
+
+    const admin = createClient(supabaseUrl, serviceKey);
+    const ref = payment.external_reference;
+    if (!ref) return new Response("ok");
+
+    const { data: order } = await admin.from("orders").select("id,payment_status").eq("order_number", ref).single();
+    if (!order) return new Response("ok");
+
+    await admin.from("payment_events").upsert({
+      order_id: order.id,
+      provider: "mercadopago",
+      provider_event_id: String(payment.id),
+      event_type: payment.status || "unknown",
+      payload: payment
+    }, { onConflict: "provider,provider_event_id" });
+
+    const status = payment.status;
+    if (status === "approved") {
+      await admin.from("orders").update({ payment_status: "PAID", status: "PAID", updated_at: new Date().toISOString() }).eq("id", order.id);
+      await admin.from("order_status_history").insert({ order_id: order.id, status: "PAID", note: "Pagamento aprovado pelo Mercado Pago" });
+    } else if (status === "rejected" || status === "cancelled") {
+      await admin.from("orders").update({ payment_status: String(status).toUpperCase(), status: "CANCELLED", updated_at: new Date().toISOString() }).eq("id", order.id);
+      await admin.from("order_status_history").insert({ order_id: order.id, status: "CANCELLED", note: `Pagamento ${status}` });
+    }
+
+    return new Response("ok");
+  } catch (error) {
+    console.error(error);
+    return new Response("Invalid webhook", { status: 401 });
+  }
+});
