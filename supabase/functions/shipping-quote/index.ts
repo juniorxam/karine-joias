@@ -107,10 +107,10 @@ Deno.serve(async (req) => {
       .filter((option: any) => option && option.id && Number(option.price) >= 0 && !option.error)
       .map((option: any) => ({
         id: option.id,
-        company: option.company?.name || option.company?.name || "Transportadora",
+        company: option.company?.name || "Transportadora",
         service: option.name || option.service || "Envio",
         price: Number(option.price),
-        delivery_time: Number(option.delivery_time || 0),
+        delivery_time: Number(option.custom_delivery_time || option.delivery_time || 0),
       }));
 
     if (!options.length) throw new Error("Nenhuma opção de frete disponível");
