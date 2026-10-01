@@ -118,3 +118,5 @@ create policy clients_owner_delete on public.clients for delete to authenticated
 create policy sales_owner_all on public.sales for all to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 create policy cash_entries_owner_all on public.cash_entries for all to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 create policy promotions_owner_all on public.promotions for all to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+
+revoke all on table public.products, public.clients, public.sales, public.cash_entries, public.promotions from anon;
