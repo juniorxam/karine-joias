@@ -3,6 +3,7 @@ import { fallbackCatalog, type CatalogProduct } from "./catalog";
 
 type PublicRow = {
   id: string;
+  product_id: number;
   name: string;
   category: string;
   material: string;
@@ -13,11 +14,19 @@ type PublicRow = {
 };
 
 export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
-  if (!isSupabaseConfigured || !supabase) return fallbackCatalog;
+  if (!isSupabaseConfigured || !supabase) {
+    try {
+      const local = JSON.parse(localStorage.getItem("kj-public-products") || "[]") as CatalogProduct[];
+      const published = local.filter((item: any) => item.isPublished);
+      return published.length ? published : fallbackCatalog;
+    } catch {
+      return fallbackCatalog;
+    }
+  }
 
   const { data, error } = await supabase
     .from("public_products")
-    .select("id,name,category,material,price,image_url,featured,is_published")
+    .select("id,product_id,name,category,material,price,image_url,featured,is_published")
     .eq("store_slug", "karine-joias")
     .eq("is_published", true)
     .order("featured", { ascending: false })
@@ -25,7 +34,7 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
 
   if (error || !data?.length) return fallbackCatalog;
   return (data as PublicRow[]).map((row) => ({
-    id: row.id,
+    id: row.product_id ?? row.id,
     name: row.name,
     category: row.category,
     material: row.material,

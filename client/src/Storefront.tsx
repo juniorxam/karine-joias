@@ -5,6 +5,7 @@ import { formatMoney, type CatalogProduct } from "./lib/catalog";
 import { loadPublicCatalog } from "./lib/publicCatalog";
 
 const categories = ["Todas", "Joias", "Semi-joias", "Acessórios"];
+const storeWhatsApp = (import.meta.env.VITE_STORE_WHATSAPP as string | undefined)?.replace(/\D/g, "");
 
 export default function Storefront() {
   const [products, setProducts] = useState<CatalogProduct[]>([]);
@@ -27,6 +28,10 @@ export default function Storefront() {
   const featured = products.filter((product) => product.featured).slice(0, 3);
   const askAbout = async (product: CatalogProduct) => {
     const message = `Olá, Karine! Gostei da peça ${product.name} (${formatMoney(product.price)}). Pode me contar mais?`;
+    if (storeWhatsApp) {
+      window.open(`https://wa.me/${storeWhatsApp}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+      return;
+    }
     try {
       await navigator.clipboard.writeText(message);
       toast.success("Mensagem preparada", { description: "Copiamos uma mensagem para você enviar à Karine." });
