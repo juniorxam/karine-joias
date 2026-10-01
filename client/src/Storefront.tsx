@@ -14,9 +14,22 @@ type ShippingOption = { id: number | string; company: string; service: string; p
 type Shipping = { postal_code: string; address: string; number: string; complement: string; neighborhood: string; city: string; state: string; shipping_option?: ShippingOption; shipping_quote_id?: string };
 
 const cartKey = "kj-cart";
+const checkoutDraftKey = "kj-checkout-draft";
 
 function readCart(): CartItem[] {
   try { return JSON.parse(localStorage.getItem(cartKey) || "[]"); } catch { return []; }
+}
+
+function readCheckoutDraft(): { customer: Customer; shipping: Shipping; couponCode: string } {
+  const empty = {
+    customer: { name: "", email: "", phone: "" },
+    shipping: { postal_code: "", address: "", number: "", complement: "", neighborhood: "", city: "", state: "" },
+    couponCode: ""
+  };
+  try {
+    const saved = JSON.parse(localStorage.getItem(checkoutDraftKey) || "null");
+    return saved ? { ...empty, ...saved, customer: { ...empty.customer, ...saved.customer }, shipping: { ...empty.shipping, ...saved.shipping } } : empty;
+  } catch { return empty; }
 }
 
 export default function Storefront() {
@@ -25,6 +38,7 @@ export default function Storefront() {
   const [category, setCategory] = useState("Todas");
   const [menuOpen, setMenuOpen] = useState(false);
   const [cart, setCart] = useState<CartItem[]>(readCart);
+  const [checkoutDraft, setCheckoutDraft] = useState(readCheckoutDraft);
   const returnParams = new URLSearchParams(window.location.search);
   const returnedOrder = returnParams.get("order");
   const [view, setView] = useState<"store" | "checkout" | "success" | "product">(
@@ -61,6 +75,10 @@ export default function Storefront() {
   useEffect(() => {
     localStorage.setItem(cartKey, JSON.stringify(cart));
   }, [cart]);
+
+  useEffect(() => {
+    localStorage.setItem(checkoutDraftKey, JSON.stringify(checkoutDraft));
+  }, [checkoutDraft]);
 
   const filtered = useMemo(() => products.filter((product) => {
     const matchesCategory = category === "Todas" || product.category === category;
@@ -143,6 +161,7 @@ export default function Storefront() {
     localStorage.setItem("kj-last-order-number", data.order_number);
     if (data.tracking_token) localStorage.setItem("kj-last-order-token", data.tracking_token);
     setCart([]);
+    localStorage.removeItem(checkoutDraftKey);
     const payment = await supabase.functions.invoke("create-payment", { body: { order_number: data.order_number, email: customer.email } });
     if (payment.data?.init_point || payment.data?.sandbox_init_point) {
       window.location.href = payment.data.init_point || payment.data.sandbox_init_point;
@@ -160,7 +179,7 @@ export default function Storefront() {
   }
 
   if (view === "checkout") {
-    return <Checkout cart={cart} subtotal={subtotal} onBack={backToStore} onFinish={finishOrder} onChangeQty={changeQty} />;
+    return <Checkout cart={cart} subtotal={subtotal} draft={checkoutDraft} onDraftChange={setCheckoutDraft} onBack={backToStore} onFinish={finishOrder} onChangeQty={changeQty} />;
   }
 
   if (view === "success" && order) {
@@ -248,15 +267,19 @@ function ProductDetail({ product, onBack, onAdd, onCheckout }: { product: Catalo
   </div>;
 }
 
-function Checkout({ cart, subtotal, onBack, onFinish, onChangeQty }: { cart: CartItem[]; subtotal: number; onBack: () => void; onFinish: (customer: Customer, shipping: Shipping, couponCode?: string) => Promise<void>; onChangeQty: (id: CatalogProduct["id"], delta: number) => void }) {
-  const [customer, setCustomer] = useState<Customer>({ name: "", email: "", phone: "" });
-  const [shipping, setShipping] = useState<Shipping>({ postal_code: "", address: "", number: "", complement: "", neighborhood: "", city: "", state: "" });
+function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onChangeQty }: { cart: CartItem[]; subtotal: number; draft: { customer: Customer; shipping: Shipping; couponCode: string }; onDraftChange: React.Dispatch<React.SetStateAction<{ customer: Customer; shipping: Shipping; couponCode: string }>>; onBack: () => void; onFinish: (customer: Customer, shipping: Shipping, couponCode?: string) => Promise<void>; onChangeQty: (id: CatalogProduct["id"], delta: number) => void }) {
+  const [customer, setCustomer] = useState<Customer>(draft.customer);
+  const [shipping, setShipping] = useState<Shipping>(draft.shipping);
   const [busy, setBusy] = useState(false);
   const [zipLoading, setZipLoading] = useState(false);
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
   const [shippingOption, setShippingOption] = useState<ShippingOption | null>(null);
   const [shippingQuoteId, setShippingQuoteId] = useState<string | null>(null);
-  const [shippingLoading, setShippingLoading] = useState(false);\n  const [couponCode, setCouponCode] = useState("");\n  const [couponBusy, setCouponBusy] = useState(false);\n  const [couponError, setCouponError] = useState("");\n  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [shippingLoading, setShippingLoading] = useState(false);\n  const [couponCode, setCouponCode] = useState(draft.couponCode);\n  const [couponBusy, setCouponBusy] = useState(false);\n  const [couponError, setCouponError] = useState("");\n  const [couponDiscount, setCouponDiscount] = useState(0);
+
+  useEffect(() => {
+    onDraftChange(v => ({ ...v, customer, shipping, couponCode }));
+  }, [customer, shipping, couponCode, onDraftChange]);
 
   const cartSignature = cart.map(item => `${item.id}:${item.quantity}`).sort().join("|");
 
