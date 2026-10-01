@@ -65,6 +65,20 @@ Deno.serve(async (req) => {
         console.log("Ignoring duplicate/non-pending approved notification", ref);
       }
 
+    } else if (status === "refunded") {
+      const { data: refunded, error: refundError } = await admin.rpc("mark_order_refunded_webhook_service", {
+        p_order_id: order.id
+      });
+
+      if (refundError) {
+        console.error("Failed to reconcile Mercado Pago refund", refundError);
+        return new Response("Database update failed", { status: 500 });
+      }
+
+      if (!refunded) {
+        console.log("Ignoring duplicate/non-paid refund notification", ref);
+      }
+
     } else if (status === "rejected" || status === "cancelled") {
       // Atomic transition: lock the order, restore stock if reserved, and
       // cancel the payment in one database transaction. This avoids the
