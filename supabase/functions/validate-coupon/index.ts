@@ -16,8 +16,7 @@ Deno.serve(async (req) => {
     if (!items.length || items.length > 30) throw new Error("Carrinho inválido");
 
     const url = Deno.env.get("SUPABASE_URL")!;
-    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
-      JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}").default;
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!url || !key) throw new Error("Servidor não configurado");
     const db = createClient(url, key);
 
@@ -32,19 +31,23 @@ Deno.serve(async (req) => {
 
     const { data: products, error: productError } = await db
       .from("products")
-      .select("id,price,active")
+      .select("id,price,active,owner_id")
       .in("id", Array.from(quantities.keys()));
     if (productError) throw productError;
     if (!products || products.length !== quantities.size || products.some((p: any) => p.active === false)) {
       throw new Error("Produto indisponível");
     }
 
+    const owners = [...new Set(products.map((p: any) => String(p.owner_id)))];
+    if (owners.length !== 1) throw new Error("Carrinho inválido");
+    const ownerId = owners[0];
     const subtotal = products.reduce((sum: number, p: any) => sum + Number(p.price) * (quantities.get(Number(p.id)) || 0), 0);
 
     const { data: coupon, error: couponError } = await db
       .from("coupons")
       .select("id,code,discount_type,discount_value,min_order_amount,starts_at,expires_at,max_uses,used_count,active")
       .eq("code", code)
+      .eq("owner_id", ownerId)
       .eq("active", true)
       .maybeSingle();
     if (couponError) throw couponError;
