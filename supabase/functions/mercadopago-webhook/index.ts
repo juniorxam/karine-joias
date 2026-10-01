@@ -42,6 +42,7 @@ Deno.serve(async (req) => {
       await admin.from("orders").update({ payment_status: "PAID", status: "PAID", updated_at: new Date().toISOString() }).eq("id", order.id);
       await admin.from("order_status_history").insert({ order_id: order.id, status: "PAID", note: "Pagamento aprovado pelo Mercado Pago" });
     } else if (status === "rejected" || status === "cancelled") {
+      await admin.rpc("restore_order_stock", { p_order_id: order.id });
       await admin.from("orders").update({ payment_status: String(status).toUpperCase(), status: "CANCELLED", updated_at: new Date().toISOString() }).eq("id", order.id);
       await admin.from("order_status_history").insert({ order_id: order.id, status: "CANCELLED", note: `Pagamento ${status}` });
     }
