@@ -100,6 +100,10 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
 
   const labelFlow=async(action:"buy"|"generate"|"print")=>{
     if(!supabase||!selected?.id)return;
+    if(action==="buy"){
+      const confirmed=window.confirm("Comprar esta etiqueta no Melhor Envio consumirá o saldo da conta. Confirma a compra?");
+      if(!confirmed)return;
+    }
     setLabelAction(action);
     const {data,error}=await supabase.functions.invoke("melhorenvio-label",{body:{order_id:selected.id,action}});
     setLabelAction("");
