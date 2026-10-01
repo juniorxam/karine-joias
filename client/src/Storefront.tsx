@@ -27,8 +27,8 @@ export default function Storefront() {
   const [cart, setCart] = useState<CartItem[]>(readCart);
   const returnParams = new URLSearchParams(window.location.search);
   const returnedOrder = returnParams.get("order");
-  const [view, setView] = useState<"store" | "checkout" | "success">(
-    window.location.pathname.includes("/checkout") ? "checkout" : window.location.pathname.includes("/pedido") ? "success" : "store"
+  const [view, setView] = useState<"store" | "checkout" | "success" | "product">(
+    window.location.pathname.includes("/checkout") ? "checkout" : window.location.pathname.includes("/pedido") ? "success" : window.location.pathname.includes("/produto/") ? "product" : "store"
   );
   const [order, setOrder] = useState<{ order_number: string; total_amount: number; payment_status?: string } | null>(
     returnedOrder ? { order_number: returnedOrder, total_amount: 0, payment_status: returnParams.get("status") || "success" } : null
@@ -50,6 +50,8 @@ export default function Storefront() {
   }), [category, products, query]);
 
   const featured = products.filter((product) => product.featured).slice(0, 3);
+  const productSlug = decodeURIComponent(window.location.pathname.split("/produto/")[1] || "");
+  const selectedProduct = view === "product" ? products.find(product => (product.slug || String(product.id)) === productSlug || String(product.id) === productSlug) : null;
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
@@ -79,6 +81,13 @@ export default function Storefront() {
       navigator.clipboard?.writeText(message);
       toast.success("Mensagem preparada");
     }
+  };
+
+  const openProduct = (product: CatalogProduct) => {
+    const slug = product.slug || String(product.id);
+    window.history.pushState({}, "", `/loja/produto/${encodeURIComponent(slug)}`);
+    setView("product");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const goCheckout = () => {
@@ -118,6 +127,11 @@ export default function Storefront() {
     setView("success");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  if (view === "product") {
+    if (!selectedProduct) return <div className="storefront success-page"><main className="success-card"><p className="store-kicker">PEÇA NÃO ENCONTRADA</p><h1>Essa peça não está disponível.</h1><button className="store-primary-cta" onClick={backToStore}>Voltar para a loja <ArrowRight size={16}/></button></main></div>;
+    return <ProductDetail product={selectedProduct} onBack={backToStore} onAdd={() => addToCart(selectedProduct)} onCheckout={goCheckout} />;
+  }
 
   if (view === "checkout") {
     return <Checkout cart={cart} subtotal={subtotal} onBack={backToStore} onFinish={finishOrder} onChangeQty={changeQty} />;
@@ -164,13 +178,13 @@ export default function Storefront() {
 
       {featured.length > 0 && <section className="store-featured">
         <div className="store-section-heading"><div><p className="store-kicker">CURADORIA KARINE</p><h2>Peças para se apaixonar.</h2></div><a href="#colecao">Ver toda a coleção <ArrowRight size={15} /></a></div>
-        <div className="featured-grid">{featured.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} featured />)}</div>
+        <div className="featured-grid">{featured.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} featured />)}</div>
       </section>}
 
       <section className="store-catalog" id="colecao">
         <div className="store-section-heading catalog-heading"><div><p className="store-kicker">A COLEÇÃO</p><h2>Encontre o seu brilho.</h2></div><span>{filtered.length} peças</span></div>
         <div className="catalog-toolbar"><div className="catalog-search"><Search size={17} /><input aria-label="Buscar produtos" placeholder="Buscar uma peça..." value={query} onChange={event => setQuery(event.target.value)} /></div><div className="category-list">{categories.map(item => <button className={category === item ? "selected" : ""} key={item} onClick={() => setCategory(item)}>{item}</button>)}</div></div>
-        {filtered.length ? <div className="store-product-grid">{filtered.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} />)}</div> : <div className="empty-catalog"><Gem size={28} /><h3>Nenhuma peça encontrada.</h3><p>Tente outro termo ou volte para todas as categorias.</p><button onClick={() => { setQuery(""); setCategory("Todas"); }}>Limpar busca</button></div>}
+        {filtered.length ? <div className="store-product-grid">{filtered.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} />)}</div> : <div className="empty-catalog"><Gem size={28} /><h3>Nenhuma peça encontrada.</h3><p>Tente outro termo ou volte para todas as categorias.</p><button onClick={() => { setQuery(""); setCategory("Todas"); }}>Limpar busca</button></div>}
       </section>
     </main>
 
@@ -178,11 +192,21 @@ export default function Storefront() {
   </div>;
 }
 
-function ProductCard({ product, onAdd, onAsk, featured = false }: { product: CatalogProduct; onAdd: (product: CatalogProduct) => void; onAsk: (product: CatalogProduct) => void; featured?: boolean }) {
+function ProductCard({ product, onAdd, onAsk, onOpen, featured = false }: { product: CatalogProduct; onAdd: (product: CatalogProduct) => void; onAsk: (product: CatalogProduct) => void; onOpen: (product: CatalogProduct) => void; featured?: boolean }) {
   return <article className={featured ? "store-product-card featured-card" : "store-product-card"}>
-    <div className="store-product-art" style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}><div className="product-art-glow"><Gem size={featured ? 39 : 31} strokeWidth={1.1} /></div><span>{product.category}</span></div>
-    <div className="store-product-info"><p className="product-material">{product.material}</p><h3>{product.name}</h3><div className="store-product-bottom"><strong>{formatMoney(product.price)}</strong><div className="product-actions"><button className="product-buy" onClick={() => onAdd(product)}>Comprar</button><button className="product-interest" onClick={() => onAsk(product)} aria-label={`Tenho interesse em ${product.name}`}>{featured ? "WhatsApp" : <Check size={15} />}</button></div></div></div>
+    <button className="store-product-art" onClick={() => onOpen(product)} aria-label={`Ver ${product.name}`} style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}><div className="product-art-glow"><Gem size={featured ? 39 : 31} strokeWidth={1.1} /></div><span>{product.category}</span></div>
+    </button><div className="store-product-info"><p className="product-material">{product.material}</p><h3>{product.name}</h3><div className="store-product-bottom"><strong>{formatMoney(product.price)}</strong><div className="product-actions"><button className="product-buy" onClick={() => onAdd(product)}>Comprar</button><button className="product-interest" onClick={() => onAsk(product)} aria-label={`Tenho interesse em ${product.name}`}>{featured ? "WhatsApp" : <Check size={15} />}</button></div></div></div>
   </article>;
+}
+
+function ProductDetail({ product, onBack, onAdd, onCheckout }: { product: CatalogProduct; onBack: () => void; onAdd: () => void; onCheckout: () => void }) {
+  return <div className="storefront checkout-page">
+    <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Karine</strong><small>JOIAS</small></span></span><button className="store-cart-button" onClick={onCheckout}><ShoppingBag size={18}/></button></header>
+    <main className="product-detail-page">
+      <div className="product-detail-image" style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}><Gem size={80} strokeWidth={1}/></div>
+      <div className="product-detail-copy"><p className="store-kicker">{product.category}</p><p className="product-material">{product.material}</p><h1>{product.name}</h1><strong className="product-detail-price">{formatMoney(product.price)}</strong><p className="product-detail-description">{product.description || "Uma peça escolhida para trazer delicadeza, presença e brilho aos seus momentos."}</p><button className="checkout-submit" onClick={onAdd}>Adicionar ao carrinho</button><button className="store-primary-cta" onClick={onCheckout}>Ir para o carrinho <ArrowRight size={16}/></button></div>
+    </main>
+  </div>;
 }
 
 function Checkout({ cart, subtotal, onBack, onFinish, onChangeQty }: { cart: CartItem[]; subtotal: number; onBack: () => void; onFinish: (customer: Customer, shipping: Shipping) => Promise<void>; onChangeQty: (id: CatalogProduct["id"], delta: number) => void }) {
