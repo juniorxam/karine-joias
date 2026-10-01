@@ -79,9 +79,44 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
 
   const updateStatus=async(order:Order,status:string)=>{
     if(!supabase)return;
-    const {error}=await supabase.from("orders").update({status,updated_at:new Date().toISOString()}).eq("id",order.id).eq("owner_id",ownerId);
+
+    const allowed: Record<string,string[]> = {
+      PENDING_PAYMENT:["CANCELLED"],
+      PAID:["PROCESSING","CANCELLED","REFUNDED"],
+      PROCESSING:["READY_TO_SHIP","CANCELLED"],
+      READY_TO_SHIP:["SHIPPED"],
+      SHIPPED:["DELIVERED"],
+      DELIVERED:[],
+      CANCELLED:[],
+      REFUNDED:[]
+    };
+    if(status===order.status)return;
+    if(!(allowed[order.status]||[]).includes(status)){
+      toast.error("Transição de status inválida",{
+        description:`Não é possível mudar de "${statusLabel[order.status]||order.status}" para "${statusLabel[status]||status}".`
+      });
+      return;
+    }
+
+    // A loja só pode iniciar a preparação depois da confirmação do pagamento.
+    if(status==="PROCESSING" && order.payment_status!=="PAID"){
+      toast.error("Pagamento ainda não confirmado");
+      return;
+    }
+
+    const {error}=await supabase.from("orders")
+      .update({status,updated_at:new Date().toISOString()})
+      .eq("id",order.id)
+      .eq("owner_id",ownerId)
+      .eq("status",order.status);
+
     if(error)toast.error("Não foi possível atualizar",{description:error.message});
-    else { setOrders(v=>v.map(x=>x.id===order.id?{...x,status}:x)); toast.success("Pedido atualizado"); }
+    else {
+      setOrders(v=>v.map(x=>x.id===order.id?{...x,status}:x));
+      if(selected?.id===order.id) setSelected(v=>v?v.status===order.status?{...v,status}:v:v);
+      toast.success("Pedido atualizado");
+      await openOrder({...order,status});
+    }
   };
 
   const visible=filter==="TODOS"?orders:orders.filter(x=>x.status===filter);
