@@ -37,7 +37,7 @@ export default function Storefront() {
 
   useEffect(() => {
     loadPublicCatalog().then(setProducts);
-    document.title = view === "checkout" ? "Karine Joias · Finalizar pedido" : "Karine Joias · Escolha o detalhe que fica";
+    document.title = view === "checkout" ? "Karine Joias · Finalizar pedido" : view === "product" && selectedProduct ? `${selectedProduct.name} · Karine Joias` : view === "success" ? "Karine Joias · Pedido" : "Karine Joias · Escolha o detalhe que fica";
   }, [view]);
 
   useEffect(() => {
@@ -120,6 +120,8 @@ export default function Storefront() {
       return;
     }
     setOrder(data);
+    localStorage.setItem("kj-last-order-email", customer.email.trim().toLowerCase());
+    localStorage.setItem("kj-last-order-number", data.order_number);
     setCart([]);
     const payment = await supabase.functions.invoke("create-payment", { body: { order_number: data.order_number, email: customer.email } });
     if (payment.data?.init_point || payment.data?.sandbox_init_point) {
@@ -145,8 +147,12 @@ export default function Storefront() {
     return <OrderSuccess order={order} onStore={backToStore} onPay={async () => {
       if (!supabase || !order.order_number) return;
       setPaymentLoading(true);
-      const email = window.prompt("Digite o e-mail usado no pedido para continuar o pagamento:");
-      if (!email) { setPaymentLoading(false); return; }
+      const email = localStorage.getItem("kj-last-order-email") || "";
+      if (!email) {
+        toast.error("Não encontramos o e-mail deste pedido", { description: "Volte ao checkout e tente novamente." });
+        setPaymentLoading(false);
+        return;
+      }
       const payment = await supabase.functions.invoke("create-payment", { body: { order_number: order.order_number, email } });
       setPaymentLoading(false);
       if (payment.data?.init_point || payment.data?.sandbox_init_point) window.location.href = payment.data.init_point || payment.data.sandbox_init_point;
