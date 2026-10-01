@@ -11,7 +11,7 @@ const storeWhatsApp = (import.meta.env.VITE_STORE_WHATSAPP as string | undefined
 type CartItem = CatalogProduct & { quantity: number };
 type Customer = { name: string; email: string; phone: string };
 type ShippingOption = { id: number | string; company: string; service: string; price: number; delivery_time: number };
-type Shipping = { postal_code: string; address: string; number: string; complement: string; neighborhood: string; city: string; state: string; shipping_option?: ShippingOption };
+type Shipping = { postal_code: string; address: string; number: string; complement: string; neighborhood: string; city: string; state: string; shipping_option?: ShippingOption; shipping_quote_id?: string };
 
 const cartKey = "kj-cart";
 
@@ -216,6 +216,7 @@ function Checkout({ cart, subtotal, onBack, onFinish, onChangeQty }: { cart: Car
   const [zipLoading, setZipLoading] = useState(false);
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
   const [shippingOption, setShippingOption] = useState<ShippingOption | null>(null);
+  const [shippingQuoteId, setShippingQuoteId] = useState<string | null>(null);
   const [shippingLoading, setShippingLoading] = useState(false);
 
   const updateCustomer = (field: keyof Customer, value: string) => setCustomer(v => ({ ...v, [field]: value }));
@@ -240,11 +241,12 @@ function Checkout({ cart, subtotal, onBack, onFinish, onChangeQty }: { cart: Car
     setShippingLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("shipping-quote", {
-        body: { postal_code: shipping.postal_code, products: cart.map(item => ({ name: item.name, quantity: item.quantity, unitary_value: item.price, weight: 0.2, width: 10, height: 5, length: 15 })) }
+        body: { postal_code: shipping.postal_code, items: cart.map(item => ({ product_id: Number(item.id), quantity: item.quantity })) }
       });
       if (error || data?.error) throw new Error(data?.error || error?.message || "Erro ao calcular frete");
       setShippingOptions(data.options || []);
       setShippingOption(data.options?.[0] || null);
+      setShippingQuoteId(data.quote_id || null);
     } catch (e) {
       toast.error("Não foi possível calcular o frete", { description: e instanceof Error ? e.message : "Tente novamente" });
     } finally { setShippingLoading(false); }
@@ -256,7 +258,7 @@ function Checkout({ cart, subtotal, onBack, onFinish, onChangeQty }: { cart: Car
     if (!shippingOption) return toast.error("Calcule e selecione uma opção de frete");
     setBusy(true);
     try {
-      await onFinish(customer, { ...shipping, shipping_option: shippingOption });
+      await onFinish(customer, { ...shipping, shipping_option: shippingOption, shipping_quote_id: shippingQuoteId || undefined });
     } finally {
       setBusy(false);
     }
