@@ -4,7 +4,7 @@ import path from "node:path";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  base: "/",
+  base: "/karine-joias/",
   plugins: [react(), tailwindcss()],
   resolve: { alias: { "@": path.resolve(import.meta.dirname, "client", "src") } },
   root: path.resolve(import.meta.dirname, "client"),
