@@ -75,5 +75,5 @@ begin
 end;
 $$;
 
-revoke all on function public.save_order_shipment_service(uuid,uuid,text,text,text,text,text,text) from public;
+revoke execute on function public.save_order_shipment_service(uuid,uuid,text,text,text,text,text,text) from anon, public;
 grant execute on function public.save_order_shipment_service(uuid,uuid,text,text,text,text,text,text) to authenticated;
