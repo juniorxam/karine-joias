@@ -44,7 +44,7 @@ export default function Storefront() {
   const [view, setView] = useState<"store" | "checkout" | "success" | "product">(
     window.location.pathname.includes("/checkout") ? "checkout" : window.location.pathname.includes("/pedido") ? "success" : window.location.pathname.includes("/produto/") ? "product" : "store"
   );
-  const [order, setOrder] = useState<{ order_number: string; total_amount: number; payment_status?: string; payment_url?: string } | null>(
+  const [order, setOrder] = useState<{ order_number: string; total_amount: number; payment_status?: string; payment_url?: string; status?: string; shipment?: { carrier?: string | null; service?: string | null; tracking_code?: string | null; tracking_url?: string | null; shipping_status?: string | null } | null } | null>(
     returnedOrder ? { order_number: returnedOrder, total_amount: 0, payment_status: returnParams.get("status") || "success" } : null
   );
   const [paymentLoading, setPaymentLoading] = useState(false);
@@ -68,6 +68,7 @@ export default function Storefront() {
           total_amount: Number(data.order.total_amount),
           payment_status: data.order.payment_status,
           status: data.order.status,
+          shipment: data.shipment || null,
         });
       }
     });
@@ -192,7 +193,7 @@ export default function Storefront() {
       const { data, error } = await supabase.functions.invoke("order-status", { body: { order_number: order.order_number, token } });
       setTrackingLoading(false);
       if (error || !data?.order) return toast.error("Não foi possível consultar o pedido", { description: error?.message || data?.error || "Tente novamente." });
-      setOrder({ ...order, ...data.order });
+      setOrder({ ...order, ...data.order, shipment: data.shipment || null });
     }} onPay={async () => {
       if (!supabase || !order.order_number) return;
       setPaymentLoading(true);
@@ -370,7 +371,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   </div>;
 }
 
-function OrderSuccess({ order, onStore, onPay, onTrack, paymentLoading, trackingLoading }: { order: { order_number: string; total_amount: number; payment_status?: string; status?: string }; onStore: () => void; onPay: () => void; onTrack: () => void; paymentLoading: boolean; trackingLoading: boolean }) {
+function OrderSuccess({ order, onStore, onPay, onTrack, paymentLoading, trackingLoading }: { order: { order_number: string; total_amount: number; payment_status?: string; payment_url?: string; status?: string; shipment?: { carrier?: string | null; service?: string | null; tracking_code?: string | null; tracking_url?: string | null; shipping_status?: string | null } | null }; onStore: () => void; onPay: () => void; onTrack: () => void; paymentLoading: boolean; trackingLoading: boolean }) {
   const steps = [
     ["PENDING_PAYMENT", "Pedido recebido"],
     ["PAID", "Pagamento confirmado"],
@@ -387,6 +388,13 @@ function OrderSuccess({ order, onStore, onPay, onTrack, paymentLoading, tracking
     <p>{order.payment_status === "PAID" ? "Pagamento confirmado." : "O pagamento ainda está aguardando confirmação."}</p>
     <div className="success-total">Total do pedido <strong>{formatMoney(Number(order.total_amount))}</strong></div>
     <div className="order-timeline">{steps.map(([status, label], index) => <div className={index <= statusIndex ? "timeline-step done" : "timeline-step"} key={status}><span>{index < statusIndex ? "✓" : index + 1}</span><div><strong>{label}</strong><small>{index === statusIndex ? "Status atual" : index < statusIndex ? "Concluído" : "Aguardando"}</small></div></div>)}</div>
+    {order.shipment?.tracking_code && <div className="shipping-tracking-card">
+      <p className="store-kicker">RASTREAMENTO</p>
+      <h2>Seu pedido está a caminho</h2>
+      <p><strong>{order.shipment.carrier || "Transportadora"}</strong>{order.shipment.service ? ` · ${order.shipment.service}` : ""}</p>
+      <div className="tracking-code"><span>Código de rastreio</span><strong>{order.shipment.tracking_code}</strong></div>
+      {order.shipment.tracking_url && <a className="store-primary-cta" href={order.shipment.tracking_url} target="_blank" rel="noreferrer">Acompanhar entrega <ArrowRight size={16}/></a>}
+    </div>}
     {order.payment_status !== "PAID" && <button className="checkout-submit" onClick={onPay} disabled={paymentLoading}>{paymentLoading ? "Gerando pagamento..." : "Continuar para pagamento"}</button>}
     <button className="shipping-quote-button" onClick={onTrack} disabled={trackingLoading}>{trackingLoading ? "Atualizando..." : "Atualizar status do pedido"}</button>
     <button className="store-primary-cta" onClick={onStore}>Voltar para a loja <ArrowRight size={16}/></button>
