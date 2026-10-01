@@ -121,7 +121,7 @@ export default function Storefront() {
     setView("store");
   };
 
-  const finishOrder = async (customer: Customer, shipping: Shipping) => {
+  const finishOrder = async (customer: Customer, shipping: Shipping, couponCode = "") => {
     if (!supabase) {
       toast.error("A loja ainda não está conectada ao Supabase.");
       return;
@@ -131,6 +131,7 @@ export default function Storefront() {
         customer,
         shipping,
         items: cart.map(item => ({ product_id: Number(item.id), quantity: item.quantity })),
+        coupon_code: couponCode || undefined,
       },
     });
     if (error) {
@@ -247,7 +248,7 @@ function ProductDetail({ product, onBack, onAdd, onCheckout }: { product: Catalo
   </div>;
 }
 
-function Checkout({ cart, subtotal, onBack, onFinish, onChangeQty }: { cart: CartItem[]; subtotal: number; onBack: () => void; onFinish: (customer: Customer, shipping: Shipping) => Promise<void>; onChangeQty: (id: CatalogProduct["id"], delta: number) => void }) {
+function Checkout({ cart, subtotal, onBack, onFinish, onChangeQty }: { cart: CartItem[]; subtotal: number; onBack: () => void; onFinish: (customer: Customer, shipping: Shipping, couponCode?: string) => Promise<void>; onChangeQty: (id: CatalogProduct["id"], delta: number) => void }) {
   const [customer, setCustomer] = useState<Customer>({ name: "", email: "", phone: "" });
   const [shipping, setShipping] = useState<Shipping>({ postal_code: "", address: "", number: "", complement: "", neighborhood: "", city: "", state: "" });
   const [busy, setBusy] = useState(false);
@@ -255,7 +256,7 @@ function Checkout({ cart, subtotal, onBack, onFinish, onChangeQty }: { cart: Car
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
   const [shippingOption, setShippingOption] = useState<ShippingOption | null>(null);
   const [shippingQuoteId, setShippingQuoteId] = useState<string | null>(null);
-  const [shippingLoading, setShippingLoading] = useState(false);
+  const [shippingLoading, setShippingLoading] = useState(false);\n  const [couponCode, setCouponCode] = useState("");\n  const [couponBusy, setCouponBusy] = useState(false);\n  const [couponError, setCouponError] = useState("");\n  const [couponDiscount, setCouponDiscount] = useState(0);
 
   const updateCustomer = (field: keyof Customer, value: string) => setCustomer(v => ({ ...v, [field]: value }));
   const updateShipping = (field: keyof Shipping, value: string) => setShipping(v => ({ ...v, [field]: value }));
@@ -290,13 +291,13 @@ function Checkout({ cart, subtotal, onBack, onFinish, onChangeQty }: { cart: Car
     } finally { setShippingLoading(false); }
   };
 
-  const submit = async (event: React.FormEvent) => {
+  const applyCoupon = async () => {\n    const code = couponCode.trim().toUpperCase();\n    if (!code) return toast.error("Informe o código do cupom");\n    if (!supabase) return toast.error("A loja ainda não está conectada ao Supabase.");\n    setCouponBusy(true); setCouponError("");\n    try {\n      const { data, error } = await supabase.functions.invoke("validate-coupon", { body: { code, items: cart.map(item => ({ product_id: Number(item.id), quantity: item.quantity })) } });\n      if (error || !data?.valid) throw new Error(data?.error || error?.message || "Cupom inválido");\n      setCouponDiscount(Number(data.discount_amount) || 0);\n      setCouponCode(data.code || code);\n      toast.success("Cupom aplicado", { description: `Desconto de ${formatMoney(Number(data.discount_amount) || 0)}` });\n    } catch (e) { setCouponDiscount(0); setCouponError(e instanceof Error ? e.message : "Cupom inválido"); toast.error("Cupom não aplicado", { description: e instanceof Error ? e.message : "Verifique o código" }); }\n    finally { setCouponBusy(false); }\n  };\n\n  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!cart.length) return toast.error("Seu carrinho está vazio");
     if (!shippingOption) return toast.error("Calcule e selecione uma opção de frete");
     setBusy(true);
     try {
-      await onFinish(customer, { ...shipping, shipping_option: shippingOption, shipping_quote_id: shippingQuoteId || undefined });
+      await onFinish(customer, { ...shipping, shipping_option: shippingOption, shipping_quote_id: shippingQuoteId || undefined }, couponDiscount > 0 ? couponCode : "");
     } finally {
       setBusy(false);
     }
@@ -309,10 +310,10 @@ function Checkout({ cart, subtotal, onBack, onFinish, onChangeQty }: { cart: Car
         <div className="checkout-title"><p className="store-kicker">FINALIZAR PEDIDO</p><h1>Quase seu.</h1><p>Preencha seus dados para reservar as peças e gerar seu pedido.</p></div>
         <section className="checkout-section"><h2>Seus dados</h2><div className="checkout-grid"><label>Nome completo<input required value={customer.name} onChange={e => updateCustomer("name", e.target.value)} /></label><label>E-mail<input required type="email" value={customer.email} onChange={e => updateCustomer("email", e.target.value)} /></label><label>WhatsApp<input required value={customer.phone} onChange={e => updateCustomer("phone", e.target.value)} /></label></div></section>
         <section className="checkout-section"><h2>Entrega</h2><div className="checkout-grid"><label>CEP<input required inputMode="numeric" value={shipping.postal_code} onChange={e => fetchZip(e.target.value)} placeholder="00000-000" />{zipLoading && <small>Consultando CEP...</small>}</label><label className="wide">Endereço<input required value={shipping.address} onChange={e => updateShipping("address", e.target.value)} /></label><label>Número<input required value={shipping.number} onChange={e => updateShipping("number", e.target.value)} /></label><label>Complemento<input value={shipping.complement} onChange={e => updateShipping("complement", e.target.value)} /></label><label>Bairro<input required value={shipping.neighborhood} onChange={e => updateShipping("neighborhood", e.target.value)} /></label><label>Cidade<input required value={shipping.city} onChange={e => updateShipping("city", e.target.value)} /></label><label>UF<input required maxLength={2} value={shipping.state} onChange={e => updateShipping("state", e.target.value.toUpperCase())} /></label></div><button type="button" className="shipping-quote-button" onClick={quoteShipping} disabled={shippingLoading}>{shippingLoading ? "Calculando frete..." : "Calcular frete"}</button>{shippingOptions.length > 0 && <div className="shipping-options">{shippingOptions.map(option => <label className={shippingOption?.id === option.id ? "shipping-option selected" : "shipping-option"} key={String(option.id)}><input type="radio" name="shipping" checked={shippingOption?.id === option.id} onChange={() => setShippingOption(option)} /><span><strong>{option.company} · {option.service}</strong><small>{option.delivery_time ? `Até ${option.delivery_time} dias úteis` : "Prazo a confirmar"}</small></span><b>{formatMoney(option.price)}</b></label>)}</div>}</section>
-        <section className="checkout-section"><h2>Pagamento</h2><div className="payment-placeholder"><ShoppingBag size={18}/><div><strong>Pagamento seguro pelo Mercado Pago</strong><p>Ao confirmar o pedido, você será direcionada ao Mercado Pago para concluir o pagamento por PIX ou cartão.</p></div></div></section>
+        <section className="checkout-section"><h2>Cupom de desconto</h2><div className="checkout-grid"><label className="wide">Código do cupom<input value={couponCode} onChange={e => { setCouponCode(e.target.value.toUpperCase()); setCouponDiscount(0); setCouponError(""); }} placeholder="EX.: BEMVINDO10" /></label><button type="button" className="shipping-quote-button" onClick={applyCoupon} disabled={couponBusy}>{couponBusy ? "Validando..." : "Aplicar cupom"}</button></div>{couponError && <small>{couponError}</small>}{couponDiscount > 0 && <small>Cupom aplicado: desconto de {formatMoney(couponDiscount)}</small>}</section><section className="checkout-section"><h2>Pagamento</h2><div className="payment-placeholder"><ShoppingBag size={18}/><div><strong>Pagamento seguro pelo Mercado Pago</strong><p>Ao confirmar o pedido, você será direcionada ao Mercado Pago para concluir o pagamento por PIX ou cartão.</p></div></div></section>
         <button className="checkout-submit" disabled={busy || !cart.length}>{busy ? "Criando pedido..." : "Confirmar pedido"}</button>
       </form>
-      <aside className="checkout-summary"><h2>Seu pedido</h2>{cart.map(item => <div className="checkout-item" key={item.id}><div><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span></div><div className="qty-controls"><button type="button" onClick={() => onChangeQty(item.id, -1)} aria-label="Diminuir">−</button><span>{item.quantity}</span><button type="button" onClick={() => onChangeQty(item.id, 1)} aria-label="Aumentar">+</button></div><b>{formatMoney(item.price * item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total"><span>Frete</span><strong>{shippingOption ? formatMoney(shippingOption.price) : "A calcular"}</strong></div><div className="checkout-total grand"><span>Total</span><strong>{formatMoney(subtotal + (shippingOption?.price || 0))}</strong></div><p className="checkout-note">Envio calculado a partir de Palmas-TO.</p></aside>
+      <aside className="checkout-summary"><h2>Seu pedido</h2>{cart.map(item => <div className="checkout-item" key={item.id}><div><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span></div><div className="qty-controls"><button type="button" onClick={() => onChangeQty(item.id, -1)} aria-label="Diminuir">−</button><span>{item.quantity}</span><button type="button" onClick={() => onChangeQty(item.id, 1)} aria-label="Aumentar">+</button></div><b>{formatMoney(item.price * item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total"><span>Frete</span><strong>{shippingOption ? formatMoney(shippingOption.price) : "A calcular"}</strong></div>{couponDiscount > 0 && <div className="checkout-total"><span>Desconto</span><strong>- {formatMoney(couponDiscount)}</strong></div>}<div className="checkout-total grand"><span>Total</span><strong>{formatMoney(Math.max(0, subtotal - couponDiscount + (shippingOption?.price || 0)))}</strong></div><p className="checkout-note">Envio calculado a partir de Palmas-TO.</p></aside>
     </main>
   </div>;
 }
