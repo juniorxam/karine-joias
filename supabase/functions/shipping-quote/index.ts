@@ -32,11 +32,14 @@ Deno.serve(async (req) => {
 
     const { data: products, error: productsError } = await db
       .from("products")
-      .select("id,name,price,weight_grams,package_height_cm,package_width_cm,package_length_cm,active")
+      .select("id,name,price,weight_grams,package_height_cm,package_width_cm,package_length_cm,active,owner_id")
       .in("id", productIds);
 
     if (productsError || !products || products.length !== productIds.length) throw new Error("Produtos não encontrados");
     if (products.some((p: any) => p.active === false)) throw new Error("Um dos produtos não está disponível");
+    const owners = [...new Set(products.map((p: any) => String(p.owner_id || "")))];
+    if (owners.length !== 1 || !owners[0]) throw new Error("Carrinho inválido");
+    const ownerId = owners[0];
 
     const originSetting = await db
       .from("store_settings")
@@ -118,6 +121,7 @@ Deno.serve(async (req) => {
       .from("shipping_quotes")
       .insert({
         postal_code: postalCode,
+        owner_id: ownerId,
         items,
         destination: { postal_code: postalCode },
         options,
