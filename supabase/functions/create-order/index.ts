@@ -1,29 +1,109 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type"};
-Deno.serve(async(req)=>{
- if(req.method==="OPTIONS") return new Response("ok",{headers:cors});
- try{
-  const body=await req.json(), customer=body.customer||{}, shipping=body.shipping||{}, items=Array.isArray(body.items)?body.items:[];
-  if(items.length<1||items.length>30) throw new Error("Carrinho inválido");
-  if(!customer.name||String(customer.name).trim().length<2) throw new Error("Nome inválido");
-  const email=String(customer.email||"").trim().toLowerCase();
-  if(!/^\S+@\S+\.\S+$/.test(email)) throw new Error("E-mail inválido");
-  if(!customer.phone||String(customer.phone).replace(/\D/g,"").length<10) throw new Error("Telefone inválido");
-  const shippingAmount=Math.max(0,Number(shipping.shipping_option?.price)||0);
-  const shippingMeta=shipping.shipping_option||null;
-  const url=Deno.env.get("SUPABASE_URL")!, key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS")||"{}").default;
-  if(!url||!key) throw new Error("Servidor não configurado");
-  const db=createClient(url,key);
-  const {data:owner}=await db.from("products").select("owner_id").limit(1).single();
-  if(!owner?.owner_id) throw new Error("Loja sem proprietário");
-  const {data,error}=await db.rpc("create_store_order_service",{p_owner_id:owner.owner_id,p_customer:{name:String(customer.name).trim(),email,phone:String(customer.phone).trim()},p_shipping:{...shipping,shipping_option:shippingMeta},p_items:items,p_payment_method:"PENDING"});
-  if(error) throw error;
-  const order=Array.isArray(data)?data[0]:data;
-  if(!order?.id) throw new Error("Pedido não criado");
-  const total=Number(order.total_amount)+shippingAmount;
-  const {data:updated,error:updateError}=await db.from("orders").update({shipping_amount:shippingAmount,total_amount:total}).eq("id",order.id).select("id,order_number,total_amount").single();
-  if(updateError) throw updateError;
-  return new Response(JSON.stringify(updated),{headers:{...cors,"Content-Type":"application/json"}});
- }catch(e){console.error(e);return new Response(JSON.stringify({error:e instanceof Error?e.message:"Erro ao criar pedido"}),{status:400,headers:{...cors,"Content-Type":"application/json"}});}
+
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+
+  try {
+    const body = await req.json();
+    const customer = body.customer || {};
+    const shipping = body.shipping || {};
+    const items = Array.isArray(body.items) ? body.items : [];
+
+    if (items.length < 1 || items.length > 30) throw new Error("Carrinho inválido");
+    if (!customer.name || String(customer.name).trim().length < 2) throw new Error("Nome inválido");
+
+    const email = String(customer.email || "").trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("E-mail inválido");
+    if (!customer.phone || String(customer.phone).replace(/\D/g, "").length < 10) throw new Error("Telefone inválido");
+
+    const quoteId = String(shipping.shipping_quote_id || "");
+    const selectedOptionId = String(shipping.shipping_option?.id ?? "");
+    if (!quoteId || !selectedOptionId) throw new Error("Frete inválido");
+
+    const url = Deno.env.get("SUPABASE_URL")!;
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+      JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}").default;
+    if (!url || !key) throw new Error("Servidor não configurado");
+
+    const db = createClient(url, key);
+
+    const { data: quote, error: quoteError } = await db
+      .from("shipping_quotes")
+      .select("id,items,options,expires_at")
+      .eq("id", quoteId)
+      .single();
+
+    if (quoteError || !quote) throw new Error("Cotação de frete não encontrada");
+    if (new Date(quote.expires_at).getTime() <= Date.now()) throw new Error("A cotação de frete expirou");
+
+    const quoteItems = Array.isArray(quote.items) ? quote.items : [];
+    const normalizedItems = items.map((item: any) => ({
+      product_id: Number(item.product_id),
+      quantity: Number(item.quantity),
+    })).sort((a: any, b: any) => a.product_id - b.product_id);
+
+    const normalizedQuoteItems = quoteItems.map((item: any) => ({
+      product_id: Number(item.product_id),
+      quantity: Number(item.quantity),
+    })).sort((a: any, b: any) => a.product_id - b.product_id);
+
+    if (JSON.stringify(normalizedItems) !== JSON.stringify(normalizedQuoteItems)) {
+      throw new Error("A cotação de frete não corresponde ao carrinho");
+    }
+
+    const options = Array.isArray(quote.options) ? quote.options : [];
+    const selectedOption = options.find((option: any) => String(option.id) === selectedOptionId);
+    if (!selectedOption) throw new Error("Opção de frete inválida");
+
+    const shippingAmount = Math.max(0, Number(selectedOption.price) || 0);
+
+    // O proprietário é obtido de um produto da loja apenas como fallback.
+    // O preço final continua sendo calculado no RPC usando os preços atuais do banco.
+    const { data: owner, error: ownerError } = await db
+      .from("products")
+      .select("owner_id")
+      .limit(1)
+      .single();
+
+    if (ownerError || !owner?.owner_id) throw new Error("Loja sem proprietário");
+
+    const { data, error } = await db.rpc("create_store_order_service", {
+      p_owner_id: owner.owner_id,
+      p_customer: {
+        name: String(customer.name).trim(),
+        email,
+        phone: String(customer.phone).trim(),
+      },
+      p_shipping: {
+        ...shipping,
+        shipping_option: selectedOption,
+      },
+      p_items: items,
+      p_shipping_amount: shippingAmount,
+      p_payment_method: "PENDING",
+    });
+
+    if (error) throw error;
+
+    const order = Array.isArray(data) ? data[0] : data;
+    if (!order?.id) throw new Error("Pedido não criado");
+
+    return new Response(JSON.stringify(order), {
+      headers: { ...cors, "Content-Type": "application/json" },
+    });
+  } catch (e) {
+    console.error(e);
+    return new Response(JSON.stringify({
+      error: e instanceof Error ? e.message : "Erro ao criar pedido",
+    }), {
+      status: 400,
+      headers: { ...cors, "Content-Type": "application/json" },
+    });
+  }
 });
