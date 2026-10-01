@@ -4,7 +4,11 @@ alter table public.products
   add column if not exists slug text,
   add column if not exists description text not null default '',
   add column if not exists weight_grams integer not null default 0,
-  add column if not exists active boolean not null default true;
+  add column if not exists active boolean not null default true,
+  add column if not exists weight_grams integer not null default 200,
+  add column if not exists package_height_cm numeric(8,2) not null default 5,
+  add column if not exists package_width_cm numeric(8,2) not null default 10,
+  add column if not exists package_length_cm numeric(8,2) not null default 15;
 
 create unique index if not exists products_owner_sku_idx on public.products(owner_id,sku) where sku is not null;
 create unique index if not exists products_owner_slug_idx on public.products(owner_id,slug) where slug is not null;
