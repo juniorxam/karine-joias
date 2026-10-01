@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
         payment_status: order.payment_status,
         status: order.status,
         created_at: order.created_at,
-        shipping_address: order.shipping_address,
+        shipping_address: safeShipping,
       },
       items: items || [],
       shipment: shipment || null,
