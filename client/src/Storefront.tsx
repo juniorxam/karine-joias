@@ -10,7 +10,8 @@ const storeWhatsApp = (import.meta.env.VITE_STORE_WHATSAPP as string | undefined
 
 type CartItem = CatalogProduct & { quantity: number };
 type Customer = { name: string; email: string; phone: string };
-type Shipping = { postal_code: string; address: string; number: string; complement: string; neighborhood: string; city: string; state: string };
+type ShippingOption = { id: number | string; company: string; service: string; price: number; delivery_time: number };
+type Shipping = { postal_code: string; address: string; number: string; complement: string; neighborhood: string; city: string; state: string; shipping_option?: ShippingOption };
 
 const cartKey = "kj-cart";
 
@@ -189,6 +190,9 @@ function Checkout({ cart, subtotal, onBack, onFinish, onChangeQty }: { cart: Car
   const [shipping, setShipping] = useState<Shipping>({ postal_code: "", address: "", number: "", complement: "", neighborhood: "", city: "", state: "" });
   const [busy, setBusy] = useState(false);
   const [zipLoading, setZipLoading] = useState(false);
+  const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
+  const [shippingOption, setShippingOption] = useState<ShippingOption | null>(null);
+  const [shippingLoading, setShippingLoading] = useState(false);
 
   const updateCustomer = (field: keyof Customer, value: string) => setCustomer(v => ({ ...v, [field]: value }));
   const updateShipping = (field: keyof Shipping, value: string) => setShipping(v => ({ ...v, [field]: value }));
@@ -207,11 +211,27 @@ function Checkout({ cart, subtotal, onBack, onFinish, onChangeQty }: { cart: Car
     finally { setZipLoading(false); }
   };
 
-  const submit = async (event: React.FormEvent) => {
+  const quoteShipping = async () => {
+    if (!supabase || shipping.postal_code.replace(/\D/g, "").length !== 8) return toast.error("Informe um CEP válido");
+    setShippingLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("shipping-quote", {
+        body: { postal_code: shipping.postal_code, products: cart.map(item => ({ name: item.name, quantity: item.quantity, unitary_value: item.price, weight: 0.2, width: 10, height: 5, length: 15 })) }
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message || "Erro ao calcular frete");
+      setShippingOptions(data.options || []);
+      setShippingOption(data.options?.[0] || null);
+    } catch (e) {
+      toast.error("Não foi possível calcular o frete", { description: e instanceof Error ? e.message : "Tente novamente" });
+    } finally { setShippingLoading(false); }
+  };
+
+  const submit = async (event: React.FormEvent) =>
     event.preventDefault();
     if (!cart.length) return toast.error("Seu carrinho está vazio");
+    if (!shippingOption) return toast.error("Calcule e selecione uma opção de frete");
     setBusy(true);
-    try { await onFinish(customer, shipping); } finally { setBusy(false); }
+    try { await onFinish(customer, { ...shipping, shipping_option: shippingOption }); } finally { setBusy(false); }
   };
 
   return <div className="storefront checkout-page">
@@ -220,11 +240,11 @@ function Checkout({ cart, subtotal, onBack, onFinish, onChangeQty }: { cart: Car
       <form className="checkout-form" onSubmit={submit}>
         <div className="checkout-title"><p className="store-kicker">FINALIZAR PEDIDO</p><h1>Quase seu.</h1><p>Preencha seus dados para reservar as peças e gerar seu pedido.</p></div>
         <section className="checkout-section"><h2>Seus dados</h2><div className="checkout-grid"><label>Nome completo<input required value={customer.name} onChange={e => updateCustomer("name", e.target.value)} /></label><label>E-mail<input required type="email" value={customer.email} onChange={e => updateCustomer("email", e.target.value)} /></label><label>WhatsApp<input required value={customer.phone} onChange={e => updateCustomer("phone", e.target.value)} /></label></div></section>
-        <section className="checkout-section"><h2>Entrega</h2><div className="checkout-grid"><label>CEP<input required inputMode="numeric" value={shipping.postal_code} onChange={e => fetchZip(e.target.value)} placeholder="00000-000" />{zipLoading && <small>Consultando CEP...</small>}</label><label className="wide">Endereço<input required value={shipping.address} onChange={e => updateShipping("address", e.target.value)} /></label><label>Número<input required value={shipping.number} onChange={e => updateShipping("number", e.target.value)} /></label><label>Complemento<input value={shipping.complement} onChange={e => updateShipping("complement", e.target.value)} /></label><label>Bairro<input required value={shipping.neighborhood} onChange={e => updateShipping("neighborhood", e.target.value)} /></label><label>Cidade<input required value={shipping.city} onChange={e => updateShipping("city", e.target.value)} /></label><label>UF<input required maxLength={2} value={shipping.state} onChange={e => updateShipping("state", e.target.value.toUpperCase())} /></label></div></section>
+        <section className="checkout-section"><h2>Entrega</h2><div className="checkout-grid"><label>CEP<input required inputMode="numeric" value={shipping.postal_code} onChange={e => fetchZip(e.target.value)} placeholder="00000-000" />{zipLoading && <small>Consultando CEP...</small>}</label><label className="wide">Endereço<input required value={shipping.address} onChange={e => updateShipping("address", e.target.value)} /></label><label>Número<input required value={shipping.number} onChange={e => updateShipping("number", e.target.value)} /></label><label>Complemento<input value={shipping.complement} onChange={e => updateShipping("complement", e.target.value)} /></label><label>Bairro<input required value={shipping.neighborhood} onChange={e => updateShipping("neighborhood", e.target.value)} /></label><label>Cidade<input required value={shipping.city} onChange={e => updateShipping("city", e.target.value)} /></label><label>UF<input required maxLength={2} value={shipping.state} onChange={e => updateShipping("state", e.target.value.toUpperCase())} /></label></div><button type="button" className="shipping-quote-button" onClick={quoteShipping} disabled={shippingLoading}>{shippingLoading ? "Calculando frete..." : "Calcular frete"}</button>{shippingOptions.length > 0 && <div className="shipping-options">{shippingOptions.map(option => <label className={shippingOption?.id === option.id ? "shipping-option selected" : "shipping-option"} key={String(option.id)}><input type="radio" name="shipping" checked={shippingOption?.id === option.id} onChange={() => setShippingOption(option)} /><span><strong>{option.company} · {option.service}</strong><small>{option.delivery_time ? `Até ${option.delivery_time} dias úteis` : "Prazo a confirmar"}</small></span><b>{formatMoney(option.price)}</b></label>)}</div>}</section>
         <section className="checkout-section"><h2>Pagamento</h2><div className="payment-placeholder"><ShoppingBag size={18}/><div><strong>Pagamento online será liberado na próxima etapa</strong><p>Seu pedido será criado com status aguardando pagamento. A integração PIX/cartão pode ser conectada ao Mercado Pago sem alterar o checkout.</p></div></div></section>
         <button className="checkout-submit" disabled={busy || !cart.length}>{busy ? "Criando pedido..." : "Confirmar pedido"}</button>
       </form>
-      <aside className="checkout-summary"><h2>Seu pedido</h2>{cart.map(item => <div className="checkout-item" key={item.id}><div><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span></div><div className="qty-controls"><button type="button" onClick={() => onChangeQty(item.id, -1)} aria-label="Diminuir">−</button><span>{item.quantity}</span><button type="button" onClick={() => onChangeQty(item.id, 1)} aria-label="Aumentar">+</button></div><b>{formatMoney(item.price * item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total grand"><span>Total</span><strong>{formatMoney(subtotal)}</strong></div><p className="checkout-note">Frete e pagamento serão calculados na próxima etapa.</p></aside>
+      <aside className="checkout-summary"><h2>Seu pedido</h2>{cart.map(item => <div className="checkout-item" key={item.id}><div><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span></div><div className="qty-controls"><button type="button" onClick={() => onChangeQty(item.id, -1)} aria-label="Diminuir">−</button><span>{item.quantity}</span><button type="button" onClick={() => onChangeQty(item.id, 1)} aria-label="Aumentar">+</button></div><b>{formatMoney(item.price * item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total"><span>Frete</span><strong>{shippingOption ? formatMoney(shippingOption.price) : "A calcular"}</strong></div><div className="checkout-total grand"><span>Total</span><strong>{formatMoney(subtotal + (shippingOption?.price || 0))}</strong></div><p className="checkout-note">Envio calculado a partir de Palmas-TO.</p></aside>
     </main>
   </div>;
 }
