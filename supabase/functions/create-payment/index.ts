@@ -33,6 +33,9 @@ Deno.serve(async (req) => {
 
     if (orderError || !order) return Response.json({ error: "Pedido não encontrado" }, { status: 404, headers: cors });
     if (order.payment_status === "PAID") return Response.json({ error: "Este pedido já foi pago" }, { status: 409, headers: cors });
+    if (["CANCELLED", "REFUNDED"].includes(String(order.status))) {
+      return Response.json({ error: "Este pedido não pode receber pagamento" }, { status: 409, headers: cors });
+    }
 
     const { data: items, error: itemsError } = await admin
       .from("order_items")
@@ -40,6 +43,13 @@ Deno.serve(async (req) => {
       .eq("order_id", order.id);
 
     if (itemsError || !items?.length) return Response.json({ error: "Itens do pedido não encontrados" }, { status: 400, headers: cors });
+
+    const itemsTotal = items.reduce((sum, item) => sum + Number(item.unit_price) * Number(item.quantity), 0);
+    const expectedTotal = itemsTotal + Number(order.shipping_amount || 0);
+    if (Math.abs(expectedTotal - Number(order.total_amount)) > 0.01) {
+      console.error("Pedido com total inconsistente", { order: order.order_number, expectedTotal, total: order.total_amount });
+      return Response.json({ error: "Total do pedido inconsistente" }, { status: 409, headers: cors });
+    }
 
     const mpResponse = await fetch("https://api.mercadopago.com/checkout/preferences", {
       method: "POST",
