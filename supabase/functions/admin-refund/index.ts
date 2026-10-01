@@ -73,9 +73,8 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Mercado Pago recusou o reembolso", details: refundBody?.message || refundBody?.error || null }), { status: 502, headers: cors });
     }
 
-    const { data: refunded, error: transitionError } = await admin.rpc("mark_order_refunded_service", {
+    const { data: refunded, error: transitionError } = await admin.rpc("mark_order_refunded_webhook_service", {
       p_order_id: order.id,
-      p_owner_id: user.id
     });
 
     if (transitionError || !refunded) {
