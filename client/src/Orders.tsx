@@ -113,7 +113,6 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
     if(error)toast.error("Não foi possível atualizar",{description:error.message});
     else {
       setOrders(v=>v.map(x=>x.id===order.id?{...x,status}:x));
-      if(selected?.id===order.id) setSelected(v=>v?v.status===order.status?{...v,status}:v:v);
       toast.success("Pedido atualizado");
       await openOrder({...order,status});
     }
