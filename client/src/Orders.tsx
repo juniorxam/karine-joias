@@ -87,8 +87,8 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
 
     const allowed: Record<string,string[]> = {
       PENDING_PAYMENT:["CANCELLED"],
-      PAID:["PROCESSING","CANCELLED","REFUNDED"],
-      PROCESSING:["READY_TO_SHIP","CANCELLED"],
+      PAID:["PROCESSING"],
+      PROCESSING:["READY_TO_SHIP"],
       READY_TO_SHIP:["SHIPPED"],
       SHIPPED:["DELIVERED"],
       DELIVERED:[],
@@ -109,18 +109,30 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
       return;
     }
 
-    const {error}=await supabase.from("orders")
-      .update({status,updated_at:new Date().toISOString()})
-      .eq("id",order.id)
-      .eq("owner_id",ownerId)
-      .eq("status",order.status);
-
-    if(error)toast.error("Não foi possível atualizar",{description:error.message});
-    else {
-      setOrders(v=>v.map(x=>x.id===order.id?{...x,status}:x));
-      toast.success("Pedido atualizado");
-      await openOrder({...order,status});
+    if(status==="CANCELLED") {
+      const {error}=await supabase.rpc("cancel_order_admin_service",{
+        p_order_id: order.id,
+        p_owner_id: ownerId
+      });
+      if(error){
+        toast.error("Não foi possível cancelar o pedido",{description:error.message});
+        return;
+      }
+    } else {
+      const {error}=await supabase.rpc("update_order_status_service",{
+        p_order_id: order.id,
+        p_owner_id: ownerId,
+        p_status: status
+      });
+      if(error){
+        toast.error("Não foi possível atualizar",{description:error.message});
+        return;
+      }
     }
+
+    setOrders(v=>v.map(x=>x.id===order.id?{...x,status}:x));
+    toast.success("Pedido atualizado");
+    await openOrder({...order,status});
   };
 
   const visible=filter==="TODOS"?orders:orders.filter(x=>x.status===filter);
