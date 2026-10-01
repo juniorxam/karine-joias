@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceKey);
     const { data: order, error: orderError } = await admin
       .from("orders")
-      .select("id,order_number,customer_name,customer_email,total_amount,status,payment_status")
+      .select("id,order_number,customer_name,customer_email,total_amount,shipping_amount,status,payment_status")
       .eq("order_number", order_number)
       .eq("customer_email", String(email).trim().toLowerCase())
       .single();
@@ -48,12 +48,20 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        items: items.map((item) => ({
-          title: item.product_name,
-          quantity: item.quantity,
-          unit_price: Number(item.unit_price),
-          currency_id: "BRL",
-        })),
+        items: [
+          ...items.map((item) => ({
+            title: item.product_name,
+            quantity: item.quantity,
+            unit_price: Number(item.unit_price),
+            currency_id: "BRL",
+          })),
+          ...(Number(order.shipping_amount) > 0 ? [{
+            title: "Frete",
+            quantity: 1,
+            unit_price: Number(order.shipping_amount),
+            currency_id: "BRL",
+          }] : []),
+        ],
         payer: { name: order.customer_name, email: order.customer_email },
         external_reference: order.order_number,
         back_urls: {
