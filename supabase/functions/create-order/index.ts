@@ -6,6 +6,13 @@ const cors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+
+async function sha256(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
@@ -94,7 +101,20 @@ Deno.serve(async (req) => {
     const order = Array.isArray(data) ? data[0] : data;
     if (!order?.id) throw new Error("Pedido não criado");
 
-    return new Response(JSON.stringify(order), {
+    // Token aleatório para o cliente consultar o próprio pedido sem login.
+    const trackingToken = crypto.randomUUID() + crypto.randomUUID().replaceAll("-", "");
+    const trackingTokenHash = await sha256(trackingToken);
+    const { error: trackingError } = await db
+      .from("orders")
+      .update({
+        tracking_token_hash: trackingTokenHash,
+        tracking_token_created_at: new Date().toISOString(),
+      })
+      .eq("id", order.id);
+
+    if (trackingError) throw trackingError;
+
+    return new Response(JSON.stringify({ ...order, tracking_token: trackingToken }), {
       headers: { ...cors, "Content-Type": "application/json" },
     });
   } catch (e) {
