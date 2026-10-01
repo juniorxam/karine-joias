@@ -1,7 +1,8 @@
 -- Coupons: server-side validation and atomic usage tracking
 create table if not exists public.coupons (
   id uuid primary key default gen_random_uuid(),
-  code text not null unique,
+  owner_id uuid not null references auth.users(id),
+  code text not null,
   discount_type text not null check (discount_type in ('PERCENT','FIXED')),
   discount_value numeric(12,2) not null check (discount_value > 0),
   min_order_amount numeric(12,2) not null default 0 check (min_order_amount >= 0),
@@ -13,7 +14,8 @@ create table if not exists public.coupons (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   check (expires_at is null or starts_at is null or expires_at > starts_at),
-  check (discount_type <> 'PERCENT' or discount_value <= 100)
+  check (discount_type <> 'PERCENT' or discount_value <= 100),
+  unique (owner_id, code)
 );
 
 alter table public.coupons enable row level security;
@@ -23,6 +25,7 @@ grant all on public.coupons to service_role;
 create table if not exists public.coupon_redemptions (
   id uuid primary key default gen_random_uuid(),
   coupon_id uuid not null references public.coupons(id),
+  owner_id uuid not null references auth.users(id),
   order_id uuid not null references public.orders(id),
   code text not null,
   discount_amount numeric(12,2) not null check (discount_amount >= 0),
@@ -62,7 +65,7 @@ begin
 
  v_code := upper(trim(coalesce(p_coupon_code,'')));
  if v_code <> '' then
-   select * into v_coupon from coupons where code=v_code and active=true for update;
+   select * into v_coupon from coupons where code=v_code and owner_id=p_owner_id and active=true for update;
    if not found then raise exception 'Cupom inválido'; end if;
    if v_coupon.starts_at is not null and now() < v_coupon.starts_at then raise exception 'Cupom ainda não está disponível'; end if;
    if v_coupon.expires_at is not null and now() >= v_coupon.expires_at then raise exception 'Cupom expirado'; end if;
@@ -91,7 +94,7 @@ begin
 
  if v_code <> '' then
    update coupons set used_count=used_count+1, updated_at=now() where id=v_coupon.id;
-   insert into coupon_redemptions(coupon_id,order_id,code,discount_amount) values(v_coupon.id,v_order_id,v_code,v_discount);
+   insert into coupon_redemptions(coupon_id,order_id,owner_id,code,discount_amount) values(v_coupon.id,v_order_id,p_owner_id,v_code,v_discount);
  end if;
 
  insert into order_status_history(order_id,status,note) values(v_order_id,'PENDING_PAYMENT','Pedido criado pela loja online');
