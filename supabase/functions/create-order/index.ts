@@ -30,6 +30,9 @@ Deno.serve(async (req) => {
     if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("E-mail inválido");
     if (!customer.phone || String(customer.phone).replace(/\D/g, "").length < 10) throw new Error("Telefone inválido");
 
+    const recipientCode = String(customer.recipient_code || shipping.recipient_code || "").replace(/\D/g, "");
+    if (!/^\d{11}$/.test(recipientCode)) throw new Error("CPF inválido");
+
     const quoteId = String(shipping.shipping_quote_id || "");
     const selectedOptionId = String(shipping.shipping_option?.id ?? "");
     if (!quoteId || !selectedOptionId) throw new Error("Frete inválido");
@@ -89,9 +92,11 @@ Deno.serve(async (req) => {
         name: String(customer.name).trim(),
         email,
         phone: String(customer.phone).trim(),
+        recipient_code: recipientCode,
       },
       p_shipping: {
         ...shipping,
+        recipient_code: recipientCode,
         shipping_option: selectedOption,
       },
       p_items: items,
