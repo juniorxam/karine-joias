@@ -7,6 +7,8 @@ export type CatalogProduct = {
   imageUrl?: string;
   featured?: boolean;
   isPublished?: boolean;
+  slug?: string;
+  description?: string;
 };
 
 export const fallbackCatalog: CatalogProduct[] = [
