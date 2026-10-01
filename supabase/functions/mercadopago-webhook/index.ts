@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     const ref = payment.external_reference;
     if (!ref) return new Response("ok");
 
-    const { data: order } = await admin.from("orders").select("id,payment_status").eq("order_number", ref).single();
+    const { data: order } = await admin.from("orders").select("id,payment_status,total_amount").eq("order_number", ref).single();
     if (!order) return new Response("ok");
 
     await admin.from("payment_events").upsert({
@@ -38,13 +38,24 @@ Deno.serve(async (req) => {
     }, { onConflict: "provider,provider_event_id" });
 
     const status = payment.status;
+    const expectedAmount = Number(order.total_amount);
+    const receivedAmount = Number(payment.transaction_amount);
+    if (payment.currency_id && payment.currency_id !== "BRL") {
+      console.error("Currency mismatch", payment.currency_id);
+      return new Response("ok");
+    }
+    if (!Number.isFinite(receivedAmount) || Math.abs(receivedAmount - expectedAmount) > 0.01) {
+      console.error("Amount mismatch", { expectedAmount, receivedAmount, order: ref });
+      await admin.from("payment_events").update({ event_type: "amount_mismatch" }).eq("provider","mercadopago").eq("provider_event_id",String(payment.id));
+      return new Response("ok");
+    }
     if (status === "approved") {
       await admin.from("orders").update({ payment_status: "PAID", status: "PAID", updated_at: new Date().toISOString() }).eq("id", order.id);
-      await admin.from("order_status_history").insert({ order_id: order.id, status: "PAID", note: "Pagamento aprovado pelo Mercado Pago" });
+
     } else if (status === "rejected" || status === "cancelled") {
       await admin.rpc("restore_order_stock", { p_order_id: order.id });
       await admin.from("orders").update({ payment_status: String(status).toUpperCase(), status: "CANCELLED", updated_at: new Date().toISOString() }).eq("id", order.id);
-      await admin.from("order_status_history").insert({ order_id: order.id, status: "CANCELLED", note: `Pagamento ${status}` });
+
     }
 
     return new Response("ok");
