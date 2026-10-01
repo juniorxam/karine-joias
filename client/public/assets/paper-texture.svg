@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
+  <defs>
+    <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".82" numOctaves="3" stitchTiles="stitch"/></filter>
+    <pattern id="lines" width="36" height="36" patternUnits="userSpaceOnUse"><path d="M0 35.5h36M35.5 0v36" stroke="#1F5870" stroke-opacity=".035"/><circle cx="8" cy="11" r="1" fill="#D56B62" fill-opacity=".08"/><circle cx="27" cy="24" r="1" fill="#54B99A" fill-opacity=".08"/></pattern>
+  </defs>
+  <rect width="180" height="180" fill="#F0EDE1"/>
+  <rect width="180" height="180" filter="url(#grain)" opacity=".035"/>
+  <rect width="180" height="180" fill="url(#lines)"/>
+</svg>
