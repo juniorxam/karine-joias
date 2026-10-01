@@ -149,7 +149,7 @@ export default function Storefront() {
     const { data, error } = await supabase.functions.invoke("create-order", {
       body: {
         customer,
-        shipping,
+        shipping: { ...shipping, recipient_code: customer.recipient_code },
         items: cart.map(item => ({ product_id: Number(item.id), quantity: item.quantity })),
         coupon_code: couponCode || undefined,
       },
@@ -286,7 +286,11 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
   const [shippingOption, setShippingOption] = useState<ShippingOption | null>(null);
   const [shippingQuoteId, setShippingQuoteId] = useState<string | null>(null);
-  const [shippingLoading, setShippingLoading] = useState(false);\n  const [couponCode, setCouponCode] = useState(draft.couponCode);\n  const [couponBusy, setCouponBusy] = useState(false);\n  const [couponError, setCouponError] = useState("");\n  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [shippingLoading, setShippingLoading] = useState(false);
+  const [couponCode, setCouponCode] = useState(draft.couponCode);
+  const [couponBusy, setCouponBusy] = useState(false);
+  const [couponError, setCouponError] = useState("");
+  const [couponDiscount, setCouponDiscount] = useState(0);
 
   useEffect(() => {
     onDraftChange(v => ({ ...v, customer, shipping, couponCode }));
@@ -344,7 +348,22 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     } finally { setShippingLoading(false); }
   };
 
-  const applyCoupon = async () => {\n    const code = couponCode.trim().toUpperCase();\n    if (!code) return toast.error("Informe o código do cupom");\n    if (!supabase) return toast.error("A loja ainda não está conectada ao Supabase.");\n    setCouponBusy(true); setCouponError("");\n    try {\n      const { data, error } = await supabase.functions.invoke("validate-coupon", { body: { code, items: cart.map(item => ({ product_id: Number(item.id), quantity: item.quantity })) } });\n      if (error || !data?.valid) throw new Error(data?.error || error?.message || "Cupom inválido");\n      setCouponDiscount(Number(data.discount_amount) || 0);\n      setCouponCode(data.code || code);\n      toast.success("Cupom aplicado", { description: `Desconto de ${formatMoney(Number(data.discount_amount) || 0)}` });\n    } catch (e) { setCouponDiscount(0); setCouponError(e instanceof Error ? e.message : "Cupom inválido"); toast.error("Cupom não aplicado", { description: e instanceof Error ? e.message : "Verifique o código" }); }\n    finally { setCouponBusy(false); }\n  };\n\n  const submit = async (event: React.FormEvent) => {
+  const applyCoupon = async () => {
+    const code = couponCode.trim().toUpperCase();
+    if (!code) return toast.error("Informe o código do cupom");
+    if (!supabase) return toast.error("A loja ainda não está conectada ao Supabase.");
+    setCouponBusy(true); setCouponError("");
+    try {
+      const { data, error } = await supabase.functions.invoke("validate-coupon", { body: { code, items: cart.map(item => ({ product_id: Number(item.id), quantity: item.quantity })) } });
+      if (error || !data?.valid) throw new Error(data?.error || error?.message || "Cupom inválido");
+      setCouponDiscount(Number(data.discount_amount) || 0);
+      setCouponCode(data.code || code);
+      toast.success("Cupom aplicado", { description: `Desconto de ${formatMoney(Number(data.discount_amount) || 0)}` });
+    } catch (e) { setCouponDiscount(0); setCouponError(e instanceof Error ? e.message : "Cupom inválido"); toast.error("Cupom não aplicado", { description: e instanceof Error ? e.message : "Verifique o código" }); }
+    finally { setCouponBusy(false); }
+  };
+
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!cart.length) return toast.error("Seu carrinho está vazio");
     if (!shippingOption) return toast.error("Calcule e selecione uma opção de frete");
@@ -361,7 +380,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     <main className="checkout-layout">
       <form className="checkout-form" onSubmit={submit}>
         <div className="checkout-title"><p className="store-kicker">FINALIZAR PEDIDO</p><h1>Quase seu.</h1><p>Preencha seus dados para reservar as peças e gerar seu pedido.</p></div>
-        <section className="checkout-section"><h2>Seus dados</h2><div className="checkout-grid"><label>Nome completo<input required value={customer.name} onChange={e => updateCustomer("name", e.target.value)} /></label><label>E-mail<input required type="email" value={customer.email} onChange={e => updateCustomer("email", e.target.value)} /></label><label>WhatsApp<input required inputMode="tel" value={customer.phone} onChange={e => updateCustomer("phone", e.target.value)} /></label><label>CPF<input required inputMode="numeric" maxLength={11} value={customer.recipient_code} onChange={e => updateCustomer("recipient_code", e.target.value.replace(/\\D/g, "").slice(0,11))} placeholder="00000000000" /></label></div></section>
+        <section className="checkout-section"><h2>Seus dados</h2><div className="checkout-grid"><label>Nome completo<input required value={customer.name} onChange={e => updateCustomer("name", e.target.value)} /></label><label>E-mail<input required type="email" value={customer.email} onChange={e => updateCustomer("email", e.target.value)} /></label><label>WhatsApp<input required inputMode="tel" value={customer.phone} onChange={e => updateCustomer("phone", e.target.value)} /></label><label>CPF<input required inputMode="numeric" maxLength={11} value={customer.recipient_code} onChange={e => updateCustomer("recipient_code", e.target.value.replace(/\D/g, "").slice(0,11))} placeholder="00000000000" /></label></div></section>
         <section className="checkout-section"><h2>Entrega</h2><div className="checkout-grid"><label>CEP<input required inputMode="numeric" value={shipping.postal_code} onChange={e => fetchZip(e.target.value)} placeholder="00000-000" />{zipLoading && <small>Consultando CEP...</small>}</label><label className="wide">Endereço<input required value={shipping.address} onChange={e => updateShipping("address", e.target.value)} /></label><label>Número<input required value={shipping.number} onChange={e => updateShipping("number", e.target.value)} /></label><label>Complemento<input value={shipping.complement} onChange={e => updateShipping("complement", e.target.value)} /></label><label>Bairro<input required value={shipping.neighborhood} onChange={e => updateShipping("neighborhood", e.target.value)} /></label><label>Cidade<input required value={shipping.city} onChange={e => updateShipping("city", e.target.value)} /></label><label>UF<input required maxLength={2} value={shipping.state} onChange={e => updateShipping("state", e.target.value.toUpperCase())} /></label></div><button type="button" className="shipping-quote-button" onClick={quoteShipping} disabled={shippingLoading}>{shippingLoading ? "Calculando frete..." : "Calcular frete"}</button>{shippingOptions.length > 0 && <div className="shipping-options">{shippingOptions.map(option => <label className={shippingOption?.id === option.id ? "shipping-option selected" : "shipping-option"} key={String(option.id)}><input type="radio" name="shipping" checked={shippingOption?.id === option.id} onChange={() => setShippingOption(option)} /><span><strong>{option.company} · {option.service}</strong><small>{option.delivery_time ? `Até ${option.delivery_time} dias úteis` : "Prazo a confirmar"}</small></span><b>{formatMoney(option.price)}</b></label>)}</div>}</section>
         <section className="checkout-section"><h2>Cupom de desconto</h2><div className="checkout-grid"><label className="wide">Código do cupom<input value={couponCode} onChange={e => { setCouponCode(e.target.value.toUpperCase()); setCouponDiscount(0); setCouponError(""); }} placeholder="EX.: BEMVINDO10" /></label><button type="button" className="shipping-quote-button" onClick={applyCoupon} disabled={couponBusy}>{couponBusy ? "Validando..." : "Aplicar cupom"}</button></div>{couponError && <small>{couponError}</small>}{couponDiscount > 0 && <small>Cupom aplicado: desconto de {formatMoney(couponDiscount)}</small>}</section><section className="checkout-section"><h2>Pagamento</h2><div className="payment-placeholder"><ShoppingBag size={18}/><div><strong>Pagamento seguro pelo Mercado Pago</strong><p>Ao confirmar o pedido, você será direcionada ao Mercado Pago para concluir o pagamento por PIX ou cartão.</p></div></div></section>
         <button className="checkout-submit" disabled={busy || !cart.length}>{busy ? "Criando pedido..." : "Confirmar pedido"}</button>
