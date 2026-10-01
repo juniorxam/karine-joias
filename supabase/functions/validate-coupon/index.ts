@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     if (subtotal < Number(coupon.min_order_amount)) throw new Error(`Pedido mínimo de ${Number(coupon.min_order_amount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} para este cupom`);
 
     const discount = coupon.discount_type === "PERCENT"
-      ? Math.round(subtotal * Number(coupon.discount_value)) / 100
+      ? Math.round(subtotal * Number(coupon.discount_value) / 10000) * 100 / 100
       : Math.min(subtotal, Number(coupon.discount_value));
 
     return new Response(JSON.stringify({
