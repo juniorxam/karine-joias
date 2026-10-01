@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /loja
+Allow: /loja/produto/
+Disallow: /
+Disallow: /loja/checkout
+Disallow: /loja/pedido
+
+# Adicione a URL absoluta do sitemap quando o domínio definitivo estiver configurado.
