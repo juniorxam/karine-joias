@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
 
     const { data: products, error: productsError } = await db
       .from("products")
-      .select("id,weight_grams,package_height_cm,package_width_cm,package_length_cm,active")
+      .select("id,name,price,weight_grams,package_height_cm,package_width_cm,package_length_cm,active")
       .in("id", productIds);
 
     if (productsError || !products || products.length !== productIds.length) throw new Error("Produtos não encontrados");
@@ -51,31 +51,39 @@ Deno.serve(async (req) => {
     const productMap = new Map(products.map((p: any) => [Number(p.id), p]));
     let weight = 0;
     let quantity = 0;
-    let maxHeight = 0;
-    let maxWidth = 0;
-    let maxLength = 0;
+    const shippingProducts: any[] = [];
 
     for (const item of items) {
       const product = productMap.get(Number(item.product_id));
       const qty = Number(item.quantity);
       if (!product || !Number.isInteger(qty) || qty < 1 || qty > 20) throw new Error("Quantidade inválida");
-      weight += Math.max(1, Number(product.weight_grams || 200)) * qty;
+
+      const weightKg = Math.max(0.1, Number(product.weight_grams || 200) / 1000);
+      const width = Math.max(1, Number(product.package_width_cm || 10));
+      const height = Math.max(1, Number(product.package_height_cm || 5));
+      const length = Math.max(1, Number(product.package_length_cm || 15));
+      const unitValue = Math.max(0, Number(product.price || 0));
+
+      weight += weightKg * qty;
       quantity += qty;
-      maxHeight = Math.max(maxHeight, Number(product.package_height_cm || 5));
-      maxWidth = Math.max(maxWidth, Number(product.package_width_cm || 10));
-      maxLength = Math.max(maxLength, Number(product.package_length_cm || 15));
+      shippingProducts.push({
+        id: String(product.id),
+        name: String(product.name || `Produto ${product.id}`),
+        quantity: qty,
+        weight: weightKg,
+        width,
+        height,
+        length,
+        unitary_value: unitValue,
+        insurance_value: unitValue,
+      });
     }
 
-    // Pequenas joias são consolidadas em um único pacote.
+    // A API espera os produtos em lista; o peso é informado em kg.
     const payload = {
       from: { postal_code: origin },
       to: { postal_code: postalCode },
-      package: {
-        weight: Math.max(100, weight),
-        width: Math.max(1, maxWidth),
-        height: Math.max(1, maxHeight),
-        length: Math.max(1, maxLength),
-      },
+      products: shippingProducts,
     };
 
     const response = await fetch("https://www.melhorenvio.com.br/api/v2/me/shipment/calculate", {
@@ -126,7 +134,7 @@ Deno.serve(async (req) => {
       quote_id: quote.id,
       expires_at: quote.expires_at,
       options,
-      package: { weight, quantity, width: maxWidth, height: maxHeight, length: maxLength },
+      package: { weight_kg: weight, quantity } ,
     }, { headers: cors });
   } catch (error) {
     console.error(error);
