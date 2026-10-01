@@ -11,6 +11,8 @@ type PublicRow = {
   image_url: string | null;
   featured: boolean;
   is_published: boolean;
+  slug: string | null;
+  description: string | null;
 };
 
 export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
@@ -26,7 +28,7 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
 
   const { data, error } = await supabase
     .from("public_products")
-    .select("id,product_id,name,category,material,price,image_url,featured,is_published")
+     .select("id,product_id,name,category,material,price,image_url,featured,is_published,slug,description")
     .eq("store_slug", "karine-joias")
     .eq("is_published", true)
     .order("featured", { ascending: false })
@@ -42,5 +44,7 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
     imageUrl: row.image_url ?? undefined,
     featured: row.featured,
     isPublished: row.is_published,
+    slug: row.slug ?? undefined,
+    description: row.description ?? undefined,
   }));
 }
