@@ -258,8 +258,27 @@ function Checkout({ cart, subtotal, onBack, onFinish, onChangeQty }: { cart: Car
   const [shippingQuoteId, setShippingQuoteId] = useState<string | null>(null);
   const [shippingLoading, setShippingLoading] = useState(false);\n  const [couponCode, setCouponCode] = useState("");\n  const [couponBusy, setCouponBusy] = useState(false);\n  const [couponError, setCouponError] = useState("");\n  const [couponDiscount, setCouponDiscount] = useState(0);
 
+  const cartSignature = cart.map(item => `${item.id}:${item.quantity}`).sort().join("|");
+
+  // Frete e cupom dependem do carrinho. Qualquer alteração de quantidade
+  // invalida os dados anteriores para evitar checkout com cotação/desconto antigos.
+  useEffect(() => {
+    setShippingOptions([]);
+    setShippingOption(null);
+    setShippingQuoteId(null);
+    setCouponDiscount(0);
+    setCouponError("");
+  }, [cartSignature]);
+
   const updateCustomer = (field: keyof Customer, value: string) => setCustomer(v => ({ ...v, [field]: value }));
-  const updateShipping = (field: keyof Shipping, value: string) => setShipping(v => ({ ...v, [field]: value }));
+  const updateShipping = (field: keyof Shipping, value: string) => {
+    setShipping(v => ({ ...v, [field]: value }));
+    if (field === "postal_code") {
+      setShippingOptions([]);
+      setShippingOption(null);
+      setShippingQuoteId(null);
+    }
+  };
 
   const fetchZip = async (value: string) => {
     const postal_code = value.replace(/\D/g, "").slice(0, 8);
