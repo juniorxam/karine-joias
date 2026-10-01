@@ -35,19 +35,19 @@ Deno.serve(async (req) => {
     if (!quoteId || !selectedOptionId) throw new Error("Frete inválido");
 
     const url = Deno.env.get("SUPABASE_URL")!;
-    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
-      JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}").default;
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!url || !key) throw new Error("Servidor não configurado");
 
     const db = createClient(url, key);
 
     const { data: quote, error: quoteError } = await db
       .from("shipping_quotes")
-      .select("id,items,options,expires_at")
+      .select("id,owner_id,items,options,expires_at")
       .eq("id", quoteId)
       .single();
 
     if (quoteError || !quote) throw new Error("Cotação de frete não encontrada");
+    if (!quote.owner_id) throw new Error("Cotação de frete incompatível com a loja");
     if (new Date(quote.expires_at).getTime() <= Date.now()) throw new Error("A cotação de frete expirou");
 
     const quoteItems = Array.isArray(quote.items) ? quote.items : [];
@@ -71,18 +71,20 @@ Deno.serve(async (req) => {
 
     const shippingAmount = Math.max(0, Number(selectedOption.price) || 0);
 
-    // O proprietário é obtido de um produto da loja apenas como fallback.
-    // O preço final continua sendo calculado no RPC usando os preços atuais do banco.
-    const { data: owner, error: ownerError } = await db
+    const { data: owners, error: ownersError } = await db
       .from("products")
-      .select("owner_id")
-      .limit(1)
-      .single();
+      .select("id,owner_id")
+      .in("id", normalizedItems.map((item: any) => item.product_id));
 
-    if (ownerError || !owner?.owner_id) throw new Error("Loja sem proprietário");
+    if (ownersError || !owners || owners.length !== normalizedItems.length) throw new Error("Produto não encontrado");
+    const ownerIds = [...new Set(owners.map((product: any) => String(product.owner_id || "")))];
+    if (ownerIds.length !== 1 || ownerIds[0] !== String(quote.owner_id)) {
+      throw new Error("A cotação não pertence aos produtos do pedido");
+    }
+    const ownerId = ownerIds[0];
 
     const { data, error } = await db.rpc("create_store_order_service", {
-      p_owner_id: owner.owner_id,
+      p_owner_id: ownerId,
       p_customer: {
         name: String(customer.name).trim(),
         email,
