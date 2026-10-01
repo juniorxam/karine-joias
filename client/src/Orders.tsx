@@ -72,8 +72,13 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
     const payload={order_id:selected.id,tracking_code:tracking.trim()||null,shipping_status:tracking.trim()?"POSTED":"PENDING",updated_at:new Date().toISOString()};
     const {error}=await supabase.from("shipments").upsert(payload,{onConflict:"order_id"});
     if(error){toast.error("Não foi possível salvar o rastreio",{description:error.message});return;}
-    if(tracking.trim()&&selected.status!=="SHIPPED") await updateStatus(selected,"SHIPPED");
-    toast.success("Rastreamento atualizado");
+    if(tracking.trim() && selected.status==="READY_TO_SHIP") {
+      await updateStatus(selected,"SHIPPED");
+    } else if(tracking.trim() && !["SHIPPED","DELIVERED"].includes(selected.status)) {
+      toast.success("Rastreamento salvo. Avance o pedido para “Pronto para envio” antes de marcar como enviado.");
+    } else {
+      toast.success("Rastreamento atualizado");
+    }
     await openOrder(selected);
   };
 
