@@ -24,10 +24,14 @@ export default function Storefront() {
   const [category, setCategory] = useState("Todas");
   const [menuOpen, setMenuOpen] = useState(false);
   const [cart, setCart] = useState<CartItem[]>(readCart);
+  const returnParams = new URLSearchParams(window.location.search);
+  const returnedOrder = returnParams.get("order");
   const [view, setView] = useState<"store" | "checkout" | "success">(
-    window.location.pathname.includes("/checkout") ? "checkout" : "store"
+    window.location.pathname.includes("/checkout") ? "checkout" : window.location.pathname.includes("/pedido") ? "success" : "store"
   );
-  const [order, setOrder] = useState<{ order_number: string; total_amount: number } | null>(null);
+  const [order, setOrder] = useState<{ order_number: string; total_amount: number; payment_status?: string } | null>(
+    returnedOrder ? { order_number: returnedOrder, total_amount: 0, payment_status: returnParams.get("status") || "success" } : null
+  );
 
   useEffect(() => {
     loadPublicCatalog().then(setProducts);
@@ -224,6 +228,6 @@ function Checkout({ cart, subtotal, onBack, onFinish, onChangeQty }: { cart: Car
   </div>;
 }
 
-function OrderSuccess({ order, onStore }: { order: { order_number: string; total_amount: number }; onStore: () => void }) {
-  return <div className="storefront success-page"><main className="success-card"><div className="success-icon"><Check size={30}/></div><p className="store-kicker">PEDIDO RECEBIDO</p><h1>Obrigada pela sua compra.</h1><p>Seu pedido <strong>{order.order_number}</strong> foi criado e está aguardando pagamento.</p><div className="success-total">Total do pedido <strong>{formatMoney(Number(order.total_amount))}</strong></div><button className="store-primary-cta" onClick={onStore}>Voltar para a loja <ArrowRight size={16}/></button></main></div>;
+function OrderSuccess({ order, onStore }: { order: { order_number: string; total_amount: number; payment_status?: string }; onStore: () => void }) {
+  return <div className="storefront success-page"><main className="success-card"><div className="success-icon"><Check size={30}/></div><p className="store-kicker">PEDIDO RECEBIDO</p><h1>Obrigada pela sua compra.</h1><p>Seu pedido <strong>{order.order_number}</strong> foi recebido. {order.payment_status === "success" ? "O pagamento foi encaminhado para confirmação." : "Acompanhe a confirmação do pagamento pelo Mercado Pago."}</p>{order.total_amount > 0 && <div className="success-total">Total do pedido <strong>{formatMoney(Number(order.total_amount))}</strong></div>}<button className="store-primary-cta" onClick={onStore}>Voltar para a loja <ArrowRight size={16}/></button></main></div>;
 }
