@@ -52,8 +52,71 @@ export default function Storefront() {
 
   useEffect(() => {
     loadPublicCatalog().then(setProducts);
-    document.title = view === "checkout" ? "Karine Joias · Finalizar pedido" : view === "product" && selectedProduct ? `${selectedProduct.name} · Karine Joias` : view === "success" ? "Karine Joias · Pedido" : "Karine Joias · Escolha o detalhe que fica";
-  }, [view]);
+  }, []);
+
+  useEffect(() => {
+    const title = view === "checkout"
+      ? "Finalizar pedido · Karine Joias"
+      : view === "product" && selectedProduct
+        ? selectedProduct.name + " · Karine Joias"
+        : view === "success"
+          ? "Acompanhamento do pedido · Karine Joias"
+          : "Karine Joias · Escolha o detalhe que fica";
+    const description = view === "product" && selectedProduct
+      ? selectedProduct.name + ", " + selectedProduct.material + ", na Karine Joias. Veja detalhes e compre online."
+      : "Joias e semi-joias escolhidas para acompanhar seus momentos mais bonitos. Compre online na Karine Joias.";
+    document.title = title;
+    document.documentElement.lang = "pt-BR";
+
+    const upsertMeta = (name: string, content: string, property = false) => {
+      const attribute = property ? "property" : "name";
+      let tag = document.head.querySelector<HTMLMetaElement>("meta[" + attribute + "=\"" + name + "\"]");
+      if (!tag) {
+        tag = document.createElement("meta");
+        tag.setAttribute(attribute, name);
+        document.head.appendChild(tag);
+      }
+      tag.content = content;
+    };
+    upsertMeta("description", description);
+    upsertMeta("robots", view === "success" || view === "checkout" ? "noindex,nofollow" : "index,follow");
+    upsertMeta("og:title", title, true);
+    upsertMeta("og:description", description, true);
+    upsertMeta("og:type", "website", true);
+    upsertMeta("og:locale", "pt_BR", true);
+
+    let canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.rel = "canonical";
+      document.head.appendChild(canonical);
+    }
+    canonical.href = window.location.href.split("?")[0].replace(/\/$/, "");
+
+    document.getElementById("karine-store-schema")?.remove();
+    if (view === "store" || view === "product") {
+      const schema = document.createElement("script");
+      schema.id = "karine-store-schema";
+      schema.type = "application/ld+json";
+      schema.textContent = JSON.stringify(view === "product" && selectedProduct ? {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        name: selectedProduct.name,
+        description: selectedProduct.description || description,
+        category: selectedProduct.category,
+        material: selectedProduct.material,
+        image: selectedProduct.imageUrl ? [selectedProduct.imageUrl] : undefined,
+        offers: { "@type": "Offer", priceCurrency: "BRL", price: selectedProduct.price.toFixed(2), availability: "https://schema.org/InStock" }
+      } : {
+        "@context": "https://schema.org",
+        "@type": "Store",
+        name: "Karine Joias",
+        url: window.location.origin + "/loja",
+        description
+      });
+      document.head.appendChild(schema);
+    }
+  }, [view, selectedProduct?.id]);
 
   useEffect(() => {
     if (view !== "success" || !returnedOrder || !supabase) return;
