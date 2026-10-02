@@ -34,11 +34,15 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
     .order("featured", { ascending: false })
     .order("created_at", { ascending: false });
 
-  if (error || !data?.length) return fallbackCatalog;
+  if (error) {
+    console.error("Falha ao carregar catálogo público", error);
+    return [];
+  }
+  if (!data?.length) return [];
   return (data as PublicRow[]).map((row) => ({
     id: row.product_id ?? row.id,
     name: row.name,
-    category: row.category,
+    category: row.category === "Joia" ? "Joias" : row.category === "Semi-joia" ? "Semi-joias" : row.category === "Acessório" ? "Acessórios" : row.category,
     material: row.material,
     price: Number(row.price),
     imageUrl: row.image_url ?? undefined,
