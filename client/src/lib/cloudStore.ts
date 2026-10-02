@@ -46,7 +46,9 @@ export function useSyncedCollection<T extends Record<string, any>>(
   initial: T[],
   ownerId?: string,
 ): [T[], Dispatch<SetStateAction<T[]>>, boolean] {
-  const [value, setValue] = useState<T[]>(() => readLocal(localKey, initial));
+  // In production, the server is the source of truth. Never hydrate an authenticated
+  // account from another browser/session's localStorage before the owner's rows load.
+  const [value, setValue] = useState<T[]>(() => (!isSupabaseConfigured || !ownerId ? readLocal(localKey, initial) : []));
   const [ready, setReady] = useState(!isSupabaseConfigured || !ownerId);
 
   useEffect(() => {
@@ -65,16 +67,12 @@ export function useSyncedCollection<T extends Record<string, any>>(
       const { data, error } = await client.from(table).select("*").eq("owner_id", ownerId).order("id");
       if (error) throw error;
       if (cancelled) return;
+      // An authenticated account with no rows must stay empty. Do not automatically
+      // copy local/demo data into the production database.
       if (data?.length) {
         setValue(data.map((row) => fromDb(table, row)) as T[]);
       } else {
-        const local = readLocal<T[]>(localKey, initial);
-        const rows = local.map((item: T) => toDb(table, item, ownerId));
-        const { data: inserted, error: insertError } = rows.length
-          ? await client.from(table).insert(rows).select("*")
-          : { data: [], error: null };
-        if (insertError) throw insertError;
-        if (!cancelled && inserted?.length) setValue(inserted.map((row) => fromDb(table, row)) as T[]);
+        setValue([]);
       }
       if (!cancelled) setReady(true);
     })().catch((error) => {
