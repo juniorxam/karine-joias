@@ -40,3 +40,23 @@ drop trigger if exists order_items_sync_public_sales on public.order_items;
 create trigger order_items_sync_public_sales
 after insert or update or delete on public.order_items
 for each row execute function public.sync_public_product_sales();
+
+
+create or replace function public.sync_public_product_sales_for_order()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  update public.public_products pp
+  set sold_quantity = coalesce((select s.sold_quantity from public.public_product_sales s where s.product_id = pp.product_id),0)
+  where pp.product_id in (select product_id from public.order_items where order_id = new.id);
+  return new;
+end;
+$$;
+
+drop trigger if exists orders_sync_public_sales on public.orders;
+create trigger orders_sync_public_sales
+after update of status, payment_status on public.orders
+for each row execute function public.sync_public_product_sales_for_order();
