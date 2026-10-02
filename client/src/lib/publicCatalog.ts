@@ -17,6 +17,7 @@ type PublicRow = {
   is_new: boolean;
   is_best_seller: boolean;
   sort_order: number;
+  sold_quantity: number;
 };
 
 export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
@@ -32,7 +33,7 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
 
   const { data, error } = await supabase
     .from("public_products")
-     .select("id,product_id,name,category,material,price,image_url,featured,is_published,slug,description,stock,is_new,is_best_seller,sort_order")
+     .select("id,product_id,name,category,material,price,image_url,featured,is_published,slug,description,stock,is_new,is_best_seller,sort_order,sold_quantity")
     .eq("store_slug", "karine-joias")
     .eq("is_published", true)
     .order("featured", { ascending: false })
@@ -59,5 +60,6 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
     isNew: row.is_new,
     isBestSeller: row.is_best_seller,
     sortOrder: Number(row.sort_order ?? 0),
+    soldQuantity: Number(row.sold_quantity ?? 0),
   }));
 }
