@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { ArrowLeft, ArrowRight, Check, Gem, Instagram, Menu, Minus, Plus, Search, ShoppingBag, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
-import { formatMoney, type CatalogProduct } from "./lib/catalog";
+import { formatMoney, type StorefrontSettings = { hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean };
+type CatalogProduct } from "./lib/catalog";
 import { loadPublicCatalog } from "./lib/publicCatalog";
 import { supabase } from "./lib/supabase";
 
@@ -37,6 +38,12 @@ export default function Storefront() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todas");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [storefrontSettings, setStorefrontSettings] = useState<StorefrontSettings | null>(null);
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.from("storefront_settings").select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled").eq("store_slug","karine-joias").limit(1).maybeSingle()
+      .then(({ data }) => { if (data) setStorefrontSettings(data as StorefrontSettings); });
+  }, []);
   const [cart, setCart] = useState<CartItem[]>(readCart);
   const [checkoutDraft, setCheckoutDraft] = useState(readCheckoutDraft);
   const returnParams = new URLSearchParams(window.location.search);
@@ -302,12 +309,12 @@ export default function Storefront() {
       <section className="store-hero">
         <div className="store-hero-copy">
           <p className="store-kicker"><Sparkles size={13} /> NOVA COLEÇÃO KARINE JOIAS</p>
-          <h1>Seu brilho,<br /><em>seu momento.</em></h1>
-          <p className="store-hero-text">Descubra peças escolhidas para valorizar cada detalhe. Elegância, delicadeza e personalidade em uma só vitrine.</p>
-          <div className="store-hero-actions"><a className="store-primary-cta" href="#novidades">Comprar agora <ArrowRight size={16} /></a><a className="store-text-link" href="#categorias">Ver categorias</a></div>
+          <h1>{storefrontSettings?.hero_title || "Seu brilho, seu momento."}</h1>
+          <p className="store-hero-text">{storefrontSettings?.hero_subtitle || "Descubra peças escolhidas para valorizar cada detalhe. Elegância, delicadeza e personalidade em uma só vitrine."}</p>
+          <div className="store-hero-actions"><a className="store-primary-cta" href="#novidades">{storefrontSettings?.hero_cta || "Comprar agora"} <ArrowRight size={16} /></a><a className="store-text-link" href="#categorias">Ver categorias</a></div>
         </div>
-        <div className="store-hero-art" style={latest[0]?.imageUrl ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${latest[0].imageUrl})` } : undefined}>
-          {!latest[0]?.imageUrl && <><div className="hero-orbit orbit-one" /><div className="hero-orbit orbit-two" /><div className="hero-gem"><Gem size={82} strokeWidth={1} /></div></>}
+        <div className="store-hero-art" style={storefrontSettings?.hero_image_url ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${storefrontSettings.hero_image_url})` } : latest[0]?.imageUrl ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${latest[0].imageUrl})` } : undefined}>
+          {!storefrontSettings?.hero_image_url && !latest[0]?.imageUrl && <><div className="hero-orbit orbit-one" /><div className="hero-orbit orbit-two" /><div className="hero-gem"><Gem size={82} strokeWidth={1} /></div></>}
           <span className="hero-stamp">KARINE<br /><b>JOIAS</b></span>
         </div>
       </section>
@@ -318,20 +325,20 @@ export default function Storefront() {
         <div><span>03</span><strong>Atendimento próximo</strong><p>Fale diretamente com a Karine sempre que precisar.</p></div>
       </section>
 
-      <section className="store-category-strip" id="categorias">
+      {(storefrontSettings?.category_enabled ?? true) && <section className="store-category-strip" id="categorias">
         <div className="store-section-heading"><div><p className="store-kicker">ENCONTRE SEU ESTILO</p><h2>Compre por categoria</h2></div></div>
         <div className="category-cards">{categoryCards.map(item => <button key={item.name} onClick={() => { setCategory(item.name); document.getElementById("colecao")?.scrollIntoView({ behavior: "smooth" }); }}><span>{item.icon}</span><strong>{item.label}</strong><small>Ver peças <ArrowRight size={13} /></small></button>)}</div>
       </section>
 
-      {featured.length > 0 && <section className="store-featured" id="novidades">
-        <div className="store-section-heading"><div><p className="store-kicker">CURADORIA KARINE</p><h2>Peças para se apaixonar.</h2></div><a href="#colecao">Ver toda a coleção <ArrowRight size={15} /></a></div>
+      {(storefrontSettings?.featured_enabled ?? true) && featured.length > 0 && <section className="store-featured" id="novidades">
+        <div className="store-section-heading"><div><p className="store-kicker">CURADORIA KARINE</p><h2>{storefrontSettings?.featured_title || "Peças para se apaixonar."}</h2></div><a href="#colecao">Ver toda a coleção <ArrowRight size={15} /></a></div>
         <div className="featured-grid">{featured.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} featured />)}</div>
       </section>}
 
-      <section className="store-latest">
+      {(storefrontSettings?.latest_enabled ?? true) && <section className="store-latest">
         <div className="store-section-heading"><div><p className="store-kicker">RECÉM-CHEGARAM</p><h2>Novidades</h2></div><a href="#colecao">Ver todos <ArrowRight size={15} /></a></div>
         <div className="store-product-grid">{latest.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} />)}</div>
-      </section>
+      </section>}
 
       <section className="store-catalog" id="colecao">
         <div className="store-section-heading catalog-heading"><div><p className="store-kicker">A COLEÇÃO</p><h2>Encontre o seu brilho.</h2></div><span>{filtered.length} peças</span></div>
