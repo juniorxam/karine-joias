@@ -13,6 +13,7 @@ export type CatalogProduct = {
   isNew?: boolean;
   isBestSeller?: boolean;
   sortOrder?: number;
+  soldQuantity?: number;
 };
 
 export const fallbackCatalog: CatalogProduct[] = [
