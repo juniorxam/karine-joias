@@ -7,6 +7,9 @@ export type ManagedPublicProduct = CatalogProduct & {
   productId: number;
   featured: boolean;
   isPublished: boolean;
+  isNew?: boolean;
+  isBestSeller?: boolean;
+  sortOrder?: number;
 };
 
 const localKey = "kj-public-products";
@@ -26,9 +29,9 @@ export function usePublicProductManager(ownerId?: string): [ManagedPublicProduct
     if (!supabase || !ownerId) { setReady(true); return; }
     setReady(false);
     void (async () => {
-      const { data, error } = await supabase.from("public_products").select("id,product_id,name,category,material,price,image_url,featured,is_published,slug,description").eq("owner_id", ownerId).order("created_at");
+      const { data, error } = await supabase.from("public_products").select("id,product_id,name,category,material,price,image_url,featured,is_published,slug,description,stock,is_new,is_best_seller,sort_order").eq("owner_id", ownerId).order("created_at");
       if (error) throw error;
-      if (!cancelled) setItems((data ?? []).map((row: any) => ({ publicId: row.id, productId: row.product_id, id: row.product_id, name: row.name, category: row.category, material: row.material, price: Number(row.price), imageUrl: row.image_url ?? undefined, featured: row.featured, isPublished: row.is_published, slug: row.slug ?? undefined, description: row.description ?? undefined })));
+      if (!cancelled) setItems((data ?? []).map((row: any) => ({ publicId: row.id, productId: row.product_id, id: row.product_id, name: row.name, category: row.category, material: row.material, price: Number(row.price), imageUrl: row.image_url ?? undefined, featured: row.featured, isPublished: row.is_published, slug: row.slug ?? undefined, description: row.description ?? undefined, stock: Number(row.stock ?? 0), isNew: row.is_new, isBestSeller: row.is_best_seller, sortOrder: Number(row.sort_order ?? 0) })));
     })().catch((error: unknown) => console.error("Falha ao carregar produtos públicos", error)).finally(() => { if (!cancelled) setReady(true); });
     return () => { cancelled = true; };
   }, [ownerId]);
@@ -42,17 +45,20 @@ const toSlug = (name: string) => name.toLowerCase().normalize("NFD").replace(/[\
 export async function savePublicProduct(ownerId: string, product: CatalogProduct, current?: ManagedPublicProduct) {
   if (!supabase) return { publicId: current?.publicId ?? `local-${product.id}`, productId: Number(product.id), id: product.id, name: product.name, category: product.category, material: product.material, price: product.price, featured: current?.featured ?? false, isPublished: true, slug: product.slug || toSlug(product.name), description: product.description } as ManagedPublicProduct;
   const { data, error } = await supabase.from("public_products").upsert({
-    ...(current?.publicId ? { id: current.publicId } : {}), owner_id: ownerId, product_id: Number(product.id), store_slug: "karine-joias", name: product.name, category: toStoreCategory(product.category), material: product.material, price: product.price, image_url: product.imageUrl || null, slug: product.slug || toSlug(product.name), description: product.description || null, featured: current?.featured ?? false, is_published: true,
+    ...(current?.publicId ? { id: current.publicId } : {}), owner_id: ownerId, product_id: Number(product.id), store_slug: "karine-joias", name: product.name, category: toStoreCategory(product.category), material: product.material, price: product.price, image_url: product.imageUrl || null, stock: Number((product as any).stock ?? 0), is_new: current?.isNew ?? false, is_best_seller: current?.isBestSeller ?? false, sort_order: current?.sortOrder ?? 0, slug: product.slug || toSlug(product.name), description: product.description || null, featured: current?.featured ?? false, is_published: true,
   }, { onConflict: "owner_id,product_id" }).select("id,product_id,name,category,material,price,image_url,featured,is_published,slug,description").single();
   if (error) throw error;
-  return { publicId: data.id, productId: data.product_id, id: data.product_id, name: data.name, category: data.category, material: data.material, price: Number(data.price), imageUrl: data.image_url ?? undefined, featured: data.featured, isPublished: data.is_published, slug: data.slug ?? undefined, description: data.description ?? undefined } as ManagedPublicProduct;
+  return { publicId: data.id, productId: data.product_id, id: data.product_id, name: data.name, category: data.category, material: data.material, price: Number(data.price), imageUrl: data.image_url ?? undefined, featured: data.featured, isPublished: data.is_published, slug: data.slug ?? undefined, description: data.description ?? undefined, stock: Number(data.stock ?? 0), isNew: data.is_new, isBestSeller: data.is_best_seller, sortOrder: Number(data.sort_order ?? 0) } as ManagedPublicProduct;
 }
 
-export async function updatePublicProduct(ownerId: string, item: ManagedPublicProduct, changes: Partial<Pick<ManagedPublicProduct, "isPublished" | "featured">> & Partial<Pick<CatalogProduct, "name" | "category" | "material" | "price" | "slug" | "description" | "imageUrl">>) {
+export async function updatePublicProduct(ownerId: string, item: ManagedPublicProduct, changes: Partial<Pick<ManagedPublicProduct, "isPublished" | "featured" | "isNew" | "isBestSeller" | "sortOrder">> & Partial<Pick<CatalogProduct, "name" | "category" | "material" | "price" | "slug" | "description" | "imageUrl">>) {
   if (!supabase) return { ...item, ...changes };
   const { data, error } = await supabase.from("public_products").update({
     is_published: changes.isPublished ?? item.isPublished,
     featured: changes.featured ?? item.featured,
+    ...(changes.isNew !== undefined ? { is_new: changes.isNew } : {}),
+    ...(changes.isBestSeller !== undefined ? { is_best_seller: changes.isBestSeller } : {}),
+    ...(changes.sortOrder !== undefined ? { sort_order: changes.sortOrder } : {}),
     ...(changes.name !== undefined ? { name: changes.name } : {}),
     ...(changes.category !== undefined ? { category: toStoreCategory(changes.category) } : {}),
     ...(changes.material !== undefined ? { material: changes.material } : {}),
