@@ -1,6 +1,6 @@
-# Karine Joias
+# Violetta
 
-Aplicação de gestão e loja virtual da Karine Joias.
+Aplicação de gestão e loja virtual da Violetta.
 
 ## Arquitetura
 
@@ -104,3 +104,9 @@ Quando o domínio definitivo estiver configurado, deve ser adicionado um sitemap
 - Fazer um pedido controlado ponta a ponta.
 - Confirmar estoque, pagamento, frete, etiqueta e rastreamento.
 - Definir o procedimento fiscal da operação.
+
+
+## Publicação
+- Marca: Violetta
+- Domínio planejado: `violetta.com.br`
+- Ambiente atual: Vercel (homologação/testes)
