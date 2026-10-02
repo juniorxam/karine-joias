@@ -36,18 +36,30 @@ export function usePublicProductManager(ownerId?: string): [ManagedPublicProduct
   return [items, setItems, ready];
 }
 
+const toStoreCategory = (category: string) => category === "Joia" ? "Joias" : category === "Semi-joia" ? "Semi-joias" : category === "Acessório" ? "Acessórios" : category;
+const toSlug = (name: string) => name.toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+
 export async function savePublicProduct(ownerId: string, product: CatalogProduct, current?: ManagedPublicProduct) {
   if (!supabase) return { publicId: current?.publicId ?? `local-${product.id}`, productId: Number(product.id), id: product.id, name: product.name, category: product.category, material: product.material, price: product.price, featured: current?.featured ?? false, isPublished: true } as ManagedPublicProduct;
   const { data, error } = await supabase.from("public_products").upsert({
-    ...(current?.publicId ? { id: current.publicId } : {}), owner_id: ownerId, product_id: Number(product.id), store_slug: "karine-joias", name: product.name, category: product.category, material: product.material, price: product.price, featured: current?.featured ?? false, is_published: true,
+    ...(current?.publicId ? { id: current.publicId } : {}), owner_id: ownerId, product_id: Number(product.id), store_slug: "karine-joias", name: product.name, category: toStoreCategory(product.category), material: product.material, price: product.price, slug: product.slug || toSlug(product.name), description: product.description || null, featured: current?.featured ?? false, is_published: true,
   }, { onConflict: "owner_id,product_id" }).select("id,product_id,name,category,material,price,image_url,featured,is_published").single();
   if (error) throw error;
   return { publicId: data.id, productId: data.product_id, id: data.product_id, name: data.name, category: data.category, material: data.material, price: Number(data.price), imageUrl: data.image_url ?? undefined, featured: data.featured, isPublished: data.is_published } as ManagedPublicProduct;
 }
 
-export async function updatePublicProduct(ownerId: string, item: ManagedPublicProduct, changes: Partial<Pick<ManagedPublicProduct, "isPublished" | "featured">>) {
+export async function updatePublicProduct(ownerId: string, item: ManagedPublicProduct, changes: Partial<Pick<ManagedPublicProduct, "isPublished" | "featured">> & Partial<Pick<CatalogProduct, "name" | "category" | "material" | "price" | "slug" | "description">>) {
   if (!supabase) return { ...item, ...changes };
-  const { data, error } = await supabase.from("public_products").update({ is_published: changes.isPublished ?? item.isPublished, featured: changes.featured ?? item.featured }).eq("id", item.publicId).eq("owner_id", ownerId).select("id,product_id,name,category,material,price,image_url,featured,is_published").single();
+  const { data, error } = await supabase.from("public_products").update({
+    is_published: changes.isPublished ?? item.isPublished,
+    featured: changes.featured ?? item.featured,
+    ...(changes.name !== undefined ? { name: changes.name } : {}),
+    ...(changes.category !== undefined ? { category: toStoreCategory(changes.category) } : {}),
+    ...(changes.material !== undefined ? { material: changes.material } : {}),
+    ...(changes.price !== undefined ? { price: changes.price } : {}),
+    ...(changes.slug !== undefined ? { slug: changes.slug || toSlug(changes.name || item.name) } : {}),
+    ...(changes.description !== undefined ? { description: changes.description || null } : {}),
+  }).eq("id", item.publicId).eq("owner_id", ownerId).select("id,product_id,name,category,material,price,image_url,featured,is_published").single();
   if (error) throw error;
-  return { ...item, publicId: data.id, featured: data.featured, isPublished: data.is_published };
+  return { ...item, publicId: data.id, productId: data.product_id, id: data.product_id, name: data.name, category: data.category, material: data.material, price: Number(data.price), imageUrl: data.image_url ?? undefined, featured: data.featured, isPublished: data.is_published, slug: data.slug ?? undefined, description: data.description ?? undefined };
 }
