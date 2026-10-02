@@ -9,6 +9,10 @@ export type CatalogProduct = {
   isPublished?: boolean;
   slug?: string;
   description?: string;
+  stock?: number;
+  isNew?: boolean;
+  isBestSeller?: boolean;
+  sortOrder?: number;
 };
 
 export const fallbackCatalog: CatalogProduct[] = [
