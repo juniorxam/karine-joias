@@ -26,9 +26,9 @@ export function usePublicProductManager(ownerId?: string): [ManagedPublicProduct
     if (!supabase || !ownerId) { setReady(true); return; }
     setReady(false);
     void (async () => {
-      const { data, error } = await supabase.from("public_products").select("id,product_id,name,category,material,price,image_url,featured,is_published").eq("owner_id", ownerId).order("created_at");
+      const { data, error } = await supabase.from("public_products").select("id,product_id,name,category,material,price,image_url,featured,is_published,slug,description").eq("owner_id", ownerId).order("created_at");
       if (error) throw error;
-      if (!cancelled) setItems((data ?? []).map((row: any) => ({ publicId: row.id, productId: row.product_id, id: row.product_id, name: row.name, category: row.category, material: row.material, price: Number(row.price), imageUrl: row.image_url ?? undefined, featured: row.featured, isPublished: row.is_published })));
+      if (!cancelled) setItems((data ?? []).map((row: any) => ({ publicId: row.id, productId: row.product_id, id: row.product_id, name: row.name, category: row.category, material: row.material, price: Number(row.price), imageUrl: row.image_url ?? undefined, featured: row.featured, isPublished: row.is_published, slug: row.slug ?? undefined, description: row.description ?? undefined })));
     })().catch((error: unknown) => console.error("Falha ao carregar produtos públicos", error)).finally(() => { if (!cancelled) setReady(true); });
     return () => { cancelled = true; };
   }, [ownerId]);
@@ -37,13 +37,13 @@ export function usePublicProductManager(ownerId?: string): [ManagedPublicProduct
 }
 
 const toStoreCategory = (category: string) => category === "Joia" ? "Joias" : category === "Semi-joia" ? "Semi-joias" : category === "Acessório" ? "Acessórios" : category;
-const toSlug = (name: string) => name.toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+const toSlug = (name: string) => name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
 
 export async function savePublicProduct(ownerId: string, product: CatalogProduct, current?: ManagedPublicProduct) {
-  if (!supabase) return { publicId: current?.publicId ?? `local-${product.id}`, productId: Number(product.id), id: product.id, name: product.name, category: product.category, material: product.material, price: product.price, featured: current?.featured ?? false, isPublished: true } as ManagedPublicProduct;
+  if (!supabase) return { publicId: current?.publicId ?? `local-${product.id}`, productId: Number(product.id), id: product.id, name: product.name, category: product.category, material: product.material, price: product.price, featured: current?.featured ?? false, isPublished: true, slug: product.slug || toSlug(product.name), description: product.description } as ManagedPublicProduct;
   const { data, error } = await supabase.from("public_products").upsert({
     ...(current?.publicId ? { id: current.publicId } : {}), owner_id: ownerId, product_id: Number(product.id), store_slug: "karine-joias", name: product.name, category: toStoreCategory(product.category), material: product.material, price: product.price, slug: product.slug || toSlug(product.name), description: product.description || null, featured: current?.featured ?? false, is_published: true,
-  }, { onConflict: "owner_id,product_id" }).select("id,product_id,name,category,material,price,image_url,featured,is_published").single();
+  }, { onConflict: "owner_id,product_id" }).select("id,product_id,name,category,material,price,image_url,featured,is_published,slug,description").single();
   if (error) throw error;
   return { publicId: data.id, productId: data.product_id, id: data.product_id, name: data.name, category: data.category, material: data.material, price: Number(data.price), imageUrl: data.image_url ?? undefined, featured: data.featured, isPublished: data.is_published } as ManagedPublicProduct;
 }
