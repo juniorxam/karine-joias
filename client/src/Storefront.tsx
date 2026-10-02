@@ -151,7 +151,13 @@ export default function Storefront() {
     return matchesCategory && text.includes(query.toLowerCase());
   }), [category, products, query]);
 
-  const featured = products.filter((product) => product.featured).slice(0, 3);
+  const featured = products.filter((product) => product.featured).slice(0, 4);
+  const latest = products.slice(0, 4);
+  const categoryCards = [
+    { name: "Joias", label: "Joias", icon: "✦" },
+    { name: "Semi-joias", label: "Semi-joias", icon: "◇" },
+    { name: "Acessórios", label: "Acessórios", icon: "◌" },
+  ];
   const productSlug = decodeURIComponent(window.location.pathname.split("/produto/")[1] || "");
   const selectedProduct = view === "product" ? products.find(product => (product.slug || String(product.id)) === productSlug || String(product.id) === productSlug) : null;
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -280,8 +286,9 @@ export default function Storefront() {
         <span><strong>Karine</strong><small>JOIAS</small></span>
       </a>
       <nav className={menuOpen ? "store-nav open" : "store-nav"}>
+        <a href="#novidades" onClick={() => setMenuOpen(false)}>Novidades</a>
         <a href="#colecao" onClick={() => setMenuOpen(false)}>Coleção</a>
-        <a href="#essencia" onClick={() => setMenuOpen(false)}>A essência</a>
+        <a href="#categorias" onClick={() => setMenuOpen(false)}>Categorias</a>
         <a href="#contato" onClick={() => setMenuOpen(false)}>Atendimento</a>
       </nav>
       <div className="store-header-actions">
@@ -294,24 +301,37 @@ export default function Storefront() {
     <main>
       <section className="store-hero">
         <div className="store-hero-copy">
-          <p className="store-kicker"><Sparkles size={13} /> JOIAS COM PRESENÇA DELICADA</p>
-          <h1>Escolha o detalhe <em>que fica.</em></h1>
-          <p className="store-hero-text">Peças escolhidas para acompanhar seus momentos mais bonitos — com brilho, intenção e a delicadeza que é só sua.</p>
-          <a className="store-primary-cta" href="#colecao">Explorar a coleção <ArrowRight size={16} /></a>
+          <p className="store-kicker"><Sparkles size={13} /> NOVA COLEÇÃO KARINE JOIAS</p>
+          <h1>Seu brilho,<br /><em>seu momento.</em></h1>
+          <p className="store-hero-text">Descubra peças escolhidas para valorizar cada detalhe. Elegância, delicadeza e personalidade em uma só vitrine.</p>
+          <div className="store-hero-actions"><a className="store-primary-cta" href="#novidades">Comprar agora <ArrowRight size={16} /></a><a className="store-text-link" href="#categorias">Ver categorias</a></div>
         </div>
-        <div className="store-hero-art"><div className="hero-orbit orbit-one" /><div className="hero-orbit orbit-two" /><div className="hero-gem"><Gem size={82} strokeWidth={1} /></div><span className="hero-stamp">FEITO PARA<br /><b>BRILHAR</b></span></div>
+        <div className="store-hero-art" style={latest[0]?.imageUrl ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${latest[0].imageUrl})` } : undefined}>
+          {!latest[0]?.imageUrl && <><div className="hero-orbit orbit-one" /><div className="hero-orbit orbit-two" /><div className="hero-gem"><Gem size={82} strokeWidth={1} /></div></>}
+          <span className="hero-stamp">KARINE<br /><b>JOIAS</b></span>
+        </div>
       </section>
 
       <section className="store-values" id="essencia">
-        <div><span>01</span><strong>Escolhas com intenção</strong><p>Peças que contam uma história sem precisar dizer uma palavra.</p></div>
-        <div><span>02</span><strong>Detalhes que aproximam</strong><p>Atendimento próximo para encontrar algo realmente seu.</p></div>
-        <div><span>03</span><strong>Brilho para todos os dias</strong><p>Joias para celebrar o agora, do seu jeito.</p></div>
+        <div><span>01</span><strong>Curadoria especial</strong><p>Peças selecionadas para combinar com diferentes estilos e momentos.</p></div>
+        <div><span>02</span><strong>Compra segura</strong><p>Finalize seu pedido online com pagamento processado pelo Mercado Pago.</p></div>
+        <div><span>03</span><strong>Atendimento próximo</strong><p>Fale diretamente com a Karine sempre que precisar.</p></div>
       </section>
 
-      {featured.length > 0 && <section className="store-featured">
+      <section className="store-category-strip" id="categorias">
+        <div className="store-section-heading"><div><p className="store-kicker">ENCONTRE SEU ESTILO</p><h2>Compre por categoria</h2></div></div>
+        <div className="category-cards">{categoryCards.map(item => <button key={item.name} onClick={() => { setCategory(item.name); document.getElementById("colecao")?.scrollIntoView({ behavior: "smooth" }); }}><span>{item.icon}</span><strong>{item.label}</strong><small>Ver peças <ArrowRight size={13} /></small></button>)}</div>
+      </section>
+
+      {featured.length > 0 && <section className="store-featured" id="novidades">
         <div className="store-section-heading"><div><p className="store-kicker">CURADORIA KARINE</p><h2>Peças para se apaixonar.</h2></div><a href="#colecao">Ver toda a coleção <ArrowRight size={15} /></a></div>
         <div className="featured-grid">{featured.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} featured />)}</div>
       </section>}
+
+      <section className="store-latest">
+        <div className="store-section-heading"><div><p className="store-kicker">RECÉM-CHEGARAM</p><h2>Novidades</h2></div><a href="#colecao">Ver todos <ArrowRight size={15} /></a></div>
+        <div className="store-product-grid">{latest.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} />)}</div>
+      </section>
 
       <section className="store-catalog" id="colecao">
         <div className="store-section-heading catalog-heading"><div><p className="store-kicker">A COLEÇÃO</p><h2>Encontre o seu brilho.</h2></div><span>{filtered.length} peças</span></div>
@@ -326,7 +346,9 @@ export default function Storefront() {
 
 function ProductCard({ product, onAdd, onAsk, onOpen, featured = false }: { product: CatalogProduct; onAdd: (product: CatalogProduct) => void; onAsk: (product: CatalogProduct) => void; onOpen: (product: CatalogProduct) => void; featured?: boolean }) {
   return <article className={featured ? "store-product-card featured-card" : "store-product-card"}>
-    <button className="store-product-art" onClick={() => onOpen(product)} aria-label={`Ver ${product.name}`} style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}><div className="product-art-glow"><Gem size={featured ? 39 : 31} strokeWidth={1.1} /></div><span>{product.category}</span></div>
+    <button className="store-product-art" onClick={() => onOpen(product)} aria-label={`Ver ${product.name}`} style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}>
+      {!product.imageUrl && <div className="product-art-glow"><Gem size={featured ? 39 : 31} strokeWidth={1.1} /></div>}
+      <span>{featured ? "DESTAQUE" : product.category}</span>
     </button><div className="store-product-info"><p className="product-material">{product.material}</p><h3>{product.name}</h3><div className="store-product-bottom"><strong>{formatMoney(product.price)}</strong><div className="product-actions"><button className="product-buy" onClick={() => onAdd(product)}>Comprar</button><button className="product-interest" onClick={() => onAsk(product)} aria-label={`Tenho interesse em ${product.name}`}>{featured ? "WhatsApp" : <Check size={15} />}</button></div></div></div>
   </article>;
 }
