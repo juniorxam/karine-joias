@@ -1,3 +1,9 @@
+[functions.create-order]
+verify_jwt = false
+
+[functions.shipping-quote]
+verify_jwt = false
+
 [functions.create-payment]
 verify_jwt = false
 
