@@ -10,6 +10,7 @@ export type ManagedPublicProduct = CatalogProduct & {
   isNew?: boolean;
   isBestSeller?: boolean;
   sortOrder?: number;
+  soldQuantity?: number;
 };
 
 const localKey = "kj-public-products";
@@ -29,9 +30,9 @@ export function usePublicProductManager(ownerId?: string): [ManagedPublicProduct
     if (!supabase || !ownerId) { setReady(true); return; }
     setReady(false);
     void (async () => {
-      const { data, error } = await supabase.from("public_products").select("id,product_id,name,category,material,price,image_url,featured,is_published,slug,description,stock,is_new,is_best_seller,sort_order").eq("owner_id", ownerId).order("created_at");
+      const { data, error } = await supabase.from("public_products").select("id,product_id,name,category,material,price,image_url,featured,is_published,undefined").eq("owner_id", ownerId).order("created_at");
       if (error) throw error;
-      if (!cancelled) setItems((data ?? []).map((row: any) => ({ publicId: row.id, productId: row.product_id, id: row.product_id, name: row.name, category: row.category, material: row.material, price: Number(row.price), imageUrl: row.image_url ?? undefined, featured: row.featured, isPublished: row.is_published, slug: row.slug ?? undefined, description: row.description ?? undefined, stock: Number(row.stock ?? 0), isNew: row.is_new, isBestSeller: row.is_best_seller, sortOrder: Number(row.sort_order ?? 0) })));
+      if (!cancelled) setItems((data ?? []).map((row: any) => ({ publicId: row.id, productId: row.product_id, id: row.product_id, name: row.name, category: row.category, material: row.material, price: Number(row.price), imageUrl: row.image_url ?? undefined, featured: row.featured, isPublished: row.is_published, slug: row.slug ?? undefined, description: row.description ?? undefined, stock: Number(row.stock ?? 0), isNew: row.is_new, isBestSeller: row.is_best_seller, sortOrder: Number(row.sort_order ?? 0), soldQuantity: Number(row.sold_quantity ?? 0) })));
     })().catch((error: unknown) => console.error("Falha ao carregar produtos públicos", error)).finally(() => { if (!cancelled) setReady(true); });
     return () => { cancelled = true; };
   }, [ownerId]);
