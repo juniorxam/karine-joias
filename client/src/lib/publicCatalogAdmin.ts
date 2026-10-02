@@ -56,6 +56,7 @@ export async function updatePublicProduct(ownerId: string, item: ManagedPublicPr
   const { data, error } = await supabase.from("public_products").update({
     is_published: changes.isPublished ?? item.isPublished,
     featured: changes.featured ?? item.featured,
+    stock: Number(item.stock ?? 0),
     ...(changes.isNew !== undefined ? { is_new: changes.isNew } : {}),
     ...(changes.isBestSeller !== undefined ? { is_best_seller: changes.isBestSeller } : {}),
     ...(changes.sortOrder !== undefined ? { sort_order: changes.sortOrder } : {}),
