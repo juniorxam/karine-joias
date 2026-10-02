@@ -56,6 +56,8 @@ export default function Storefront() {
   );
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [trackingLoading, setTrackingLoading] = useState(false);
+  const productSlug = decodeURIComponent(window.location.pathname.split("/produto/")[1] || "");
+  const selectedProduct = view === "product" ? products.find(product => (product.slug || String(product.id)) === productSlug || String(product.id) === productSlug) : null;
 
   useEffect(() => {
     loadPublicCatalog().then(setProducts);
@@ -166,8 +168,6 @@ export default function Storefront() {
     { name: "Semi-joias", label: "Semi-joias", icon: "◇" },
     { name: "Acessórios", label: "Acessórios", icon: "◌" },
   ];
-  const productSlug = decodeURIComponent(window.location.pathname.split("/produto/")[1] || "");
-  const selectedProduct = view === "product" ? products.find(product => (product.slug || String(product.id)) === productSlug || String(product.id) === productSlug) : null;
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
