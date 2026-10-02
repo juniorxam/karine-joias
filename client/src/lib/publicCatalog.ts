@@ -33,7 +33,7 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
 
   const { data, error } = await supabase
     .from("public_products")
-     .select("id,product_id,name,category,material,price,image_url,featured,is_published,slug,description,stock,is_new,is_best_seller,sort_order,sold_quantity")
+    .select("id,product_id,name,category,material,price,image_url,featured,is_published,slug,description,stock,is_new,is_best_seller,sort_order,sold_quantity")
     .eq("store_slug", "karine-joias")
     .eq("is_published", true)
     .order("featured", { ascending: false })
@@ -42,7 +42,7 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
 
   if (error) {
     console.error("Falha ao carregar catálogo público", error);
-    return [];
+    return fallbackCatalog;
   }
   if (!data?.length) return [];
   return (data as PublicRow[]).map((row) => ({
