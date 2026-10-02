@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { ArrowLeft, ArrowRight, Check, Gem, Instagram, Menu, Minus, Plus, Search, ShoppingBag, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
-import { formatMoney, type StorefrontSettings = { hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean };
+import { formatMoney, type StorefrontSettings = { hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string };
 type CatalogProduct } from "./lib/catalog";
 import { loadPublicCatalog } from "./lib/publicCatalog";
 import { supabase } from "./lib/supabase";
@@ -41,7 +41,7 @@ export default function Storefront() {
   const [storefrontSettings, setStorefrontSettings] = useState<StorefrontSettings | null>(null);
   useEffect(() => {
     if (!supabase) return;
-    supabase.from("storefront_settings").select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled").eq("store_slug","karine-joias").limit(1).maybeSingle()
+    supabase.from("storefront_settings").select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,undefined").eq("store_slug","karine-joias").limit(1).maybeSingle()
       .then(({ data }) => { if (data) setStorefrontSettings(data as StorefrontSettings); });
   }, []);
   const [cart, setCart] = useState<CartItem[]>(readCart);
@@ -158,8 +158,8 @@ export default function Storefront() {
     return matchesCategory && text.includes(query.toLowerCase());
   }), [category, products, query]);
 
-  const featured = products.filter((product) => product.featured).slice(0, 4);
-  const latest = products.slice(0, 4);
+  const featured = products.filter((product) => product.featured).sort((a,b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 4);
+  const latest = [...products].sort((a,b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0) || (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 4);
   const categoryCards = [
     { name: "Joias", label: "Joias", icon: "✦" },
     { name: "Semi-joias", label: "Semi-joias", icon: "◇" },
@@ -340,6 +340,11 @@ export default function Storefront() {
         <div className="store-product-grid">{latest.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} />)}</div>
       </section>}
 
+      {(storefrontSettings?.collection_enabled ?? true) && <section className="store-collection-banner" id="colecao-banner" style={storefrontSettings?.collection_image_url ? { backgroundImage: `linear-gradient(90deg, rgba(42,36,31,.88), rgba(42,36,31,.25)), url(${storefrontSettings.collection_image_url})` } : undefined}>
+        <div className="store-collection-copy"><p className="store-kicker">COLEÇÃO KARINE</p><h2>{storefrontSettings?.collection_title || "Uma coleção para guardar."}</h2><p>{storefrontSettings?.collection_subtitle || "Detalhes delicados para acompanhar você em todos os momentos."}</p><a href="#colecao" className="store-primary-cta">{storefrontSettings?.collection_cta || "Conhecer coleção"} <ArrowRight size={16}/></a></div>
+        {!storefrontSettings?.collection_image_url && <div className="collection-art"><Gem size={88} strokeWidth={1}/></div>}
+      </section>}
+
       <section className="store-catalog" id="colecao">
         <div className="store-section-heading catalog-heading"><div><p className="store-kicker">A COLEÇÃO</p><h2>Encontre o seu brilho.</h2></div><span>{filtered.length} peças</span></div>
         <div className="catalog-toolbar"><div className="catalog-search"><Search size={17} /><input aria-label="Buscar produtos" placeholder="Buscar uma peça..." value={query} onChange={event => setQuery(event.target.value)} /></div><div className="category-list">{categories.map(item => <button className={category === item ? "selected" : ""} key={item} onClick={() => setCategory(item)}>{item}</button>)}</div></div>
@@ -352,10 +357,11 @@ export default function Storefront() {
 }
 
 function ProductCard({ product, onAdd, onAsk, onOpen, featured = false }: { product: CatalogProduct; onAdd: (product: CatalogProduct) => void; onAsk: (product: CatalogProduct) => void; onOpen: (product: CatalogProduct) => void; featured?: boolean }) {
+  const badges = product.isBestSeller ? ["MAIS VENDIDO"] : product.isNew ? ["NOVO"] : product.stock !== undefined && product.stock > 0 && product.stock <= 3 ? ["ÚLTIMAS UNIDADES"] : [];
   return <article className={featured ? "store-product-card featured-card" : "store-product-card"}>
     <button className="store-product-art" onClick={() => onOpen(product)} aria-label={`Ver ${product.name}`} style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}>
       {!product.imageUrl && <div className="product-art-glow"><Gem size={featured ? 39 : 31} strokeWidth={1.1} /></div>}
-      <span>{featured ? "DESTAQUE" : product.category}</span>
+      {badges.length > 0 && <span className="product-badge">{badges[0]}</span>}<span className="product-category-tag">{featured ? "DESTAQUE" : product.category}</span>
     </button><div className="store-product-info"><p className="product-material">{product.material}</p><h3>{product.name}</h3><div className="store-product-bottom"><strong>{formatMoney(product.price)}</strong><div className="product-actions"><button className="product-buy" onClick={() => onAdd(product)}>Comprar</button><button className="product-interest" onClick={() => onAsk(product)} aria-label={`Tenho interesse em ${product.name}`}>{featured ? "WhatsApp" : <Check size={15} />}</button></div></div></div>
   </article>;
 }
