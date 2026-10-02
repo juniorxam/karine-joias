@@ -38,7 +38,7 @@ export default function Storefront() {
   const [storefrontSettings, setStorefrontSettings] = useState<StorefrontSettings | null>(null);
   useEffect(() => {
     if (!supabase) return;
-    supabase.from("storefront_settings").select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,undefined").eq("store_slug","karine-joias").limit(1).maybeSingle()
+    supabase.from("storefront_settings").select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled,collection_enabled,collection_title,collection_subtitle,collection_image_url,collection_cta").eq("store_slug","karine-joias").limit(1).maybeSingle()
       .then(({ data }) => { if (data) setStorefrontSettings(data as StorefrontSettings); });
   }, []);
   const [cart, setCart] = useState<CartItem[]>(readCart);
@@ -169,10 +169,16 @@ export default function Storefront() {
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   const addToCart = (product: CatalogProduct) => {
+    const available = Number(product.stock ?? 0);
+    if (available <= 0) return toast.error("Produto indisponível", { description: product.name });
     setCart(items => {
       const current = items.find(item => String(item.id) === String(product.id));
+      if (current && current.quantity >= available) {
+        toast.error("Limite de estoque atingido", { description: `Há ${available} unidade(s) disponível(is).` });
+        return items;
+      }
       return current
-        ? items.map(item => String(item.id) === String(product.id) ? { ...item, quantity: item.quantity + 1 } : item)
+        ? items.map(item => String(item.id) === String(product.id) ? { ...item, quantity: Math.min(available, item.quantity + 1) } : item)
         : [...items, { ...product, quantity: 1 }];
     });
     toast.success("Produto adicionado ao carrinho", { description: product.name });
@@ -181,7 +187,8 @@ export default function Storefront() {
   const changeQty = (id: CatalogProduct["id"], delta: number) => {
     setCart(items => items.flatMap(item => {
       if (String(item.id) !== String(id)) return [item];
-      const quantity = item.quantity + delta;
+      const available = Number(item.stock ?? 0);
+      const quantity = Math.min(available, item.quantity + delta);
       return quantity > 0 ? [{ ...item, quantity }] : [];
     }));
   };
@@ -368,8 +375,8 @@ function ProductDetail({ product, onBack, onAdd, onCheckout }: { product: Catalo
   return <div className="storefront checkout-page">
     <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Karine</strong><small>JOIAS</small></span></span><button className="store-cart-button" onClick={onCheckout}><ShoppingBag size={18}/></button></header>
     <main className="product-detail-page">
-      <div className="product-detail-image" style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}><Gem size={80} strokeWidth={1}/></div>
-      <div className="product-detail-copy"><p className="store-kicker">{product.category}</p><p className="product-material">{product.material}</p><h1>{product.name}</h1><strong className="product-detail-price">{formatMoney(product.price)}</strong><p className="product-detail-description">{product.description || "Uma peça escolhida para trazer delicadeza, presença e brilho aos seus momentos."}</p><button className="checkout-submit" onClick={onAdd}>Adicionar ao carrinho</button><button className="store-primary-cta" onClick={onCheckout}>Ir para o carrinho <ArrowRight size={16}/></button></div>
+      <div className="product-detail-image" style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}>{!product.imageUrl && <Gem size={80} strokeWidth={1}/>}</div>
+      <div className="product-detail-copy"><p className="store-kicker">{product.category}</p><p className="product-material">{product.material}</p><h1>{product.name}</h1><strong className="product-detail-price">{formatMoney(product.price)}</strong><p className="product-detail-description">{product.description || "Uma peça escolhida para trazer delicadeza, presença e brilho aos seus momentos."}</p><button className="checkout-submit" onClick={onAdd} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Adicionar ao carrinho" : "Produto esgotado"}</button><button className="store-primary-cta" onClick={onCheckout}>Ir para o carrinho <ArrowRight size={16}/></button></div>
     </main>
   </div>;
 }
