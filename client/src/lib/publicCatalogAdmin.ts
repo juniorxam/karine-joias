@@ -45,7 +45,7 @@ export async function savePublicProduct(ownerId: string, product: CatalogProduct
     ...(current?.publicId ? { id: current.publicId } : {}), owner_id: ownerId, product_id: Number(product.id), store_slug: "karine-joias", name: product.name, category: toStoreCategory(product.category), material: product.material, price: product.price, slug: product.slug || toSlug(product.name), description: product.description || null, featured: current?.featured ?? false, is_published: true,
   }, { onConflict: "owner_id,product_id" }).select("id,product_id,name,category,material,price,image_url,featured,is_published,slug,description").single();
   if (error) throw error;
-  return { publicId: data.id, productId: data.product_id, id: data.product_id, name: data.name, category: data.category, material: data.material, price: Number(data.price), imageUrl: data.image_url ?? undefined, featured: data.featured, isPublished: data.is_published } as ManagedPublicProduct;
+  return { publicId: data.id, productId: data.product_id, id: data.product_id, name: data.name, category: data.category, material: data.material, price: Number(data.price), imageUrl: data.image_url ?? undefined, featured: data.featured, isPublished: data.is_published, slug: data.slug ?? undefined, description: data.description ?? undefined } as ManagedPublicProduct;
 }
 
 export async function updatePublicProduct(ownerId: string, item: ManagedPublicProduct, changes: Partial<Pick<ManagedPublicProduct, "isPublished" | "featured">> & Partial<Pick<CatalogProduct, "name" | "category" | "material" | "price" | "slug" | "description">>) {
@@ -59,7 +59,7 @@ export async function updatePublicProduct(ownerId: string, item: ManagedPublicPr
     ...(changes.price !== undefined ? { price: changes.price } : {}),
     ...(changes.slug !== undefined ? { slug: changes.slug || toSlug(changes.name || item.name) } : {}),
     ...(changes.description !== undefined ? { description: changes.description || null } : {}),
-  }).eq("id", item.publicId).eq("owner_id", ownerId).select("id,product_id,name,category,material,price,image_url,featured,is_published").single();
+  }).eq("id", item.publicId).eq("owner_id", ownerId) .select("id,product_id,name,category,material,price,image_url,featured,is_published,slug,description").single();
   if (error) throw error;
   return { ...item, publicId: data.id, productId: data.product_id, id: data.product_id, name: data.name, category: data.category, material: data.material, price: Number(data.price), imageUrl: data.image_url ?? undefined, featured: data.featured, isPublished: data.is_published, slug: data.slug ?? undefined, description: data.description ?? undefined };
 }
