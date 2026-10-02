@@ -7,7 +7,7 @@ where o.status not in ('CANCELLED','REFUNDED','CANCELED','cancelled','refunded',
 group by oi.product_id;
 
 alter view public.public_product_sales set (security_invoker = true);
-grant select on public.public_product_sales to anon, authenticated;
+revoke select on public.public_product_sales from anon, authenticated;
 
 create index if not exists order_items_product_id_idx on public.order_items(product_id);
 create index if not exists order_items_order_id_idx on public.order_items(order_id);
