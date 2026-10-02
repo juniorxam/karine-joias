@@ -330,25 +330,25 @@ export default function Storefront() {
         <div><span>03</span><strong>Atendimento próximo</strong><p>Fale diretamente com a Karine sempre que precisar.</p></div>
       </section>
 
-      {(storefrontSettings?.category_enabled ?? true) && <section className="store-category-strip" id="categorias">
+      {(storefrontSettings?.category_enabled ?? true) ? <section className="store-category-strip" id="categorias">
         <div className="store-section-heading"><div><p className="store-kicker">ENCONTRE SEU ESTILO</p><h2>Compre por categoria</h2></div></div>
         <div className="category-cards">{categoryCards.map(item => <button key={item.name} onClick={() => { setCategory(item.name); document.getElementById("colecao")?.scrollIntoView({ behavior: "smooth" }); }}><span>{item.icon}</span><strong>{item.label}</strong><small>Ver peças <ArrowRight size={13} /></small></button>)}</div>
       </section>
 
-      {(storefrontSettings?.featured_enabled ?? true) && featured.length > 0 && <section className="store-featured" id="novidades">
+      {(storefrontSettings?.featured_enabled ?? true) && featured.length > 0 ? <section className="store-featured" id="novidades">
         <div className="store-section-heading"><div><p className="store-kicker">CURADORIA KARINE</p><h2>{storefrontSettings?.featured_title || "Peças para se apaixonar."}</h2></div><a href="#colecao">Ver toda a coleção <ArrowRight size={15} /></a></div>
         <div className="featured-grid">{featured.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} featured isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
-      </section>}
+      </section> : null}
 
-      {(storefrontSettings?.latest_enabled ?? true) && <section className="store-latest">
+      {(storefrontSettings?.latest_enabled ?? true) ? <section className="store-latest">
         <div className="store-section-heading"><div><p className="store-kicker">RECÉM-CHEGARAM</p><h2>Novidades</h2></div><a href="#colecao">Ver todos <ArrowRight size={15} /></a></div>
         <div className="store-product-grid">{latest.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
-      </section>}
+      </section> : null}
 
-      {(storefrontSettings?.collection_enabled ?? true) && <section className="store-collection-banner" id="colecao-banner" style={storefrontSettings?.collection_image_url ? { backgroundImage: `linear-gradient(90deg, rgba(42,36,31,.88), rgba(42,36,31,.25)), url(${storefrontSettings.collection_image_url})` } : undefined}>
+      {(storefrontSettings?.collection_enabled ?? true) ? <section className="store-collection-banner" id="colecao-banner" style={storefrontSettings?.collection_image_url ? { backgroundImage: `linear-gradient(90deg, rgba(42,36,31,.88), rgba(42,36,31,.25)), url(${storefrontSettings.collection_image_url})` } : undefined}>
         <div className="store-collection-copy"><p className="store-kicker">COLEÇÃO KARINE</p><h2>{storefrontSettings?.collection_title || "Uma coleção para guardar."}</h2><p>{storefrontSettings?.collection_subtitle || "Detalhes delicados para acompanhar você em todos os momentos."}</p><a href="#colecao" className="store-primary-cta">{storefrontSettings?.collection_cta || "Conhecer coleção"} <ArrowRight size={16}/></a></div>
         {!storefrontSettings?.collection_image_url && <div className="collection-art"><Gem size={88} strokeWidth={1}/></div>}
-      </section>}
+      </section> : null}
 
       <section className="store-catalog" id="colecao">
         <div className="store-section-heading catalog-heading"><div><p className="store-kicker">A COLEÇÃO</p><h2>Encontre o seu brilho.</h2></div><span>{filtered.length} peças</span></div>
