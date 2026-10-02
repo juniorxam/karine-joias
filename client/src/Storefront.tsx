@@ -155,6 +155,7 @@ export default function Storefront() {
     return matchesCategory && text.includes(query.toLowerCase());
   }), [category, products, query]);
 
+  const topSoldQuantity = Math.max(0, ...products.map(product => product.soldQuantity ?? 0));
   const featured = products.filter((product) => product.featured).sort((a,b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 4);
   const latest = [...products].sort((a,b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0) || (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 4);
   const categoryCards = [
@@ -329,12 +330,12 @@ export default function Storefront() {
 
       {(storefrontSettings?.featured_enabled ?? true) && featured.length > 0 && <section className="store-featured" id="novidades">
         <div className="store-section-heading"><div><p className="store-kicker">CURADORIA KARINE</p><h2>{storefrontSettings?.featured_title || "Peças para se apaixonar."}</h2></div><a href="#colecao">Ver toda a coleção <ArrowRight size={15} /></a></div>
-        <div className="featured-grid">{featured.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} featured />)}</div>
+        <div className="featured-grid">{featured.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} featured isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
       </section>}
 
       {(storefrontSettings?.latest_enabled ?? true) && <section className="store-latest">
         <div className="store-section-heading"><div><p className="store-kicker">RECÉM-CHEGARAM</p><h2>Novidades</h2></div><a href="#colecao">Ver todos <ArrowRight size={15} /></a></div>
-        <div className="store-product-grid">{latest.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} />)}</div>
+        <div className="store-product-grid">{latest.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
       </section>}
 
       {(storefrontSettings?.collection_enabled ?? true) && <section className="store-collection-banner" id="colecao-banner" style={storefrontSettings?.collection_image_url ? { backgroundImage: `linear-gradient(90deg, rgba(42,36,31,.88), rgba(42,36,31,.25)), url(${storefrontSettings.collection_image_url})` } : undefined}>
@@ -353,8 +354,8 @@ export default function Storefront() {
   </div>;
 }
 
-function ProductCard({ product, onAdd, onAsk, onOpen, featured = false }: { product: CatalogProduct; onAdd: (product: CatalogProduct) => void; onAsk: (product: CatalogProduct) => void; onOpen: (product: CatalogProduct) => void; featured?: boolean }) {
-  const badges = product.isBestSeller || (product.soldQuantity ?? 0) > 0 ? ["MAIS VENDIDO"] : product.isNew ? ["NOVO"] : product.stock !== undefined && product.stock > 0 && product.stock <= 3 ? ["ÚLTIMAS UNIDADES"] : [];
+function ProductCard({ product, onAdd, onAsk, onOpen, featured = false, isTopSeller = false }: { product: CatalogProduct; onAdd: (product: CatalogProduct) => void; onAsk: (product: CatalogProduct) => void; onOpen: (product: CatalogProduct) => void; featured?: boolean; isTopSeller?: boolean }) {
+  const badges = product.isBestSeller || isTopSeller ? ["MAIS VENDIDO"] : product.isNew ? ["NOVO"] : product.stock !== undefined && product.stock > 0 && product.stock <= 3 ? ["ÚLTIMAS UNIDADES"] : [];
   return <article className={featured ? "store-product-card featured-card" : "store-product-card"}>
     <button className="store-product-art" onClick={() => onOpen(product)} aria-label={`Ver ${product.name}`} style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}>
       {!product.imageUrl && <div className="product-art-glow"><Gem size={featured ? 39 : 31} strokeWidth={1.1} /></div>}
