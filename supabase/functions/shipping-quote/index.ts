@@ -80,7 +80,57 @@ Deno.serve(async (req) => {
       });
     }
 
-    // A API espera os produtos em lista; o peso é informado em kg.
+    // Palmas usa uma regra própria de entrega. A faixa oficial de CEP de Palmas é 77000-001 a 77299-999.
+    const postalNumber = Number(postalCode);
+    const isPalmas = postalNumber >= 77000001 && postalNumber <= 77299999;
+    const subtotal = shippingProducts.reduce((sum, item) => sum + Number(item.insurance_value || 0) * Number(item.quantity || 0), 0);
+
+    if (isPalmas && subtotal > 50) {
+      const localDeliveryPrice = subtotal > 100 ? 0 : 7;
+      const options = [
+        {
+          id: "violetta-local-delivery",
+          company: "Violetta",
+          service: localDeliveryPrice === 0 ? "Entrega local grátis" : "Entrega local",
+          price: localDeliveryPrice,
+          delivery_time: 1,
+          packages: [],
+        },
+        {
+          id: "violetta-pickup",
+          company: "Violetta",
+          service: "Retirada no local",
+          price: 0,
+          delivery_time: 0,
+          packages: [],
+        },
+      ];
+
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      const { data: quote, error: quoteError } = await db
+        .from("shipping_quotes")
+        .insert({
+          postal_code: postalCode,
+          owner_id: ownerId,
+          items,
+          destination: { postal_code: postalCode, city: "Palmas", state: "TO" },
+          options,
+          expires_at: expiresAt,
+        })
+        .select("id,expires_at")
+        .single();
+
+      if (quoteError || !quote) throw new Error("Não foi possível salvar a cotação");
+
+      return Response.json({
+        quote_id: quote.id,
+        expires_at: quote.expires_at,
+        options,
+        package: { weight_kg: weight, quantity },
+      }, { headers: cors });
+    }
+
+    // Para outras localidades (e compras de até R$ 50 em Palmas), seguimos com o Melhor Envio.
     const payload = {
       from: { postal_code: origin },
       to: { postal_code: postalCode },
