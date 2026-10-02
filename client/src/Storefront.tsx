@@ -333,7 +333,7 @@ export default function Storefront() {
       {(storefrontSettings?.category_enabled ?? true) ? (<section className="store-category-strip" id="categorias">
         <div className="store-section-heading"><div><p className="store-kicker">ENCONTRE SEU ESTILO</p><h2>Compre por categoria</h2></div></div>
         <div className="category-cards">{categoryCards.map(item => <button key={item.name} onClick={() => { setCategory(item.name); document.getElementById("colecao")?.scrollIntoView({ behavior: "smooth" }); }}><span>{item.icon}</span><strong>{item.label}</strong><small>Ver peças <ArrowRight size={13} /></small></button>)}</div>
-      </section>
+      </section>) : null}
 
       {(storefrontSettings?.featured_enabled ?? true) && featured.length > 0 ? (<section className="store-featured" id="novidades">
         <div className="store-section-heading"><div><p className="store-kicker">CURADORIA KARINE</p><h2>{storefrontSettings?.featured_title || "Peças para se apaixonar."}</h2></div><a href="#colecao">Ver toda a coleção <ArrowRight size={15} /></a></div>
