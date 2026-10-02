@@ -36,6 +36,7 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
     .eq("store_slug", "karine-joias")
     .eq("is_published", true)
     .order("featured", { ascending: false })
+    .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false });
 
   if (error) {
