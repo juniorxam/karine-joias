@@ -115,7 +115,7 @@ export default function Storefront() {
         category: selectedProduct.category,
         material: selectedProduct.material,
         image: selectedProduct.imageUrl ? [selectedProduct.imageUrl] : undefined,
-        offers: { "@type": "Offer", priceCurrency: "BRL", price: selectedProduct.price.toFixed(2), availability: "https://schema.org/InStock" }
+        offers: { "@type": "Offer", priceCurrency: "BRL", price: selectedProduct.price.toFixed(2), availability: Number(selectedProduct.stock ?? 0) > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock" }
       } : {
         "@context": "https://schema.org",
         "@type": "Store",
