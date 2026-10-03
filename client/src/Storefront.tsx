@@ -411,8 +411,21 @@ function ProductCard({ product, onAdd, onAsk, onOpen, featured = false, isTopSel
   return <article className={featured ? "store-product-card featured-card" : "store-product-card"}>
     <button className="store-product-art" onClick={() => onOpen(product)} aria-label={`Ver ${product.name}`} style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}>
       {!product.imageUrl && <div className="product-art-glow"><Gem size={featured ? 39 : 31} strokeWidth={1.1} /></div>}
-      {badges.length > 0 && <span className="product-badge">{badges[0]}</span>}<span className="product-category-tag">{featured ? "DESTAQUE" : product.category}</span>
-    </button><div className="store-product-info"><p className="product-material">{product.material}</p><h3>{product.name}</h3><div className="store-product-bottom"><strong>{formatMoney(product.price)}</strong><div className="product-actions"><button className="product-buy" onClick={() => onAdd(product)}>Comprar</button><button className="product-interest" onClick={() => onAsk(product)} aria-label={`Tenho interesse em ${product.name}`}>{featured ? "WhatsApp" : <Check size={15} />}</button></div></div></div>
+      {badges.length > 0 && <span className="product-badge">{badges[0]}</span>}
+      <span className="product-category-tag">{featured ? "DESTAQUE" : product.category}</span>
+      <span className="product-quick-view"><Search size={14}/> Ver detalhes</span>
+    </button>
+    <div className="store-product-info">
+      <p className="product-material">{product.material}</p>
+      <h3>{product.name}</h3>
+      <div className="store-product-bottom">
+        <strong>{formatMoney(product.price)}</strong>
+        <div className="product-actions">
+          <button className="product-buy" onClick={() => onAdd(product)} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Comprar" : "Esgotado"}</button>
+          <button className="product-interest" onClick={() => onAsk(product)} aria-label={`Tenho interesse em ${product.name}`}>{featured ? "WhatsApp" : <Check size={15} />}</button>
+        </div>
+      </div>
+    </div>
   </article>;
 }
 
