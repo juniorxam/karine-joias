@@ -72,7 +72,7 @@ export default function Storefront() {
         ? selectedProduct.name + " · Violetta"
         : view === "success"
           ? "Acompanhamento do pedido · Violetta"
-          : "Violetta · Escolha o detalhe que fica";
+          : "Violetta Joias e Semijoias · Escolha o detalhe que fica";
     const description = view === "product" && selectedProduct
       ? selectedProduct.name + ", " + selectedProduct.material + ", na Violetta. Veja detalhes e compre online."
       : "Joias e semi-joias escolhidas para acompanhar seus momentos mais bonitos. Compre online na Violetta.";
@@ -104,7 +104,7 @@ export default function Storefront() {
     }
     canonical.href = window.location.href.split("?")[0].replace(/\/$/, "");
 
-    document.getElementById("karine-store-schema")?.remove();
+    document.getElementById("violetta-store-schema")?.remove();
     if (view === "store" || view === "product") {
       const schema = document.createElement("script");
       schema.id = "karine-store-schema";
