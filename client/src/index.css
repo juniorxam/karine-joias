@@ -284,3 +284,20 @@
 @media(max-width:800px){
  .checkout-final-note{margin-bottom:10px}
 }
+
+/* Violetta checkout order summary */
+.checkout-summary-head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-bottom:16px}
+.checkout-summary-head h2{margin:2px 0 0}
+.checkout-summary-head>span{font-size:9px;color:var(--store-muted)}
+.checkout-summary-head .store-kicker{margin:0}
+.checkout-item{display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:10px;align-items:center}
+.checkout-item-thumb{width:54px;height:66px;border-radius:4px;background:#f2ece4 center/cover no-repeat;display:grid;place-items:center;color:#b89a5a}
+.checkout-item-main{min-width:0}
+.checkout-item-main strong{display:block;overflow:hidden;text-overflow:ellipsis}
+.checkout-item-main span{display:block;margin-top:4px}
+.checkout-item-main .qty-controls{margin-top:8px}
+.checkout-item>b{align-self:start;padding-top:2px}
+@media(max-width:800px){
+ .checkout-item{grid-template-columns:48px minmax(0,1fr) auto}
+ .checkout-item-thumb{width:48px;height:58px}
+}
