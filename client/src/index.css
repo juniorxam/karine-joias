@@ -191,3 +191,33 @@
  .store-product-info h3{min-height:0}
  .product-buy{padding:9px 12px}
 }
+
+/* Violetta header and mobile navigation */
+.store-header{height:76px;padding:0 34px;background:rgba(255,253,251,.96);backdrop-filter:blur(10px);border-bottom:1px solid var(--store-line);z-index:40}
+.store-logo{gap:10px}
+.store-logo strong{font-size:23px;letter-spacing:-.4px}
+.store-logo small{letter-spacing:1.7px}
+.store-nav{gap:27px}
+.store-nav a{position:relative;font-size:10px;letter-spacing:.8px;text-transform:uppercase}
+.store-nav a:after{content:"";position:absolute;left:0;right:100%;bottom:-7px;height:1px;background:#b89a5a;transition:.2s}
+.store-nav a:hover:after{right:0}
+.store-header-actions{gap:9px}
+.store-header-search,.store-menu-button{border:1px solid var(--store-line);background:#fffdfb;color:var(--store-ink);width:38px;height:38px;border-radius:50%;display:grid;place-items:center;cursor:pointer}
+.store-header-search:hover,.store-menu-button:hover,.store-cart-button:hover{border-color:#b89a5a}
+.store-menu-button{display:none}
+@media(max-width:900px){
+ .store-header{padding:0 20px}
+ .store-admin-link{display:none}
+ .store-nav{gap:18px}
+}
+@media(max-width:700px){
+ .store-header{height:68px}
+ .store-logo strong{font-size:21px}
+ .store-nav{display:none;position:absolute;top:68px;left:0;right:0;background:#fffdfb;border-bottom:1px solid var(--store-line);box-shadow:0 15px 30px rgba(65,48,31,.08);padding:8px 18px 18px;z-index:50}
+ .store-nav.open{display:grid}
+ .store-nav a{padding:13px 4px;border-bottom:1px solid #f0e9e1}
+ .store-nav a:after{display:none}
+ .store-menu-button{display:grid}
+ .store-header-search{width:36px;height:36px}
+ .store-cart-button{width:36px;height:36px}
+}
