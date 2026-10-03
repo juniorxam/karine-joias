@@ -332,6 +332,8 @@
 @media(max-width:480px){.product-detail-buy-actions{grid-template-columns:1fr}}
 
 /* Identidade Violetta · rosa antigo, off-white e dourado champagne */
+.brand-mark{overflow:hidden;padding:0;background:var(--violetta-off);border:1px solid #d9aa76}
+.brand-mark img{width:100%;height:100%;display:block;object-fit:cover}
 :root{--violetta-rose:#bf8b80;--violetta-rose-dark:#a96f66;--violetta-blush:#f1c9c1;--violetta-beige:#d9c2ad;--violetta-off:#fcf5f1;--violetta-gold:#bd8750;--violetta-gold-light:#d9aa76}
 .storefront{--store-ink:#6b4039;--store-muted:#98766f;--store-line:#ead9d2;--store-cream:var(--violetta-off);--store-gold:var(--violetta-gold);--store-rose:var(--violetta-blush);background:var(--violetta-off);font-family:'DM Sans',sans-serif}
 .store-header{background:rgba(252,245,241,.96);border-bottom-color:#ead9d2;backdrop-filter:blur(14px)}
@@ -340,6 +342,9 @@
 .store-logo-mark svg+svg{position:absolute;top:15px;left:15px;color:var(--violetta-gold)}
 .store-logo strong,.footer-brand strong{font-family:'Allura',cursive;font-size:33px;font-weight:400;line-height:25px;letter-spacing:.2px;color:var(--violetta-rose-dark)}
 .store-logo small,.footer-brand small{color:var(--violetta-gold);font-size:8px;letter-spacing:2px}
+.store-logo-image,.footer-logo-image{display:block;object-fit:contain;background:var(--violetta-off);border:1px solid rgba(189,135,80,.45);border-radius:50%}
+.store-logo-image{width:52px;height:52px}
+.footer-logo-image{width:74px;height:74px}
 .store-nav a,.store-admin-link{color:#8f7069;letter-spacing:.35px}
 .store-nav a:hover,.store-admin-link:hover{color:var(--violetta-rose-dark)}
 .store-hero{background:linear-gradient(110deg,#fcf5f1 0%,#f8e6e0 52%,#f1d6cf 100%);max-width:none;padding-left:clamp(24px,10vw,150px);padding-right:clamp(24px,10vw,150px)}

@@ -9,6 +9,7 @@ import { supabase } from "./lib/supabase";
 const categories = ["Todas", "Joias", "Semi-joias", "Acessórios"];
 const storeWhatsApp = (import.meta.env.VITE_STORE_WHATSAPP as string | undefined)?.replace(/\D/g, "");
 const storeInstagram = (import.meta.env.VITE_STORE_INSTAGRAM as string | undefined)?.trim();
+const logoSrc = "/logo-violetta.jpeg";
 
 type CartItem = CatalogProduct & { quantity: number };
 type Customer = { name: string; email: string; phone: string; recipient_code: string };
@@ -317,7 +318,7 @@ export default function Storefront() {
   return <div className="storefront">
     <header className="store-header">
       <a className="store-logo" href="/loja" onClick={(e) => { e.preventDefault(); backToStore(); }}>
-        <span className="store-logo-mark"><Heart size={18} strokeWidth={1.7} /><Gem size={12} strokeWidth={1.7} /></span>
+        <img className="store-logo-image" src={logoSrc} alt="Violetta Prata 925 e Semijoias" />
         <span><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></span>
       </a>
       <nav className={menuOpen ? "store-nav open" : "store-nav"}>
@@ -415,7 +416,7 @@ export default function Storefront() {
       </section>
     </main>
 
-    <footer className="store-footer" id="contato"><div className="footer-brand"><span className="store-logo-mark"><Heart size={18} strokeWidth={1.7} /><Gem size={12} strokeWidth={1.7} /></span><div><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></div></div><div><p className="store-kicker">ATENDIMENTO</p><h3>Uma peça especial começa<br />com uma conversa.</h3><p className="footer-note">Compre online ou fale diretamente com a nossa equipe.</p></div><div className="footer-links"><a href="#colecao">Coleção <ArrowRight size={14} /></a><a href="/" >Área da proprietária <ArrowRight size={14} /></a>{storeInstagram ? <a href={storeInstagram} target="_blank" rel="noreferrer"><Instagram size={14} /> Instagram</a> : null}</div><div className="footer-bottom"><span>© {new Date().getFullYear()} Violetta Joias</span><span>Feito para brilhar.</span></div></footer>
+    <footer className="store-footer" id="contato"><div className="footer-brand"><img className="footer-logo-image" src={logoSrc} alt="Violetta Prata 925 e Semijoias" /><div><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></div></div><div><p className="store-kicker">ATENDIMENTO</p><h3>Uma peça especial começa<br />com uma conversa.</h3><p className="footer-note">Compre online ou fale diretamente com a nossa equipe.</p></div><div className="footer-links"><a href="#colecao">Coleção <ArrowRight size={14} /></a><a href="/" >Área da proprietária <ArrowRight size={14} /></a>{storeInstagram ? <a href={storeInstagram} target="_blank" rel="noreferrer"><Instagram size={14} /> Instagram</a> : null}</div><div className="footer-bottom"><span>© {new Date().getFullYear()} Violetta Joias</span><span>Feito para brilhar.</span></div></footer>
   </div>;
 }
 
