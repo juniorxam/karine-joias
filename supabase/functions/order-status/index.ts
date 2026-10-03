@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     const [{ data: items }, { data: shipment }, { data: history }] = await Promise.all([
       db.from("order_items").select("product_name,quantity,unit_price,total_price").eq("order_id", order.id),
       db.from("shipments").select("carrier,service,tracking_code,tracking_url,shipping_status,created_at,updated_at").eq("order_id", order.id).maybeSingle(),
-      db.from("order_status_history").select("from_status,to_status,created_at,note").eq("order_id", order.id).order("created_at", { ascending: true }),
+      db.from("order_status_history").select("status,created_at,note").eq("order_id", order.id).order("created_at", { ascending: true }),
     ]);
 
     return Response.json({
