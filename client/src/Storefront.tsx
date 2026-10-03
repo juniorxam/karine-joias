@@ -65,11 +65,11 @@ export default function Storefront() {
 
   useEffect(() => {
     const title = view === "checkout"
-      ? "Finalizar pedido · Karine"
+      ? "Finalizar pedido · Violetta"
       : view === "product" && selectedProduct
-        ? selectedProduct.name + " · Karine"
+        ? selectedProduct.name + " · Violetta"
         : view === "success"
-          ? "Acompanhamento do pedido · Karine"
+          ? "Acompanhamento do pedido · Violetta"
           : "Violetta · Escolha o detalhe que fica";
     const description = view === "product" && selectedProduct
       ? selectedProduct.name + ", " + selectedProduct.material + ", na Violetta. Veja detalhes e compre online."
