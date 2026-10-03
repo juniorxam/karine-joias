@@ -39,6 +39,7 @@ export default function Storefront() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todas");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
   const [storefrontSettings, setStorefrontSettings] = useState<StorefrontSettings | null>(null);
   useEffect(() => {
     if (!supabase) return;
@@ -217,6 +218,8 @@ export default function Storefront() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const openCart = () => setCartOpen(true);
+
   const goCheckout = () => {
     if (!cart.length) return toast.error("Seu carrinho está vazio");
     window.history.pushState({}, "", "/loja/checkout");
@@ -313,11 +316,21 @@ export default function Storefront() {
       </nav>
       <div className="store-header-actions">
         <a className="store-admin-link" href="/">Acesso da proprietária</a>
-        <button className="store-cart-button" onClick={goCheckout} aria-label="Abrir carrinho"><ShoppingBag size={18}/>{cartCount > 0 && <b>{cartCount}</b>}</button>
+        <button className="store-cart-button" onClick={openCart} aria-label="Abrir carrinho"><ShoppingBag size={18}/>{cartCount > 0 && <b>{cartCount}</b>}</button>
         <button className="store-menu-button" aria-label="Abrir menu" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={20} /> : <Menu size={20} />}</button>
       </div>
     </header>
 
+    {cartOpen && <div className="store-cart-backdrop" onClick={() => setCartOpen(false)}><aside className="store-cart-drawer" onClick={e => e.stopPropagation()} aria-label="Carrinho de compras">
+      <div className="store-cart-drawer-head"><div><p className="store-kicker">SEU PEDIDO</p><h2>Carrinho</h2></div><button onClick={() => setCartOpen(false)} aria-label="Fechar carrinho"><X size={19}/></button></div>
+      {cart.length ? <>
+        <div className="store-cart-items">{cart.map(item => <div className="store-cart-item" key={item.id}>
+          <button className="store-cart-thumb" onClick={() => { setCartOpen(false); openProduct(item); }} style={item.imageUrl ? {backgroundImage:`url(${item.imageUrl})`} : undefined}>{!item.imageUrl && <Gem size={24}/>}</button>
+          <div className="store-cart-item-copy"><button onClick={() => { setCartOpen(false); openProduct(item); }}><strong>{item.name}</strong></button><small>{item.material}</small><div className="store-cart-item-row"><div className="qty-controls"><button onClick={() => changeQty(item.id,-1)} aria-label="Diminuir">−</button><span>{item.quantity}</span><button onClick={() => changeQty(item.id,1)} aria-label="Aumentar">+</button></div><b>{formatMoney(item.price * item.quantity)}</b></div></div>
+        </div>)}</div>
+        <div className="store-cart-summary"><div><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><small>Frete e descontos são calculados no checkout.</small><button className="store-primary-cta" onClick={() => { setCartOpen(false); goCheckout(); }}>Finalizar compra <ArrowRight size={16}/></button><button className="store-cart-continue" onClick={() => setCartOpen(false)}>Continuar comprando</button></div>
+      </> : <div className="store-cart-empty"><ShoppingBag size={30}/><h3>Seu carrinho está vazio.</h3><p>Escolha uma peça especial para começar.</p><button className="store-primary-cta" onClick={() => setCartOpen(false)}>Ver coleção <ArrowRight size={15}/></button></div>}
+    </aside></div>}
     <main>
       <div className="store-promo-bar"><span>VIOLETTA JOIAS E SEMIJOIAS</span><b>Descubra a coleção e encontre sua próxima peça favorita.</b><a href="#novidades">Comprar agora <ArrowRight size={12}/></a></div>
 
