@@ -8,6 +8,7 @@ import { supabase } from "./lib/supabase";
 
 const categories = ["Todas", "Joias", "Semi-joias", "Acessórios"];
 const storeWhatsApp = (import.meta.env.VITE_STORE_WHATSAPP as string | undefined)?.replace(/\D/g, "");
+const storeInstagram = (import.meta.env.VITE_STORE_INSTAGRAM as string | undefined)?.trim();
 
 type CartItem = CatalogProduct & { quantity: number };
 type Customer = { name: string; email: string; phone: string; recipient_code: string };
@@ -165,10 +166,11 @@ export default function Storefront() {
   const bestSellers = [...products].filter(product => product.isBestSeller || (product.soldQuantity ?? 0) > 0).sort((a,b) => (b.soldQuantity ?? 0) - (a.soldQuantity ?? 0)).slice(0, 8);
   const latest = [...products].sort((a,b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0) || (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 8);
   const gifts = [...products].filter(product => /presente|kit|mix|conjunto/i.test(product.name)).slice(0, 8);
+  const giftProducts = gifts.length ? gifts : latest.slice(0, 4);
   const categoryCards = [
-    { name: "Joias", label: "Joias", icon: "✦" },
-    { name: "Semi-joias", label: "Semi-joias", icon: "◇" },
-    { name: "Acessórios", label: "Acessórios", icon: "◌" },
+    { name: "Joias", label: "Joias", icon: "✦", imageUrl: products.find(product => product.category === "Joias" && product.imageUrl)?.imageUrl },
+    { name: "Semi-joias", label: "Semi-joias", icon: "◇", imageUrl: products.find(product => product.category === "Semi-joias" && product.imageUrl)?.imageUrl },
+    { name: "Acessórios", label: "Acessórios", icon: "◌", imageUrl: products.find(product => product.category === "Acessórios" && product.imageUrl)?.imageUrl },
   ];
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -317,6 +319,8 @@ export default function Storefront() {
     </header>
 
     <main>
+      <div className="store-promo-bar"><span>VIOLETTA JOIAS E SEMIJOIAS</span><b>Descubra a coleção e encontre sua próxima peça favorita.</b><a href="#novidades">Comprar agora <ArrowRight size={12}/></a></div>
+
       <section className="store-hero">
         <div className="store-hero-copy">
           <p className="store-kicker"><Sparkles size={13} /> NOVA COLEÇÃO VIOLETTA JOIAS</p>
@@ -338,17 +342,17 @@ export default function Storefront() {
 
       {(storefrontSettings?.category_enabled ?? true) ? (<section className="store-category-strip" id="categorias">
         <div className="store-section-heading"><div><p className="store-kicker">ENCONTRE SEU ESTILO</p><h2>Compre por categoria</h2></div></div>
-        <div className="category-cards">{categoryCards.map(item => <button key={item.name} onClick={() => { setCategory(item.name); document.getElementById("colecao")?.scrollIntoView({ behavior: "smooth" }); }}><span>{item.icon}</span><strong>{item.label}</strong><small>Ver peças <ArrowRight size={13} /></small></button>)}</div>
+        <div className="category-cards">{categoryCards.map(item => <button key={item.name} onClick={() => { setCategory(item.name); document.getElementById("colecao")?.scrollIntoView({ behavior: "smooth" }); }} style={item.imageUrl ? { backgroundImage: `linear-gradient(180deg, rgba(40,32,26,.02), rgba(40,32,26,.72)), url(${item.imageUrl})` } : undefined}><span>{item.icon}</span><strong>{item.label}</strong><small>Ver peças <ArrowRight size={13} /></small></button>)}</div>
       </section>) : null}
 
-      {(storefrontSettings?.featured_enabled ?? true) && featured.length > 0 ? (<section className="store-featured" id="mais-vendidos">
+      {(storefrontSettings?.featured_enabled ?? true) && (bestSellers.length > 0 || featured.length > 0) ? (<section className="store-featured" id="mais-vendidos">
         <div className="store-section-heading"><div><p className="store-kicker">DESTAQUES VIOLETTA</p><h2>{storefrontSettings?.featured_title || "Mais vendidos"}</h2></div><a href="#colecao">Ver todos <ArrowRight size={15} /></a></div>
         <div className="featured-grid">{(bestSellers.length ? bestSellers : featured).map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} featured isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
       </section>) : null}
 
-      {gifts.length > 0 ? (<section className="store-gifts" id="presentes">
+      {giftProducts.length > 0 ? (<section className="store-gifts" id="presentes">
         <div className="store-section-heading"><div><p className="store-kicker">PARA PRESENTEAR</p><h2>Escolhas especiais para presentear</h2></div><a href="#colecao">Ver opções <ArrowRight size={15} /></a></div>
-        <div className="store-product-grid">{gifts.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} isTopSeller={false} />)}</div>
+        <div className="store-product-grid">{giftProducts.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} isTopSeller={false} />)}</div>
       </section>) : null}
 
       {(storefrontSettings?.latest_enabled ?? true) ? (<section className="store-latest" id="novidades">
@@ -368,7 +372,7 @@ export default function Storefront() {
       </section>
     </main>
 
-    <footer className="store-footer" id="contato"><div className="footer-brand"><span className="store-logo-mark"><Gem size={19} /></span><div><strong>Violetta</strong><small>JOIAS E SEMIJOIAS</small></div></div><div><p className="store-kicker">ATENDIMENTO</p><h3>Uma peça especial começa<br />com uma conversa.</h3><p className="footer-note">Compre online ou fale diretamente com a nossa equipe.</p></div><div className="footer-links"><a href="#colecao">Coleção <ArrowRight size={14} /></a><a href="/" >Área da proprietária <ArrowRight size={14} /></a><a href="https://instagram.com" target="_blank" rel="noreferrer"><Instagram size={14} /> Instagram</a></div><div className="footer-bottom"><span>© {new Date().getFullYear()} Violetta Joias</span><span>Feito para brilhar.</span></div></footer>
+    <footer className="store-footer" id="contato"><div className="footer-brand"><span className="store-logo-mark"><Gem size={19} /></span><div><strong>Violetta</strong><small>JOIAS E SEMIJOIAS</small></div></div><div><p className="store-kicker">ATENDIMENTO</p><h3>Uma peça especial começa<br />com uma conversa.</h3><p className="footer-note">Compre online ou fale diretamente com a nossa equipe.</p></div><div className="footer-links"><a href="#colecao">Coleção <ArrowRight size={14} /></a><a href="/" >Área da proprietária <ArrowRight size={14} /></a>{storeInstagram ? <a href={storeInstagram} target="_blank" rel="noreferrer"><Instagram size={14} /> Instagram</a> : null}</div><div className="footer-bottom"><span>© {new Date().getFullYear()} Violetta Joias</span><span>Feito para brilhar.</span></div></footer>
   </div>;
 }
 
