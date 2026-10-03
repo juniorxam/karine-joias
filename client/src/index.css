@@ -118,3 +118,10 @@
  .checkout-section{padding:19px 16px}
  .checkout-summary{order:-1}
 }
+
+.product-detail-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+.product-detail-actions .checkout-submit{margin-top:0}
+.product-detail-whatsapp{display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--store-line);background:#fff;color:var(--store-ink);border-radius:5px;padding:15px;font-size:12px;font-weight:700;cursor:pointer}
+.product-detail-whatsapp:hover:not(:disabled){border-color:#b89a5a}
+.product-detail-whatsapp:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:480px){.product-detail-actions{grid-template-columns:1fr}}
