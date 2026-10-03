@@ -189,7 +189,6 @@ export default function Storefront() {
         ? items.map(item => String(item.id) === String(product.id) ? { ...item, quantity: Math.min(available, item.quantity + 1) } : item)
         : [...items, { ...product, quantity: 1 }];
     });
-    setCartOpen(true);
     toast.success("Produto adicionado ao carrinho", { description: product.name });
   };
 
@@ -462,7 +461,7 @@ function ProductDetail({ product, onBack, onAdd, onBuyNow, onCheckout, onCart }:
           <div><Check size={17}/><span><b>Disponibilidade</b><small>{Number(product.stock ?? 0) > 0 ? "Em estoque" : "Esgotado"}</small></span></div>
         </div>
         <div className="product-detail-actions"><div className="product-detail-buy-actions"><button className="product-detail-add" onClick={onAdd} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Adicionar ao carrinho" : "Produto esgotado"}</button><button className="product-detail-buy-now" onClick={onBuyNow} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Comprar agora" : "Indisponível"}</button></div><button className="product-detail-whatsapp" onClick={() => { if (!storeWhatsApp) return; const text = encodeURIComponent(`Olá! Tenho interesse em ${product.name} (${formatMoney(product.price)}).`); window.open(`https://wa.me/${storeWhatsApp}?text=${text}`, "_blank", "noopener,noreferrer"); }} disabled={!storeWhatsApp}>Tenho interesse <ArrowRight size={15}/></button></div>
-        <div className="product-detail-benefits"><span><ShieldCheck size={15}/> Compra segura</span><span><Truck size={15}/> Envio calculado no checkout</span></div><button className="store-primary-cta" onClick={onCheckout}>Ir para o carrinho <ArrowRight size={16}/></button>
+        <div className="product-detail-benefits"><span><ShieldCheck size={15}/> Compra segura</span><span><Truck size={15}/> Envio calculado no checkout</span></div><button className="store-primary-cta" onClick={onCart}>Ver carrinho <ArrowRight size={16}/></button>
         <p className="product-detail-note">Pagamento online processado pelo Mercado Pago. Consulte as opções de entrega no checkout.</p>
       </div>
     </main>
