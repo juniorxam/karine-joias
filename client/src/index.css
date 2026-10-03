@@ -376,3 +376,36 @@
 .auth-card h1{font-family:'Allura',cursive;font-size:52px;font-weight:400;color:var(--violetta-rose-dark)}
 .primary{background:var(--violetta-rose-dark);border-radius:3px}.primary:hover{background:#8f5b54}
 @media(max-width:720px){.store-logo strong,.footer-brand strong{font-size:30px}.store-hero h1{font-size:72px}.store-section-heading h2,.store-collection-copy h2{font-size:42px}}
+
+
+/* Ajuste responsivo dos cards da vitrine em notebooks */
+.store-product-bottom{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  gap:12px;
+  align-items:stretch;
+}
+.store-product-bottom>strong{
+  display:block;
+  min-width:0;
+}
+.product-actions{
+  width:100%;
+  min-width:0;
+}
+.product-actions-stack{
+  width:100%;
+  min-width:0;
+}
+.product-add-cart,.product-buy-now{
+  min-width:0;
+  white-space:normal;
+  line-height:1.2;
+  overflow-wrap:anywhere;
+}
+.store-product-info h3{
+  overflow-wrap:anywhere;
+}
+@media(max-width:520px){
+  .product-actions-stack{grid-template-columns:1fr}
+}
