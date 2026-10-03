@@ -221,3 +221,21 @@
  .store-header-search{width:36px;height:36px}
  .store-cart-button{width:36px;height:36px}
 }
+
+/* Violetta editorial brand section */
+.store-editorial{display:grid;grid-template-columns:1fr 1fr;min-height:390px;margin:18px 0 0;background:#f2ede6;overflow:hidden}
+.store-editorial-copy{padding:65px 8%;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
+.store-editorial-copy h2{font:500 clamp(34px,4vw,54px)/1.02 'Playfair Display',serif;color:var(--store-ink);max-width:510px;margin:8px 0 18px;letter-spacing:-1.2px}
+.store-editorial-copy>p:not(.store-kicker){max-width:470px;color:var(--store-muted);font-size:13px;line-height:1.8;margin:0 0 24px}
+.store-editorial-copy .store-text-link{display:inline-flex;align-items:center;gap:8px}
+.store-editorial-art{position:relative;min-height:390px;background:radial-gradient(circle at 50% 42%,#fffdf9 0 8%,#e7ded1 38%,#d6c8b8 100%);display:grid;place-items:center;overflow:hidden}
+.store-editorial-art:before,.store-editorial-art:after{content:"";position:absolute;border:1px solid rgba(120,96,63,.22);border-radius:50%;width:310px;height:310px}
+.store-editorial-art:after{width:430px;height:430px}
+.editorial-ring{width:126px;height:126px;border:1px solid rgba(120,96,63,.45);border-radius:50%;display:grid;place-items:center;color:#9d8252;background:rgba(255,255,255,.22);box-shadow:0 15px 40px rgba(70,52,35,.08)}
+.store-editorial-art>span{position:absolute;bottom:25px;right:30px;text-align:right;font-size:9px;letter-spacing:2px;color:#75644e;line-height:1.7}
+.store-editorial-art>span b{font-size:13px;letter-spacing:3px}
+@media(max-width:700px){
+ .store-editorial{grid-template-columns:1fr}
+ .store-editorial-copy{padding:48px 24px}
+ .store-editorial-art{min-height:280px}
+}
