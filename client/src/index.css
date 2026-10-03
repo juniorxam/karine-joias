@@ -239,3 +239,22 @@
  .store-editorial-copy{padding:48px 24px}
  .store-editorial-art{min-height:280px}
 }
+
+/* Violetta catalog controls */
+.catalog-toolbar{display:flex;flex-direction:column;gap:12px}
+.catalog-search{height:46px;display:flex;align-items:center;gap:9px;padding:0 12px 0 15px}
+.catalog-search input{flex:1;min-width:0;border:0;outline:0;font-size:12px;color:var(--store-ink)}
+.catalog-search input::placeholder{color:#aaa29a}
+.catalog-clear{border:0;background:transparent;color:#9b938b;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;cursor:pointer}
+.catalog-clear:hover:not(:disabled){background:#f3eee8;color:var(--store-ink)}
+.catalog-clear:disabled{opacity:0;pointer-events:none}
+.catalog-toolbar-row{display:flex;align-items:center;justify-content:space-between;gap:15px}
+.catalog-result-count{font-size:9px;color:var(--store-muted);white-space:nowrap}
+.category-list{display:flex;flex-wrap:wrap}
+@media(max-width:700px){
+ .catalog-toolbar-row{align-items:flex-start;flex-direction:column}
+ .catalog-result-count{order:-1}
+ .category-list{width:100%;overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;scrollbar-width:none}
+ .category-list::-webkit-scrollbar{display:none}
+ .category-list button{white-space:nowrap}
+}
