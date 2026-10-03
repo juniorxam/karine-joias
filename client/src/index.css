@@ -318,3 +318,15 @@
  .product-add-cart,.product-buy-now{min-height:36px}
  .product-interest{flex-basis:36px}
 }
+
+
+/* Violetta product purchase actions */
+.product-detail-actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:18px}
+.product-detail-buy-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.product-detail-add,.product-detail-buy-now{min-height:48px;border-radius:4px;padding:12px 14px;font-size:11px;font-weight:700;cursor:pointer;transition:.18s ease}
+.product-detail-add{border:1px solid #c9a961;background:#fffaf3;color:#8d6e3c}
+.product-detail-add:hover:not(:disabled){background:#f7efe3;border-color:#a98a52}
+.product-detail-buy-now{border:1px solid var(--store-ink);background:var(--store-ink);color:#fff}
+.product-detail-buy-now:hover:not(:disabled){background:#a88a4d;border-color:#a88a4d}
+.product-detail-add:disabled,.product-detail-buy-now:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:480px){.product-detail-buy-actions{grid-template-columns:1fr}}
