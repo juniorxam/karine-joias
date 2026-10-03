@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { toast } from "sonner";
-import { ArrowRight, ArrowLeft, Check, Gem, Heart, Instagram, Menu, Search, ShoppingBag, Sparkles, X, User, Truck, Tag, ShieldCheck } from "lucide-react";
+import { ArrowRight, ArrowLeft, Check, Gem, Heart, Instagram, Menu, Search, ShoppingBag, Sparkles, X, User, Truck, Tag, ShieldCheck, Star, MessageCircle } from "lucide-react";
 import { formatMoney, type CatalogProduct } from "./lib/catalog";
 type StorefrontSettings = { hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string };
 import { loadPublicCatalog } from "./lib/publicCatalog";
@@ -292,7 +292,7 @@ export default function Storefront() {
 
   if (view === "product") {
     if (!selectedProduct) return <div className="storefront success-page"><main className="success-card"><p className="store-kicker">PEÇA NÃO ENCONTRADA</p><h1>Essa peça não está disponível.</h1><button className="store-primary-cta" onClick={backToStore}>Voltar para a loja <ArrowRight size={16}/></button></main></div>;
-    return <ProductDetail product={selectedProduct} onBack={backToStore} onAdd={() => addToCart(selectedProduct)} onBuyNow={() => buyNow(selectedProduct)} onCheckout={goCheckout} onCart={openCart} />;
+    return <ProductDetail product={selectedProduct} relatedProducts={products.filter(product => String(product.id) !== String(selectedProduct.id) && product.category === selectedProduct.category).slice(0, 4)} onBack={backToStore} onAdd={() => addToCart(selectedProduct)} onBuyNow={() => buyNow(selectedProduct)} onCheckout={goCheckout} onCart={openCart} onRelatedOpen={openProduct} onRelatedAdd={addToCart} onRelatedBuyNow={buyNow} onRelatedAsk={askAbout} />;
   }
 
   if (view === "checkout") {
@@ -453,7 +453,7 @@ function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false
   </article>;
 }
 
-function ProductDetail({ product, onBack, onAdd, onBuyNow, onCheckout, onCart }: { product: CatalogProduct; onBack: () => void; onAdd: () => void; onBuyNow: () => void; onCheckout: () => void; onCart: () => void }) {
+function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNow, onCheckout, onCart, onRelatedOpen, onRelatedAdd, onRelatedBuyNow, onRelatedAsk }: { product: CatalogProduct; relatedProducts: CatalogProduct[]; onBack: () => void; onAdd: () => void; onBuyNow: () => void; onCheckout: () => void; onCart: () => void; onRelatedOpen: (product: CatalogProduct) => void; onRelatedAdd: (product: CatalogProduct) => void; onRelatedBuyNow: (product: CatalogProduct) => void; onRelatedAsk: (product: CatalogProduct) => void }) {
   const available = Number(product.stock ?? 0) > 0;
   return <div className="storefront checkout-page">
     <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><a className="store-logo" href="/loja" onClick={event => { event.preventDefault(); onBack(); }}><img className="store-logo-image" src={logoSrc} alt="Violetta Prata 925 e Semijoias" /><span><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></span></a><button className="store-cart-button" onClick={onCart} aria-label="Abrir carrinho"><ShoppingBag size={18}/></button></header>
@@ -476,6 +476,11 @@ function ProductDetail({ product, onBack, onAdd, onBuyNow, onCheckout, onCart }:
         <p className="product-detail-note">Pagamento online processado pelo Mercado Pago. Consulte as opções de entrega no checkout.</p>
       </div>
     </main>
+    <section className="product-detail-social-proof">
+      <div className="product-detail-section-heading"><div><p className="store-kicker">EXPERIÊNCIAS VIOLETTA</p><h2>Avaliações de clientes</h2><p>Comentários demonstrativos enquanto conectamos as avaliações reais ao histórico de pedidos.</p></div><div className="product-rating-summary"><strong>5,0</strong><span><Star size={15} fill="currentColor" /> <Star size={15} fill="currentColor" /> <Star size={15} fill="currentColor" /> <Star size={15} fill="currentColor" /> <Star size={15} fill="currentColor" /></span><small>Avaliações de exemplo</small></div></div>
+      <div className="product-review-grid"><article className="product-review-card"><div className="product-review-stars"><Star size={14} fill="currentColor" /><Star size={14} fill="currentColor" /><Star size={14} fill="currentColor" /><Star size={14} fill="currentColor" /><Star size={14} fill="currentColor" /></div><p>“Uma peça delicada e fácil de combinar. O acabamento deixou o look ainda mais especial.”</p><strong>Cliente Violetta</strong><small>Avaliação demonstrativa</small></article><article className="product-review-card"><div className="product-review-stars"><Star size={14} fill="currentColor" /><Star size={14} fill="currentColor" /><Star size={14} fill="currentColor" /><Star size={14} fill="currentColor" /><Star size={14} fill="currentColor" /></div><p>“Amei a proposta minimalista. É o tipo de joia que acompanha vários momentos.”</p><strong>Cliente Violetta</strong><small>Avaliação demonstrativa</small></article><article className="product-review-card product-review-empty"><MessageCircle size={22} /><strong>Sua experiência pode aparecer aqui</strong><p>Após conectar as avaliações reais, suas clientes poderão compartilhar o que acharam da peça.</p></article></div>
+    </section>
+    {relatedProducts.length > 0 && <section className="product-related-section"><div className="product-detail-section-heading"><div><p className="store-kicker">VOCÊ TAMBÉM PODE GOSTAR</p><h2>Produtos relacionados</h2><p>Mais peças da categoria {product.category} para completar sua escolha.</p></div><button className="store-text-link product-related-back" onClick={onBack}>Ver toda a coleção <ArrowRight size={14} /></button></div><div className="store-product-grid product-related-grid">{relatedProducts.map(related => <ProductCard key={related.id} product={related} onAdd={onRelatedAdd} onBuyNow={onRelatedBuyNow} onAsk={onRelatedAsk} onOpen={onRelatedOpen} />)}</div></section>}
   </div>;
 }
 

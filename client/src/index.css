@@ -416,3 +416,25 @@
 .product-detail-image-wrap{min-width:0}
 .product-detail-image{background-repeat:no-repeat}
 .checkout-back{cursor:pointer}
+
+
+/* Avaliações e produtos relacionados */
+.product-detail-social-proof,.product-related-section{max-width:1100px;margin:0 auto;padding:18px 24px 72px}
+.product-related-section{padding-top:0}
+.product-detail-section-heading{display:flex;align-items:end;justify-content:space-between;gap:28px;margin-bottom:26px}
+.product-detail-section-heading h2{font:400 40px/1.05 'Playfair Display';color:var(--violetta-rose-dark);margin:6px 0 8px}
+.product-detail-section-heading p:not(.store-kicker){color:var(--store-muted);font-size:13px;line-height:1.6;margin:0;max-width:560px}
+.product-rating-summary{display:grid;justify-items:end;gap:3px;flex:none;color:var(--violetta-gold)}
+.product-rating-summary strong{font:400 38px/1 'Playfair Display';color:var(--store-ink)}
+.product-rating-summary span,.product-review-stars{display:flex;gap:2px;color:var(--violetta-gold)}
+.product-rating-summary small,.product-review-card small{font-size:9px;color:var(--store-muted)}
+.product-review-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.product-review-card{min-height:170px;padding:22px;background:#fffaf8;border:1px solid var(--store-line);border-radius:8px;display:flex;flex-direction:column;align-items:flex-start}
+.product-review-card p{color:var(--store-muted);font-size:12px;line-height:1.7;margin:16px 0 18px}
+.product-review-card strong{font-size:12px;color:var(--store-ink);margin-top:auto}
+.product-review-empty{justify-content:center;background:#f5e7e2;color:var(--violetta-rose-dark)}
+.product-review-empty>svg{margin-bottom:14px}.product-review-empty p{margin:9px 0 0}
+.product-related-back{border:0;background:transparent;cursor:pointer;display:flex;align-items:center;gap:6px;font:inherit}
+.product-related-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:800px){.product-detail-social-proof,.product-related-section{padding-left:18px;padding-right:18px}.product-detail-section-heading{align-items:flex-start;flex-direction:column}.product-rating-summary{justify-items:start}.product-review-grid{grid-template-columns:1fr 1fr}.product-related-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.product-detail-section-heading h2{font-size:32px}.product-review-grid,.product-related-grid{grid-template-columns:1fr}}
