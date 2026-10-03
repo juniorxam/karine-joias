@@ -536,7 +536,9 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     } catch (e) {
       toast.error("Não foi possível calcular o frete", { description: e instanceof Error ? e.message : "Tente novamente" });
     } finally { setShippingLoading(false); }
-  };\n  const isPickup = shippingOption?.service === "Retirada no local";
+  };
+
+  const isPickup = shippingOption?.service === "Retirada no local";
 
   const applyCoupon = async () => {
     const code = couponCode.trim().toUpperCase();
