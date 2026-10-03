@@ -189,6 +189,7 @@ export default function Storefront() {
         ? items.map(item => String(item.id) === String(product.id) ? { ...item, quantity: Math.min(available, item.quantity + 1) } : item)
         : [...items, { ...product, quantity: 1 }];
     });
+    setCartOpen(true);
     toast.success("Produto adicionado ao carrinho", { description: product.name });
   };
 
