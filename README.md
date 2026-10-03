@@ -1,6 +1,6 @@
-# Violetta
+# Karine
 
-Aplicação de gestão e loja virtual da Violetta.
+Aplicação de gestão e loja virtual da Karine.
 
 ## Arquitetura
 
@@ -107,6 +107,6 @@ Quando o domínio definitivo estiver configurado, deve ser adicionado um sitemap
 
 
 ## Publicação
-- Marca: Violetta
-- Domínio planejado: `violetta.com.br`
+- Marca: Karine
+- Domínio planejado: `karinejoias.com.br`
 - Ambiente atual: Vercel (homologação/testes)
