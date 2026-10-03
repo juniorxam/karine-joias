@@ -354,6 +354,19 @@ export default function Storefront() {
         <div><span>03</span><strong>Atendimento próximo</strong><p>Fale diretamente com a nossa equipe sempre que precisar.</p></div>
       </section>
 
+      <section className="store-editorial">
+        <div className="store-editorial-copy">
+          <p className="store-kicker">A ESSÊNCIA VIOLETTA</p>
+          <h2>Detalhes que transformam um look.</h2>
+          <p>Escolha uma peça para marcar um momento, presentear alguém especial ou simplesmente celebrar você.</p>
+          <a className="store-text-link" href="#colecao">Explorar a coleção <ArrowRight size={14}/></a>
+        </div>
+        <div className="store-editorial-art">
+          <div className="editorial-ring"><Gem size={54} strokeWidth={1}/></div>
+          <span>VIOLETTA<br/><b>ESSENCIAL</b></span>
+        </div>
+      </section>
+
       {(storefrontSettings?.category_enabled ?? true) ? (<section className="store-category-strip" id="categorias">
         <div className="store-section-heading"><div><p className="store-kicker">ENCONTRE SEU ESTILO</p><h2>Compre por categoria</h2></div></div>
         <div className="category-cards">{categoryCards.map(item => <button key={item.name} onClick={() => { setCategory(item.name); document.getElementById("colecao")?.scrollIntoView({ behavior: "smooth" }); }} style={item.imageUrl ? { backgroundImage: `linear-gradient(180deg, rgba(40,32,26,.02), rgba(40,32,26,.72)), url(${item.imageUrl})` } : undefined}><span>{item.icon}</span><strong>{item.label}</strong><small>Ver peças <ArrowRight size={13} /></small></button>)}</div>
