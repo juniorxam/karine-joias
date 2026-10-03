@@ -417,6 +417,7 @@ function ProductCard({ product, onAdd, onAsk, onOpen, featured = false, isTopSel
 }
 
 function ProductDetail({ product, onBack, onAdd, onCheckout }: { product: CatalogProduct; onBack: () => void; onAdd: () => void; onCheckout: () => void }) {
+  const available = Number(product.stock ?? 0) > 0;
   return <div className="storefront checkout-page">
     <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Violetta</strong><small>JOIAS E SEMIJOIAS</small></span></span><button className="store-cart-button" onClick={onCheckout}><ShoppingBag size={18}/></button></header>
     <div className="product-detail-promo"><span>VIOLETTA JOIAS E SEMIJOIAS</span><b>Detalhes escolhidos para acompanhar seus momentos.</b></div>
@@ -427,14 +428,14 @@ function ProductDetail({ product, onBack, onAdd, onCheckout }: { product: Catalo
       </div>
       <div className="product-detail-copy">
         <p className="store-kicker">{product.category}</p><p className="product-material">{product.material}</p><h1>{product.name}</h1>
-        <strong className="product-detail-price">{formatMoney(product.price)}</strong>
+        <strong className="product-detail-price">{formatMoney(product.price)}</strong><span className={available ? "product-stock-note" : "product-stock-note sold-out"}>{available ? (Number(product.stock) <= 3 ? "Últimas unidades disponíveis" : "Disponível para envio") : "Produto temporariamente esgotado"}</span>
         <p className="product-detail-description">{product.description || "Uma peça escolhida para trazer delicadeza, presença e brilho aos seus momentos."}</p>
         <div className="product-detail-meta">
           <div><Gem size={17}/><span><b>Material</b><small>{product.material}</small></span></div>
           <div><Check size={17}/><span><b>Disponibilidade</b><small>{Number(product.stock ?? 0) > 0 ? "Em estoque" : "Esgotado"}</small></span></div>
         </div>
         <div className="product-detail-actions"><button className="checkout-submit" onClick={onAdd} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Adicionar ao carrinho" : "Produto esgotado"}</button><button className="product-detail-whatsapp" onClick={() => { if (!storeWhatsApp) return; const text = encodeURIComponent(`Olá! Tenho interesse em ${product.name} (${formatMoney(product.price)}).`); window.open(`https://wa.me/${storeWhatsApp}?text=${text}`, "_blank", "noopener,noreferrer"); }} disabled={!storeWhatsApp}>Tenho interesse <ArrowRight size={15}/></button></div>
-        <button className="store-primary-cta" onClick={onCheckout}>Ir para o carrinho <ArrowRight size={16}/></button>
+        <div className="product-detail-benefits"><span><ShieldCheck size={15}/> Compra segura</span><span><Truck size={15}/> Envio calculado no checkout</span></div><button className="store-primary-cta" onClick={onCheckout}>Ir para o carrinho <ArrowRight size={16}/></button>
         <p className="product-detail-note">Pagamento online processado pelo Mercado Pago. Consulte as opções de entrega no checkout.</p>
       </div>
     </main>
