@@ -107,7 +107,7 @@ export default function Storefront() {
     document.getElementById("violetta-store-schema")?.remove();
     if (view === "store" || view === "product") {
       const schema = document.createElement("script");
-      schema.id = "karine-store-schema";
+      schema.id = "violetta-store-schema";
       schema.type = "application/ld+json";
       schema.textContent = JSON.stringify(view === "product" && selectedProduct ? {
         "@context": "https://schema.org",
@@ -268,7 +268,7 @@ export default function Storefront() {
 
   if (view === "product") {
     if (!selectedProduct) return <div className="storefront success-page"><main className="success-card"><p className="store-kicker">PEÇA NÃO ENCONTRADA</p><h1>Essa peça não está disponível.</h1><button className="store-primary-cta" onClick={backToStore}>Voltar para a loja <ArrowRight size={16}/></button></main></div>;
-    return <ProductDetail product={selectedProduct} onBack={backToStore} onAdd={() => addToCart(selectedProduct)} onCheckout={goCheckout} />;
+    return <ProductDetail product={selectedProduct} onBack={backToStore} onAdd={() => addToCart(selectedProduct)} onCheckout={goCheckout} onCart={openCart} />;
   }
 
   if (view === "checkout") {
@@ -416,10 +416,10 @@ function ProductCard({ product, onAdd, onAsk, onOpen, featured = false, isTopSel
   </article>;
 }
 
-function ProductDetail({ product, onBack, onAdd, onCheckout }: { product: CatalogProduct; onBack: () => void; onAdd: () => void; onCheckout: () => void }) {
+function ProductDetail({ product, onBack, onAdd, onCheckout, onCart }: { product: CatalogProduct; onBack: () => void; onAdd: () => void; onCheckout: () => void; onCart: () => void }) {
   const available = Number(product.stock ?? 0) > 0;
   return <div className="storefront checkout-page">
-    <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Violetta</strong><small>JOIAS E SEMIJOIAS</small></span></span><button className="store-cart-button" onClick={onCheckout}><ShoppingBag size={18}/></button></header>
+    <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Violetta</strong><small>JOIAS E SEMIJOIAS</small></span></span><button className="store-cart-button" onClick={onCart} aria-label="Abrir carrinho"><ShoppingBag size={18}/></button></header>
     <div className="product-detail-promo"><span>VIOLETTA JOIAS E SEMIJOIAS</span><b>Detalhes escolhidos para acompanhar seus momentos.</b></div>
     <main className="product-detail-page">
       <div className="product-detail-image-wrap">
