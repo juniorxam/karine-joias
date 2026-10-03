@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
         },
         {
           id: "violetta-pickup",
-          company: "Karine",
+          company: "Violetta Joias e Semijoias",
           service: "Retirada no local",
           price: 0,
           delivery_time: 0,
