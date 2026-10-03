@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { toast } from "sonner";
-import { ArrowRight, ArrowLeft, Check, Gem, Instagram, Menu, Search, ShoppingBag, Sparkles, X, User, Truck, Tag, ShieldCheck } from "lucide-react";
+import { ArrowRight, ArrowLeft, Check, Gem, Heart, Instagram, Menu, Search, ShoppingBag, Sparkles, X, User, Truck, Tag, ShieldCheck } from "lucide-react";
 import { formatMoney, type CatalogProduct } from "./lib/catalog";
 type StorefrontSettings = { hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string };
 import { loadPublicCatalog } from "./lib/publicCatalog";
@@ -317,8 +317,8 @@ export default function Storefront() {
   return <div className="storefront">
     <header className="store-header">
       <a className="store-logo" href="/loja" onClick={(e) => { e.preventDefault(); backToStore(); }}>
-        <span className="store-logo-mark"><Gem size={19} /></span>
-        <span><strong>Violetta</strong><small>JOIAS E SEMIJOIAS</small></span>
+        <span className="store-logo-mark"><Heart size={18} strokeWidth={1.7} /><Gem size={12} strokeWidth={1.7} /></span>
+        <span><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></span>
       </a>
       <nav className={menuOpen ? "store-nav open" : "store-nav"}>
         <a href="#novidades" onClick={() => setMenuOpen(false)}>Novidades</a>
@@ -346,7 +346,7 @@ export default function Storefront() {
       </> : <div className="store-cart-empty"><ShoppingBag size={30}/><h3>Seu carrinho está vazio.</h3><p>Escolha uma peça especial para começar.</p><button className="store-primary-cta" onClick={() => setCartOpen(false)}>Ver coleção <ArrowRight size={15}/></button></div>}
     </aside></div>}
     <main>
-      <div className="store-promo-bar"><span>VIOLETTA JOIAS E SEMIJOIAS</span><b>Descubra a coleção e encontre sua próxima peça favorita.</b><a href="#novidades">Comprar agora <ArrowRight size={12}/></a></div>
+      <div className="store-promo-bar"><span>VIOLETTA · PRATA 925 · SEMIJOIAS</span><b>Descubra a coleção e encontre sua próxima peça favorita.</b><a href="#novidades">Comprar agora <ArrowRight size={12}/></a></div>
 
       <section className="store-hero">
         <div className="store-hero-copy">
@@ -357,7 +357,7 @@ export default function Storefront() {
         </div>
         <div className="store-hero-art" style={storefrontSettings?.hero_image_url ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${storefrontSettings.hero_image_url})` } : latest[0]?.imageUrl ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${latest[0].imageUrl})` } : undefined}>
           {!storefrontSettings?.hero_image_url && !latest[0]?.imageUrl && <><div className="hero-orbit orbit-one" /><div className="hero-orbit orbit-two" /><div className="hero-gem"><Gem size={82} strokeWidth={1} /></div></>}
-          <span className="hero-stamp">VIOLETTA<br /><b>JOIAS</b></span>
+          <span className="hero-stamp"><Heart size={18} strokeWidth={1.5} /><strong>Violetta</strong><b>PRATA 925 · SEMIJOIAS</b></span>
         </div>
       </section>
 
@@ -415,7 +415,7 @@ export default function Storefront() {
       </section>
     </main>
 
-    <footer className="store-footer" id="contato"><div className="footer-brand"><span className="store-logo-mark"><Gem size={19} /></span><div><strong>Violetta</strong><small>JOIAS E SEMIJOIAS</small></div></div><div><p className="store-kicker">ATENDIMENTO</p><h3>Uma peça especial começa<br />com uma conversa.</h3><p className="footer-note">Compre online ou fale diretamente com a nossa equipe.</p></div><div className="footer-links"><a href="#colecao">Coleção <ArrowRight size={14} /></a><a href="/" >Área da proprietária <ArrowRight size={14} /></a>{storeInstagram ? <a href={storeInstagram} target="_blank" rel="noreferrer"><Instagram size={14} /> Instagram</a> : null}</div><div className="footer-bottom"><span>© {new Date().getFullYear()} Violetta Joias</span><span>Feito para brilhar.</span></div></footer>
+    <footer className="store-footer" id="contato"><div className="footer-brand"><span className="store-logo-mark"><Heart size={18} strokeWidth={1.7} /><Gem size={12} strokeWidth={1.7} /></span><div><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></div></div><div><p className="store-kicker">ATENDIMENTO</p><h3>Uma peça especial começa<br />com uma conversa.</h3><p className="footer-note">Compre online ou fale diretamente com a nossa equipe.</p></div><div className="footer-links"><a href="#colecao">Coleção <ArrowRight size={14} /></a><a href="/" >Área da proprietária <ArrowRight size={14} /></a>{storeInstagram ? <a href={storeInstagram} target="_blank" rel="noreferrer"><Instagram size={14} /> Instagram</a> : null}</div><div className="footer-bottom"><span>© {new Date().getFullYear()} Violetta Joias</span><span>Feito para brilhar.</span></div></footer>
   </div>;
 }
 
@@ -445,7 +445,7 @@ function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false
 function ProductDetail({ product, onBack, onAdd, onBuyNow, onCheckout, onCart }: { product: CatalogProduct; onBack: () => void; onAdd: () => void; onBuyNow: () => void; onCheckout: () => void; onCart: () => void }) {
   const available = Number(product.stock ?? 0) > 0;
   return <div className="storefront checkout-page">
-    <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Violetta</strong><small>JOIAS E SEMIJOIAS</small></span></span><button className="store-cart-button" onClick={onCart} aria-label="Abrir carrinho"><ShoppingBag size={18}/></button></header>
+    <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></span></span><button className="store-cart-button" onClick={onCart} aria-label="Abrir carrinho"><ShoppingBag size={18}/></button></header>
     <div className="product-detail-promo"><span>VIOLETTA JOIAS E SEMIJOIAS</span><b>Detalhes escolhidos para acompanhar seus momentos.</b></div>
     <main className="product-detail-page">
       <div className="product-detail-image-wrap">
@@ -568,7 +568,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   };
 
   return <div className="storefront checkout-page">
-    <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Violetta</strong><small>JOIAS E SEMIJOIAS</small></span></span><span className="checkout-secure">Checkout seguro</span></header>
+    <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></span></span><span className="checkout-secure">Checkout seguro</span></header>
     <main className="checkout-layout">
       <form className="checkout-form" onSubmit={submit}>
         <div className="checkout-title"><p className="store-kicker">FINALIZAR PEDIDO</p><h1>Quase seu.</h1><p>Preencha seus dados para reservar as peças e gerar seu pedido. O endereço pode ser dispensado quando você escolher retirada no local.</p></div>
