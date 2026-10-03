@@ -90,3 +90,31 @@
  .product-detail-promo{min-height:34px}
  .product-detail-image{min-height:360px}
 }
+
+/* Violetta checkout polish */
+.checkout-page{background:#fbf9f6;min-height:100vh}
+.checkout-page .store-header{background:#fff;border-bottom:1px solid var(--store-line);position:sticky;top:0;z-index:20}
+.checkout-layout{align-items:start}
+.checkout-form{background:transparent}
+.checkout-title{padding-bottom:8px}
+.checkout-title .store-kicker{margin-bottom:8px}
+.checkout-section{background:#fff;border:1px solid var(--store-line);border-radius:12px;padding:24px;margin-bottom:14px}
+.checkout-section h2{display:flex;align-items:center;gap:9px}
+.checkout-grid input:focus{outline:none;border-color:#b89a5a;box-shadow:0 0 0 3px rgba(184,154,90,.10)}
+.shipping-quote-button{background:#fff;color:var(--store-ink);font-size:11px;font-weight:600}
+.shipping-quote-button:hover{border-color:#b89a5a}
+.shipping-option{background:#fff;transition:.2s ease}
+.shipping-option:hover{border-color:#b89a5a}
+.payment-placeholder{border:1px solid #eadfce;background:#faf5ed}
+.checkout-submit{cursor:pointer;transition:transform .2s ease,opacity .2s ease,background .2s ease}
+.checkout-submit:hover:not(:disabled){background:#4b4037;transform:translateY(-1px)}
+.checkout-summary{box-shadow:0 14px 40px rgba(65,48,31,.06)}
+.checkout-summary:before{content:"Compra segura";display:block;color:#8b744c;font-size:9px;letter-spacing:1.3px;text-transform:uppercase;margin-bottom:10px}
+.checkout-item strong{line-height:1.35}
+.checkout-note{border-top:1px solid var(--store-line);padding-top:12px}
+@media(max-width:800px){
+ .checkout-page .store-header{position:relative}
+ .checkout-title{padding-top:6px}
+ .checkout-section{padding:19px 16px}
+ .checkout-summary{order:-1}
+}
