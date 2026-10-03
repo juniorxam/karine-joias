@@ -30,3 +30,31 @@
 
 /* Quick product editor */
 .quick-edit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:4px 0 14px}.quick-edit-grid label{font-size:11px;color:#6f675f}.quick-edit-grid label.full{grid-column:1/-1}.quick-edit-grid input,.quick-edit-grid select{width:100%;margin-top:5px;padding:9px 10px;border:1px solid #ddd4c8;border-radius:8px;background:#fff;box-sizing:border-box}.quick-edit-grid small{display:block;margin-top:5px;color:#8b8177}.quick-edit-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:10px;border-top:1px solid #eee6dc}.quick-edit-actions button{cursor:pointer}@media(max-width:560px){.quick-edit-grid{grid-template-columns:1fr}.quick-edit-grid label.full{grid-column:auto}.quick-edit-actions{flex-direction:column}.quick-edit-actions button{width:100%}}
+
+/* Violetta storefront refinements */
+.store-promo-bar{min-height:38px;padding:0 28px;background:#332e2a;color:#fff;display:flex;align-items:center;justify-content:center;gap:22px;font-size:9px;letter-spacing:.7px;text-transform:uppercase}
+.store-promo-bar span{color:#d5b879;font-weight:700;letter-spacing:1.4px}
+.store-promo-bar b{font-weight:500;color:#eee6de;text-transform:none;letter-spacing:.1px}
+.store-promo-bar a{display:inline-flex;align-items:center;gap:5px;color:#fff;text-decoration:none;border-bottom:1px solid #c9a961;padding-bottom:2px}
+.category-cards button{min-height:250px;position:relative;overflow:hidden;background-size:cover;background-position:center;justify-content:flex-end;color:#fff}
+.category-cards button:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(35,27,21,.02) 25%,rgba(35,27,21,.78) 100%);z-index:0}
+.category-cards button>*{position:relative;z-index:1}
+.category-cards button span{color:#fff;font-size:25px;margin-bottom:auto}
+.category-cards button strong{font-size:27px;text-shadow:0 2px 12px rgba(0,0,0,.22)}
+.category-cards button small{color:#fff;margin-top:8px}
+.store-gifts{background:#fbf7f1}
+.store-gifts .store-section-heading{margin-bottom:24px}
+.store-product-card{overflow:hidden}
+.store-product-art{transition:transform .35s ease}
+.store-product-card:hover .store-product-art{transform:scale(1.015)}
+@media(max-width:800px){
+  .store-promo-bar{padding:9px 18px;gap:9px;flex-wrap:wrap;text-align:center;line-height:1.4}
+  .store-promo-bar span{display:none}
+  .store-promo-bar b{font-size:9px}
+  .category-cards button{min-height:210px}
+}
+@media(max-width:480px){
+  .store-promo-bar{min-height:42px;padding:8px 14px}
+  .store-promo-bar a{display:none}
+  .category-cards button{min-height:190px}
+}
