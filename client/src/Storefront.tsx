@@ -282,7 +282,7 @@ export default function Storefront() {
 
   if (view === "product") {
     if (!selectedProduct) return <div className="storefront success-page"><main className="success-card"><p className="store-kicker">PEÇA NÃO ENCONTRADA</p><h1>Essa peça não está disponível.</h1><button className="store-primary-cta" onClick={backToStore}>Voltar para a loja <ArrowRight size={16}/></button></main></div>;
-    return <ProductDetail product={selectedProduct} onBack={backToStore} onAdd={() => addToCart(selectedProduct)} onCheckout={goCheckout} onCart={openCart} />;
+    return <ProductDetail product={selectedProduct} onBack={backToStore} onAdd={() => addToCart(selectedProduct)} onBuyNow={() => buyNow(selectedProduct)} onCheckout={goCheckout} onCart={openCart} />;
   }
 
   if (view === "checkout") {
@@ -443,7 +443,7 @@ function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false
   </article>;
 }
 
-function ProductDetail({ product, onBack, onAdd, onCheckout, onCart }: { product: CatalogProduct; onBack: () => void; onAdd: () => void; onCheckout: () => void; onCart: () => void }) {
+function ProductDetail({ product, onBack, onAdd, onBuyNow, onCheckout, onCart }: { product: CatalogProduct; onBack: () => void; onAdd: () => void; onBuyNow: () => void; onCheckout: () => void; onCart: () => void }) {
   const available = Number(product.stock ?? 0) > 0;
   return <div className="storefront checkout-page">
     <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Violetta</strong><small>JOIAS E SEMIJOIAS</small></span></span><button className="store-cart-button" onClick={onCart} aria-label="Abrir carrinho"><ShoppingBag size={18}/></button></header>
@@ -461,7 +461,7 @@ function ProductDetail({ product, onBack, onAdd, onCheckout, onCart }: { product
           <div><Gem size={17}/><span><b>Material</b><small>{product.material}</small></span></div>
           <div><Check size={17}/><span><b>Disponibilidade</b><small>{Number(product.stock ?? 0) > 0 ? "Em estoque" : "Esgotado"}</small></span></div>
         </div>
-        <div className="product-detail-actions"><button className="checkout-submit" onClick={onAdd} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Adicionar ao carrinho" : "Produto esgotado"}</button><button className="product-detail-whatsapp" onClick={() => { if (!storeWhatsApp) return; const text = encodeURIComponent(`Olá! Tenho interesse em ${product.name} (${formatMoney(product.price)}).`); window.open(`https://wa.me/${storeWhatsApp}?text=${text}`, "_blank", "noopener,noreferrer"); }} disabled={!storeWhatsApp}>Tenho interesse <ArrowRight size={15}/></button></div>
+        <div className="product-detail-actions"><div className="product-detail-buy-actions"><button className="product-detail-add" onClick={onAdd} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Adicionar ao carrinho" : "Produto esgotado"}</button><button className="product-detail-buy-now" onClick={onBuyNow} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Comprar agora" : "Indisponível"}</button></div><button className="product-detail-whatsapp" onClick={() => { if (!storeWhatsApp) return; const text = encodeURIComponent(`Olá! Tenho interesse em ${product.name} (${formatMoney(product.price)}).`); window.open(`https://wa.me/${storeWhatsApp}?text=${text}`, "_blank", "noopener,noreferrer"); }} disabled={!storeWhatsApp}>Tenho interesse <ArrowRight size={15}/></button></div>
         <div className="product-detail-benefits"><span><ShieldCheck size={15}/> Compra segura</span><span><Truck size={15}/> Envio calculado no checkout</span></div><button className="store-primary-cta" onClick={onCheckout}>Ir para o carrinho <ArrowRight size={16}/></button>
         <p className="product-detail-note">Pagamento online processado pelo Mercado Pago. Consulte as opções de entrega no checkout.</p>
       </div>
