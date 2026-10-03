@@ -328,7 +328,7 @@ export default function Storefront() {
         <a href="#contato" onClick={() => setMenuOpen(false)}>Atendimento</a>
       </nav>
       <div className="store-header-actions">
-        <a className="store-admin-link" href="/">Acesso da proprietária</a>
+        <a className="store-admin-link" href="/gestao">Acesso da proprietária</a>
         <button className="store-header-search" onClick={() => document.getElementById("colecao")?.scrollIntoView({behavior:"smooth"})} aria-label="Buscar peças"><Search size={17}/></button>
         <button className="store-cart-button" onClick={openCart} aria-label="Abrir carrinho"><ShoppingBag size={18}/>{cartCount > 0 && <b>{cartCount}</b>}</button>
         <button className="store-menu-button" aria-label="Abrir menu" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={20} /> : <Menu size={20} />}</button>

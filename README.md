@@ -5,7 +5,7 @@ Aplicação de gestão e loja virtual da Violetta Joias e Semijoias.
 ## Arquitetura
 
 - **Frontend:** React + TypeScript + Vite.
-- **Administração:** autenticação Supabase e dados sincronizados no PostgreSQL.
+- **Administração:** `/gestao`, com autenticação Supabase e dados sincronizados no PostgreSQL. A raiz `/` continua apontando para o painel por compatibilidade.
 - **Loja pública:** `/loja`, catálogo publicado, carrinho, checkout, cupons e acompanhamento do pedido.
 - **Pagamentos:** Mercado Pago Checkout Pro + webhook assinado.
 - **Frete:** Melhor Envio para cotação, criação do envio, etiqueta e rastreamento.
@@ -110,3 +110,5 @@ Quando o domínio definitivo estiver configurado, deve ser adicionado um sitemap
 - Marca: Violetta Joias e Semijoias
 - Domínio planejado: `violleta.com.br`
 - Ambiente atual: Vercel (homologação/testes)
+- Diretório de saída do Vercel: `dist/public`
+- Rotas públicas: `/loja` para clientes e `/gestao` para a proprietária

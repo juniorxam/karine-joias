@@ -15,7 +15,7 @@ class AppErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("Karine Joias: erro não tratado na interface", error, info);
+    console.error("Violetta: erro não tratado na interface", error, info);
   }
 
   render() {
@@ -24,8 +24,8 @@ class AppErrorBoundary extends Component<Props, State> {
       <main className="auth-shell">
         <section className="auth-card">
           <div className="brand auth-brand">
-            <div className="brand-mark">KJ</div>
-            <div><strong>Karine</strong><span>JOIAS</span></div>
+            <div className="brand-mark">V</div>
+            <div><strong>Violetta</strong><span>JOIAS E SEMIJOIAS</span></div>
           </div>
           <p className="eyebrow">OPS</p>
           <h1>Algo saiu do lugar.</h1>
