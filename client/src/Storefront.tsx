@@ -304,8 +304,9 @@ export default function Storefront() {
       </a>
       <nav className={menuOpen ? "store-nav open" : "store-nav"}>
         <a href="#novidades" onClick={() => setMenuOpen(false)}>Novidades</a>
-        <a href="#colecao" onClick={() => setMenuOpen(false)}>Coleção</a>
+        <a href="#mais-vendidos" onClick={() => setMenuOpen(false)}>Mais vendidos</a>
         <a href="#categorias" onClick={() => setMenuOpen(false)}>Categorias</a>
+        <a href="#presentes" onClick={() => setMenuOpen(false)}>Presentes</a>
         <a href="#contato" onClick={() => setMenuOpen(false)}>Atendimento</a>
       </nav>
       <div className="store-header-actions">
@@ -340,12 +341,12 @@ export default function Storefront() {
         <div className="category-cards">{categoryCards.map(item => <button key={item.name} onClick={() => { setCategory(item.name); document.getElementById("colecao")?.scrollIntoView({ behavior: "smooth" }); }}><span>{item.icon}</span><strong>{item.label}</strong><small>Ver peças <ArrowRight size={13} /></small></button>)}</div>
       </section>) : null}
 
-      {(storefrontSettings?.featured_enabled ?? true) && featured.length > 0 ? (<section className="store-featured" id="novidades">
+      {(storefrontSettings?.featured_enabled ?? true) && featured.length > 0 ? (<section className="store-featured" id="mais-vendidos">
         <div className="store-section-heading"><div><p className="store-kicker">DESTAQUES VIOLETTA</p><h2>{storefrontSettings?.featured_title || "Mais vendidos"}</h2></div><a href="#colecao">Ver todos <ArrowRight size={15} /></a></div>
         <div className="featured-grid">{(bestSellers.length ? bestSellers : featured).map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} featured isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
       </section>) : null}
 
-      {gifts.length > 0 ? (<section className="store-gifts">
+      {gifts.length > 0 ? (<section className="store-gifts" id="presentes">
         <div className="store-section-heading"><div><p className="store-kicker">PARA PRESENTEAR</p><h2>Escolhas especiais para presentear</h2></div><a href="#colecao">Ver opções <ArrowRight size={15} /></a></div>
         <div className="store-product-grid">{gifts.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} isTopSeller={false} />)}</div>
       </section>) : null}
