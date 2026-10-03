@@ -1,6 +1,6 @@
-# Karine
+# Violetta Joias e Semijoias
 
-Aplicação de gestão e loja virtual da Karine.
+Aplicação de gestão e loja virtual da Violetta Joias e Semijoias.
 
 ## Arquitetura
 
@@ -107,6 +107,6 @@ Quando o domínio definitivo estiver configurado, deve ser adicionado um sitemap
 
 
 ## Publicação
-- Marca: Karine
-- Domínio planejado: `karinejoias.com.br`
+- Marca: Violetta Joias e Semijoias
+- Domínio planejado: `violleta.com.br`
 - Ambiente atual: Vercel (homologação/testes)
