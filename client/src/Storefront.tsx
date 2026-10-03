@@ -70,10 +70,10 @@ export default function Storefront() {
         ? selectedProduct.name + " · Karine"
         : view === "success"
           ? "Acompanhamento do pedido · Karine"
-          : "Karine · Escolha o detalhe que fica";
+          : "Violetta · Escolha o detalhe que fica";
     const description = view === "product" && selectedProduct
-      ? selectedProduct.name + ", " + selectedProduct.material + ", na Karine. Veja detalhes e compre online."
-      : "Joias e semi-joias escolhidas para acompanhar seus momentos mais bonitos. Compre online na Karine.";
+      ? selectedProduct.name + ", " + selectedProduct.material + ", na Violetta. Veja detalhes e compre online."
+      : "Joias e semi-joias escolhidas para acompanhar seus momentos mais bonitos. Compre online na Violetta.";
     document.title = title;
     document.documentElement.lang = "pt-BR";
 
@@ -119,7 +119,7 @@ export default function Storefront() {
       } : {
         "@context": "https://schema.org",
         "@type": "Store",
-        name: "Karine",
+        name: "Violetta",
         url: window.location.origin + "/loja",
         description
       });
@@ -197,7 +197,7 @@ export default function Storefront() {
   };
 
   const askAbout = (product: CatalogProduct) => {
-    const message = `Olá, Karine! Gostei da peça ${product.name} (${formatMoney(product.price)}). Pode me contar mais?`;
+    const message = `Olá! Aqui é a Violetta Joias. Gostei da peça ${product.name} (${formatMoney(product.price)}). Pode me contar mais?`;
     if (storeWhatsApp) {
       window.open(`https://wa.me/${storeWhatsApp}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
     } else {
@@ -298,7 +298,7 @@ export default function Storefront() {
     <header className="store-header">
       <a className="store-logo" href="/loja" onClick={(e) => { e.preventDefault(); backToStore(); }}>
         <span className="store-logo-mark"><Gem size={19} /></span>
-        <span><strong>Karine</strong><small>JOIAS</small></span>
+        <span><strong>Violetta</strong><small>JOIAS E SEMIJOIAS</small></span>
       </a>
       <nav className={menuOpen ? "store-nav open" : "store-nav"}>
         <a href="#novidades" onClick={() => setMenuOpen(false)}>Novidades</a>
@@ -316,21 +316,21 @@ export default function Storefront() {
     <main>
       <section className="store-hero">
         <div className="store-hero-copy">
-          <p className="store-kicker"><Sparkles size={13} /> NOVA COLEÇÃO KARINE JOIAS</p>
+          <p className="store-kicker"><Sparkles size={13} /> NOVA COLEÇÃO VIOLETTA JOIAS</p>
           <h1>{storefrontSettings?.hero_title || "Seu brilho, seu momento."}</h1>
           <p className="store-hero-text">{storefrontSettings?.hero_subtitle || "Descubra peças escolhidas para valorizar cada detalhe. Elegância, delicadeza e personalidade em uma só vitrine."}</p>
           <div className="store-hero-actions"><a className="store-primary-cta" href="#novidades">{storefrontSettings?.hero_cta || "Comprar agora"} <ArrowRight size={16} /></a><a className="store-text-link" href="#categorias">Ver categorias</a></div>
         </div>
         <div className="store-hero-art" style={storefrontSettings?.hero_image_url ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${storefrontSettings.hero_image_url})` } : latest[0]?.imageUrl ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${latest[0].imageUrl})` } : undefined}>
           {!storefrontSettings?.hero_image_url && !latest[0]?.imageUrl && <><div className="hero-orbit orbit-one" /><div className="hero-orbit orbit-two" /><div className="hero-gem"><Gem size={82} strokeWidth={1} /></div></>}
-          <span className="hero-stamp">KARINE<br /><b>JOIAS</b></span>
+          <span className="hero-stamp">VIOLETTA<br /><b>JOIAS</b></span>
         </div>
       </section>
 
       <section className="store-values" id="essencia">
         <div><span>01</span><strong>Curadoria especial</strong><p>Peças selecionadas para combinar com diferentes estilos e momentos.</p></div>
         <div><span>02</span><strong>Compra segura</strong><p>Finalize seu pedido online com pagamento processado pelo Mercado Pago.</p></div>
-        <div><span>03</span><strong>Atendimento próximo</strong><p>Fale diretamente com a Karine sempre que precisar.</p></div>
+        <div><span>03</span><strong>Atendimento próximo</strong><p>Fale diretamente com a nossa equipe sempre que precisar.</p></div>
       </section>
 
       {(storefrontSettings?.category_enabled ?? true) ? (<section className="store-category-strip" id="categorias">
@@ -339,7 +339,7 @@ export default function Storefront() {
       </section>) : null}
 
       {(storefrontSettings?.featured_enabled ?? true) && featured.length > 0 ? (<section className="store-featured" id="novidades">
-        <div className="store-section-heading"><div><p className="store-kicker">CURADORIA KARINE</p><h2>{storefrontSettings?.featured_title || "Peças para se apaixonar."}</h2></div><a href="#colecao">Ver toda a coleção <ArrowRight size={15} /></a></div>
+        <div className="store-section-heading"><div><p className="store-kicker">CURADORIA VIOLETTA</p><h2>{storefrontSettings?.featured_title || "Peças para se apaixonar."}</h2></div><a href="#colecao">Ver toda a coleção <ArrowRight size={15} /></a></div>
         <div className="featured-grid">{featured.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} featured isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
       </section>) : null}
 
@@ -349,7 +349,7 @@ export default function Storefront() {
       </section>) : null}
 
       {(storefrontSettings?.collection_enabled ?? true) ? (<section className="store-collection-banner" id="colecao-banner" style={storefrontSettings?.collection_image_url ? { backgroundImage: `linear-gradient(90deg, rgba(42,36,31,.88), rgba(42,36,31,.25)), url(${storefrontSettings.collection_image_url})` } : undefined}>
-        <div className="store-collection-copy"><p className="store-kicker">COLEÇÃO KARINE</p><h2>{storefrontSettings?.collection_title || "Uma coleção para guardar."}</h2><p>{storefrontSettings?.collection_subtitle || "Detalhes delicados para acompanhar você em todos os momentos."}</p><a href="#colecao" className="store-primary-cta">{storefrontSettings?.collection_cta || "Conhecer coleção"} <ArrowRight size={16}/></a></div>
+        <div className="store-collection-copy"><p className="store-kicker">COLEÇÃO VIOLETTA</p><h2>{storefrontSettings?.collection_title || "Uma coleção para guardar."}</h2><p>{storefrontSettings?.collection_subtitle || "Detalhes delicados para acompanhar você em todos os momentos."}</p><a href="#colecao" className="store-primary-cta">{storefrontSettings?.collection_cta || "Conhecer coleção"} <ArrowRight size={16}/></a></div>
         {!storefrontSettings?.collection_image_url && <div className="collection-art"><Gem size={88} strokeWidth={1}/></div>}
       </section>) : null}
 
@@ -360,7 +360,7 @@ export default function Storefront() {
       </section>
     </main>
 
-    <footer className="store-footer" id="contato"><div className="footer-brand"><span className="store-logo-mark"><Gem size={19} /></span><div><strong>Karine</strong><small>JOIAS</small></div></div><div><p className="store-kicker">ATENDIMENTO</p><h3>Uma peça especial começa<br />com uma conversa.</h3><p className="footer-note">Compre online ou fale diretamente com a Karine.</p></div><div className="footer-links"><a href="#colecao">Coleção <ArrowRight size={14} /></a><a href="/" >Área da proprietária <ArrowRight size={14} /></a><a href="https://instagram.com" target="_blank" rel="noreferrer"><Instagram size={14} /> Instagram</a></div><div className="footer-bottom"><span>© {new Date().getFullYear()} Karine</span><span>Feito para brilhar.</span></div></footer>
+    <footer className="store-footer" id="contato"><div className="footer-brand"><span className="store-logo-mark"><Gem size={19} /></span><div><strong>Violetta</strong><small>JOIAS E SEMIJOIAS</small></div></div><div><p className="store-kicker">ATENDIMENTO</p><h3>Uma peça especial começa<br />com uma conversa.</h3><p className="footer-note">Compre online ou fale diretamente com a nossa equipe.</p></div><div className="footer-links"><a href="#colecao">Coleção <ArrowRight size={14} /></a><a href="/" >Área da proprietária <ArrowRight size={14} /></a><a href="https://instagram.com" target="_blank" rel="noreferrer"><Instagram size={14} /> Instagram</a></div><div className="footer-bottom"><span>© {new Date().getFullYear()} Violetta Joias</span><span>Feito para brilhar.</span></div></footer>
   </div>;
 }
 
@@ -376,7 +376,7 @@ function ProductCard({ product, onAdd, onAsk, onOpen, featured = false, isTopSel
 
 function ProductDetail({ product, onBack, onAdd, onCheckout }: { product: CatalogProduct; onBack: () => void; onAdd: () => void; onCheckout: () => void }) {
   return <div className="storefront checkout-page">
-    <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Karine</strong><small>JOIAS</small></span></span><button className="store-cart-button" onClick={onCheckout}><ShoppingBag size={18}/></button></header>
+    <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Violetta</strong><small>JOIAS E SEMIJOIAS</small></span></span><button className="store-cart-button" onClick={onCheckout}><ShoppingBag size={18}/></button></header>
     <main className="product-detail-page">
       <div className="product-detail-image" style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}>{!product.imageUrl && <Gem size={80} strokeWidth={1}/>}</div>
       <div className="product-detail-copy"><p className="store-kicker">{product.category}</p><p className="product-material">{product.material}</p><h1>{product.name}</h1><strong className="product-detail-price">{formatMoney(product.price)}</strong><p className="product-detail-description">{product.description || "Uma peça escolhida para trazer delicadeza, presença e brilho aos seus momentos."}</p><button className="checkout-submit" onClick={onAdd} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Adicionar ao carrinho" : "Produto esgotado"}</button><button className="store-primary-cta" onClick={onCheckout}>Ir para o carrinho <ArrowRight size={16}/></button></div>
@@ -482,7 +482,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   };
 
   return <div className="storefront checkout-page">
-    <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Karine</strong><small>JOIAS</small></span></span><span className="checkout-secure">Checkout seguro</span></header>
+    <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Violetta</strong><small>JOIAS E SEMIJOIAS</small></span></span><span className="checkout-secure">Checkout seguro</span></header>
     <main className="checkout-layout">
       <form className="checkout-form" onSubmit={submit}>
         <div className="checkout-title"><p className="store-kicker">FINALIZAR PEDIDO</p><h1>Quase seu.</h1><p>Preencha seus dados para reservar as peças e gerar seu pedido. O endereço pode ser dispensado quando você escolher retirada no local.</p></div>
