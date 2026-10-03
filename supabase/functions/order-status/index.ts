@@ -46,6 +46,19 @@ Deno.serve(async (req) => {
       return Response.json({ error: "Pedido não encontrado" }, { status: 404, headers: cors });
     }
 
+    const rawShipping = order.shipping_address && typeof order.shipping_address === "object" ? order.shipping_address : null;
+    const safeShipping = rawShipping
+      ? {
+          postal_code: rawShipping.postal_code || "",
+          address: rawShipping.address || "",
+          number: rawShipping.number || "",
+          complement: rawShipping.complement || "",
+          neighborhood: rawShipping.neighborhood || "",
+          city: rawShipping.city || "",
+          state: rawShipping.state || "",
+        }
+      : null;
+
     const [{ data: items }, { data: shipment }, { data: history }] = await Promise.all([
       db.from("order_items").select("product_name,quantity,unit_price,total_price").eq("order_id", order.id),
       db.from("shipments").select("carrier,service,tracking_code,tracking_url,shipping_status,created_at,updated_at").eq("order_id", order.id).maybeSingle(),
