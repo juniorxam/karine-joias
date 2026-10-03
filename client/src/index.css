@@ -409,3 +409,10 @@
 @media(max-width:520px){
   .product-actions-stack{grid-template-columns:1fr}
 }
+
+
+/* Navegação para detalhes do produto */
+.store-product-card{cursor:pointer}
+.product-detail-image-wrap{min-width:0}
+.product-detail-image{background-repeat:no-repeat}
+.checkout-back{cursor:pointer}

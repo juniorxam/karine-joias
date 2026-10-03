@@ -67,6 +67,16 @@ export default function Storefront() {
   }, []);
 
   useEffect(() => {
+    const syncViewWithUrl = () => {
+      const pathname = window.location.pathname;
+      setView(pathname.includes("/checkout") ? "checkout" : pathname.includes("/pedido") ? "success" : pathname.includes("/produto/") ? "product" : "store");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    window.addEventListener("popstate", syncViewWithUrl);
+    return () => window.removeEventListener("popstate", syncViewWithUrl);
+  }, []);
+
+  useEffect(() => {
     const title = view === "checkout"
       ? "Finalizar pedido · Violetta"
       : view === "product" && selectedProduct
@@ -422,7 +432,7 @@ export default function Storefront() {
 
 function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false, isTopSeller = false }: { product: CatalogProduct; onAdd: (product: CatalogProduct) => void; onBuyNow: (product: CatalogProduct) => void; onAsk: (product: CatalogProduct) => void; onOpen: (product: CatalogProduct) => void; featured?: boolean; isTopSeller?: boolean }) {
   const badges = product.isBestSeller || isTopSeller ? ["MAIS VENDIDO"] : product.isNew ? ["NOVO"] : product.stock !== undefined && product.stock > 0 && product.stock <= 3 ? ["ÚLTIMAS UNIDADES"] : [];
-  return <article className={featured ? "store-product-card featured-card" : "store-product-card"}>
+  return <article className={featured ? "store-product-card featured-card" : "store-product-card"} onClick={() => onOpen(product)}>
     <button className="store-product-art" onClick={() => onOpen(product)} aria-label={`Ver ${product.name}`} style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}>
       {!product.imageUrl && <div className="product-art-glow"><Gem size={featured ? 39 : 31} strokeWidth={1.1} /></div>}
       {badges.length > 0 && <span className="product-badge">{badges[0]}</span>}
@@ -434,7 +444,7 @@ function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false
       <h3>{product.name}</h3>
       <div className="store-product-bottom">
         <strong>{formatMoney(product.price)}</strong>
-        <div className="product-actions">
+        <div className="product-actions" onClick={event => event.stopPropagation()}>
           <div className="product-actions-stack"><button className="product-add-cart" onClick={() => onAdd(product)} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Adicionar ao carrinho" : "Esgotado"}</button><button className="product-buy-now" onClick={() => onBuyNow(product)} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Comprar agora" : "Indisponível"}</button></div>
           <button className="product-interest" onClick={() => onAsk(product)} aria-label={`Tenho interesse em ${product.name}`}>{featured ? "WhatsApp" : <Check size={15} />}</button>
         </div>
@@ -446,7 +456,7 @@ function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false
 function ProductDetail({ product, onBack, onAdd, onBuyNow, onCheckout, onCart }: { product: CatalogProduct; onBack: () => void; onAdd: () => void; onBuyNow: () => void; onCheckout: () => void; onCart: () => void }) {
   const available = Number(product.stock ?? 0) > 0;
   return <div className="storefront checkout-page">
-    <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></span></span><button className="store-cart-button" onClick={onCart} aria-label="Abrir carrinho"><ShoppingBag size={18}/></button></header>
+    <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><a className="store-logo" href="/loja" onClick={event => { event.preventDefault(); onBack(); }}><img className="store-logo-image" src={logoSrc} alt="Violetta Prata 925 e Semijoias" /><span><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></span></a><button className="store-cart-button" onClick={onCart} aria-label="Abrir carrinho"><ShoppingBag size={18}/></button></header>
     <div className="product-detail-promo"><span>VIOLETTA JOIAS E SEMIJOIAS</span><b>Detalhes escolhidos para acompanhar seus momentos.</b></div>
     <main className="product-detail-page">
       <div className="product-detail-image-wrap">
