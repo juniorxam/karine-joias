@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
       const options = [
         {
           id: "violetta-local-delivery",
-          company: "Violetta",
+          company: "Karine",
           service: localDeliveryPrice === 0 ? "Entrega local grátis" : "Entrega local",
           price: localDeliveryPrice,
           delivery_time: 1,
@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
         },
         {
           id: "violetta-pickup",
-          company: "Violetta",
+          company: "Karine",
           service: "Retirada no local",
           price: 0,
           delivery_time: 0,
