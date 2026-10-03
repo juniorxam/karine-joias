@@ -162,7 +162,9 @@ export default function Storefront() {
 
   const topSoldQuantity = Math.max(0, ...products.map(product => product.soldQuantity ?? 0));
   const featured = products.filter((product) => product.featured).sort((a,b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 4);
-  const latest = [...products].sort((a,b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0) || (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 4);
+  const bestSellers = [...products].filter(product => product.isBestSeller || (product.soldQuantity ?? 0) > 0).sort((a,b) => (b.soldQuantity ?? 0) - (a.soldQuantity ?? 0)).slice(0, 8);
+  const latest = [...products].sort((a,b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0) || (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 8);
+  const gifts = [...products].filter(product => /presente|kit|mix|conjunto/i.test(product.name)).slice(0, 8);
   const categoryCards = [
     { name: "Joias", label: "Joias", icon: "✦" },
     { name: "Semi-joias", label: "Semi-joias", icon: "◇" },
@@ -339,11 +341,16 @@ export default function Storefront() {
       </section>) : null}
 
       {(storefrontSettings?.featured_enabled ?? true) && featured.length > 0 ? (<section className="store-featured" id="novidades">
-        <div className="store-section-heading"><div><p className="store-kicker">CURADORIA VIOLETTA</p><h2>{storefrontSettings?.featured_title || "Peças para se apaixonar."}</h2></div><a href="#colecao">Ver toda a coleção <ArrowRight size={15} /></a></div>
-        <div className="featured-grid">{featured.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} featured isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
+        <div className="store-section-heading"><div><p className="store-kicker">DESTAQUES VIOLETTA</p><h2>{storefrontSettings?.featured_title || "Mais vendidos"}</h2></div><a href="#colecao">Ver todos <ArrowRight size={15} /></a></div>
+        <div className="featured-grid">{(bestSellers.length ? bestSellers : featured).map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} featured isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
       </section>) : null}
 
-      {(storefrontSettings?.latest_enabled ?? true) ? (<section className="store-latest">
+      {gifts.length > 0 ? (<section className="store-gifts">
+        <div className="store-section-heading"><div><p className="store-kicker">PARA PRESENTEAR</p><h2>Escolhas especiais para presentear</h2></div><a href="#colecao">Ver opções <ArrowRight size={15} /></a></div>
+        <div className="store-product-grid">{gifts.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} isTopSeller={false} />)}</div>
+      </section>) : null}
+
+      {(storefrontSettings?.latest_enabled ?? true) ? (<section className="store-latest" id="novidades">
         <div className="store-section-heading"><div><p className="store-kicker">RECÉM-CHEGARAM</p><h2>Novidades</h2></div><a href="#colecao">Ver todos <ArrowRight size={15} /></a></div>
         <div className="store-product-grid">{latest.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onAsk={askAbout} onOpen={openProduct} isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
       </section>) : null}
