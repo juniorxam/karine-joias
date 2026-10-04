@@ -22,8 +22,8 @@ Deno.serve(async (req) => {
     const melhorEnvioToken = Deno.env.get("MELHOR_ENVIO_TOKEN");
     const userAgent = Deno.env.get("MELHOR_ENVIO_USER_AGENT");
 
-    if (!serviceKey || !supabaseUrl || !melhorEnvioToken || !userAgent) {
-      return Response.json({ error: "Frete ainda não configurado no servidor" }, { status: 503, headers: cors });
+    if (!serviceKey || !supabaseUrl) {
+      return Response.json({ error: "Serviço de loja não configurado no servidor" }, { status: 503, headers: cors });
     }
 
     const db = createClient(supabaseUrl, serviceKey);
@@ -138,7 +138,11 @@ Deno.serve(async (req) => {
       }, { headers: cors });
     }
 
-    // Para outras localidades (e compras de até R$ 50 em Palmas), seguimos com o Melhor Envio.
+    // Para outras localidades (e compras abaixo do mínimo configurado em Palmas), seguimos com o Melhor Envio.
+    if (!melhorEnvioToken || !userAgent) {
+      return Response.json({ error: "Melhor Envio ainda não configurado no servidor" }, { status: 503, headers: cors });
+    }
+
     const payload = {
       from: { postal_code: origin },
       to: { postal_code: postalCode },
