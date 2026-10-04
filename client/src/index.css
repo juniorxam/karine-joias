@@ -320,154 +320,25 @@
 }
 
 
-/* Violetta product purchase actions - robust layout */
-.store-product-info{min-width:0}
-.store-product-bottom{display:block}
+/* Violetta product purchase actions - final */
+.store-product-info{min-width:0;overflow:hidden}
+.store-product-bottom{display:block;min-width:0}
 .store-product-bottom>strong{display:block;font-size:18px;margin-bottom:14px}
 .product-actions{display:grid;grid-template-columns:1fr;gap:8px;width:100%;min-width:0}
-.product-actions-stack{display:grid;grid-template-columns:1fr;gap:7px;width:100%;min-width:0;order:2}
-.product-actions-stack>button,
-.product-interest{box-sizing:border-box;min-width:0;max-width:100%;width:100%;overflow:hidden}
-.product-add-cart,.product-buy-now{width:100%;min-width:0;min-height:40px;border-radius:6px;padding:10px 10px;font-size:10px;font-weight:700;cursor:pointer;transition:all .18s ease;white-space:normal;line-height:1.2;text-align:center;overflow-wrap:anywhere;word-break:normal}
-.product-add-cart{border:1px solid #c9a961;background:#fffaf3;color:#8d6e3c}
-.product-add-cart:hover:not(:disabled){background:#f7efe3;border-color:#a98a52;transform:translateY(-1px)}
-.product-buy-now{border:1px solid var(--store-ink);background:var(--store-ink);color:#fff}
-.product-buy-now:hover:not(:disabled){background:#a88a4d;border-color:#a88a4d;transform:translateY(-1px)}
+.product-actions>button{box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:100%;max-width:100%;min-width:0;margin:0}
+.product-add-cart,.product-buy-now{min-height:42px;border-radius:6px;padding:10px 12px;font-size:10px;font-weight:700;cursor:pointer;transition:all .18s ease;white-space:normal;line-height:1.25;text-align:center;overflow:hidden;overflow-wrap:anywhere;word-break:break-word}
+.product-add-cart{border:1px solid #d5a398;background:#fff8f5;color:var(--violetta-rose-dark)}
+.product-add-cart:hover:not(:disabled){background:#f8e5df;border-color:#b98276;transform:translateY(-1px)}
+.product-buy-now{border:1px solid var(--violetta-rose-dark);background:var(--violetta-rose-dark);color:#fff}
+.product-buy-now:hover:not(:disabled){background:#8f5b54;border-color:#8f5b54;transform:translateY(-1px)}
 .product-add-cart:disabled,.product-buy-now:disabled{opacity:.45;cursor:not-allowed}
-.product-interest{order:1;display:flex;align-items:center;justify-content:center;gap:7px;min-height:38px;padding:9px 10px;border:1px solid #dfd0c7;background:transparent;color:#8d6e3c;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;transition:all .18s ease;white-space:normal;line-height:1.2;text-align:center;overflow-wrap:anywhere}
+.product-interest{min-height:38px;padding:9px 12px;border:1px solid #dfd0c7;background:transparent;color:#8d6e3c;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;transition:all .18s ease;white-space:normal;line-height:1.25;text-align:center;overflow:hidden;overflow-wrap:anywhere;word-break:break-word}
 .product-interest:hover:not(:disabled){border-color:#b89a5a;background:#fbf5eb;transform:translateY(-1px)}
-.product-interest svg{flex:none}
-.product-interest span{min-width:0}
+.product-interest svg{flex:0 0 auto}
+.product-interest span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .product-interest:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:480px){
  .product-add-cart,.product-buy-now{min-height:42px}
  .product-interest{min-height:40px}
 }
 
-/* Violetta product purchase actions */
-.product-detail-actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:18px}
-.product-detail-buy-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.product-detail-add,.product-detail-buy-now{min-height:48px;border-radius:4px;padding:12px 14px;font-size:11px;font-weight:700;cursor:pointer;transition:.18s ease}
-.product-detail-add{border:1px solid #c9a961;background:#fffaf3;color:#8d6e3c}
-.product-detail-add:hover:not(:disabled){background:#f7efe3;border-color:#a98a52}
-.product-detail-buy-now{border:1px solid var(--store-ink);background:var(--store-ink);color:#fff}
-.product-detail-buy-now:hover:not(:disabled){background:#a88a4d;border-color:#a88a4d}
-.product-detail-add:disabled,.product-detail-buy-now:disabled{opacity:.45;cursor:not-allowed}
-@media(max-width:480px){.product-detail-buy-actions{grid-template-columns:1fr}}
-
-/* Identidade Violetta · rosa antigo, off-white e dourado champagne */
-.brand-mark{overflow:hidden;padding:0;background:var(--violetta-off);border:1px solid #d9aa76}
-.brand-mark img{width:100%;height:100%;display:block;object-fit:cover}
-:root{--violetta-rose:#bf8b80;--violetta-rose-dark:#a96f66;--violetta-blush:#f1c9c1;--violetta-beige:#d9c2ad;--violetta-off:#fcf5f1;--violetta-gold:#bd8750;--violetta-gold-light:#d9aa76}
-.storefront{--store-ink:#6b4039;--store-muted:#98766f;--store-line:#ead9d2;--store-cream:var(--violetta-off);--store-gold:var(--violetta-gold);--store-rose:var(--violetta-blush);background:var(--violetta-off);font-family:'DM Sans',sans-serif}
-.store-header{background:rgba(252,245,241,.96);border-bottom-color:#ead9d2;backdrop-filter:blur(14px)}
-.store-logo{color:var(--violetta-rose-dark)}
-.store-logo-mark{position:relative;width:42px;height:42px;border-radius:50%;background:transparent;border:1px solid rgba(189,135,80,.75);color:var(--violetta-gold);display:grid;place-items:center}
-.store-logo-mark svg+svg{position:absolute;top:15px;left:15px;color:var(--violetta-gold)}
-.store-logo strong,.footer-brand strong{font-family:'Allura',cursive;font-size:33px;font-weight:400;line-height:25px;letter-spacing:.2px;color:var(--violetta-rose-dark)}
-.store-logo small,.footer-brand small{color:var(--violetta-gold);font-size:8px;letter-spacing:2px}
-.store-logo-image,.footer-logo-image{display:block;object-fit:contain;background:var(--violetta-off);border:1px solid rgba(189,135,80,.45);border-radius:50%}
-.store-logo-image{width:52px;height:52px}
-.footer-logo-image{width:74px;height:74px}
-.store-nav a,.store-admin-link{color:#8f7069;letter-spacing:.35px}
-.store-nav a:hover,.store-admin-link:hover{color:var(--violetta-rose-dark)}
-.store-hero{background:linear-gradient(110deg,#fcf5f1 0%,#f8e6e0 52%,#f1d6cf 100%);max-width:none;padding-left:clamp(24px,10vw,150px);padding-right:clamp(24px,10vw,150px)}
-.store-hero h1{font-family:'Allura',cursive;font-size:clamp(64px,7vw,104px);font-weight:400;line-height:.95;color:var(--violetta-rose-dark);letter-spacing:.5px}
-.store-hero-text{color:#7e5b55;max-width:430px}
-.store-kicker{color:var(--violetta-gold);letter-spacing:2.4px}
-.store-primary-cta,.product-buy-now,.product-detail-buy-now,.checkout-submit{background:var(--violetta-rose-dark);border-color:var(--violetta-rose-dark);border-radius:3px;box-shadow:0 10px 24px rgba(169,111,102,.16)}
-.store-primary-cta:hover,.product-buy-now:hover:not(:disabled),.product-detail-buy-now:hover:not(:disabled),.checkout-submit:hover:not(:disabled){background:#8f5b54;border-color:#8f5b54}
-.store-text-link{color:var(--violetta-rose-dark)}
-.store-hero-art{background-color:#e9c7be}
-.hero-stamp{border-color:rgba(189,135,80,.7);color:var(--violetta-gold);display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 18px;border-radius:50%;background:rgba(252,245,241,.3)}
-.hero-stamp strong{font-family:'Allura',cursive;font-size:31px;font-weight:400;line-height:1;color:var(--violetta-rose-dark)}
-.hero-stamp b{font-size:7px;letter-spacing:1.6px;font-weight:600}
-.store-promo-bar{background:var(--violetta-rose-dark);color:#fff4f0}
-.store-promo-bar b{color:#f8d8d0}
-.store-section-heading h2,.store-collection-copy h2,.success-card h1{font-family:'Allura',cursive;font-size:49px;font-weight:400;color:var(--violetta-rose-dark)}
-.store-editorial,.store-collection{background:#f2ddd7}
-.store-product-card{border-color:#f0dfd9;background:#fffaf8;border-radius:2px}
-.store-product-card:hover{border-color:#d7a79a;box-shadow:0 14px 35px rgba(134,83,73,.12)}
-.product-art,.store-product-art{background-color:#f3dfd9}
-.product-add-cart,.product-detail-add{border-color:#d5a398;background:#fff8f5;color:var(--violetta-rose-dark);border-radius:3px}
-.product-add-cart:hover:not(:disabled),.product-detail-add:hover:not(:disabled){background:#f8e5df;border-color:#b98276}
-.category-list button.selected,.category-list button:hover{border-color:#c69184;color:var(--violetta-rose-dark)}
-.store-footer{background:#6b4039;color:#fceee9}
-.store-footer .store-logo strong{color:#f8d8d0}.store-footer .store-logo small{color:#e7b789}
-.store-footer .store-kicker,.footer-note,.footer-links a{color:#eac5bb}
-.auth-shell{background:linear-gradient(135deg,#fcf5f1,#f1d8d1)}
-.auth-card{border-color:#ead3cb;background:#fffaf8}
-.auth-card h1{font-family:'Allura',cursive;font-size:52px;font-weight:400;color:var(--violetta-rose-dark)}
-.primary{background:var(--violetta-rose-dark);border-radius:3px}.primary:hover{background:#8f5b54}
-@media(max-width:720px){.store-logo strong,.footer-brand strong{font-size:30px}.store-hero h1{font-size:72px}.store-section-heading h2,.store-collection-copy h2{font-size:42px}}
-
-
-/* Ajuste responsivo dos cards da vitrine em notebooks */
-.store-product-bottom{
-  display:grid;
-  grid-template-columns:minmax(0,1fr);
-  gap:12px;
-  align-items:stretch;
-}
-.store-product-bottom>strong{
-  display:block;
-  min-width:0;
-}
-.product-actions{
-  width:100%;
-  min-width:0;
-}
-.product-actions-stack{
-  width:100%;
-  min-width:0;
-}
-.product-add-cart,.product-buy-now{
-  min-width:0;
-  white-space:normal;
-  line-height:1.2;
-  overflow-wrap:anywhere;
-}
-.store-product-info h3{
-  overflow-wrap:anywhere;
-}
-@media(max-width:520px){
-  .product-actions-stack{grid-template-columns:1fr}
-}
-
-
-/* Navegação para detalhes do produto */
-.store-product-card{cursor:pointer}
-.product-detail-image-wrap{min-width:0}
-.product-detail-image{background-repeat:no-repeat}
-.checkout-back{cursor:pointer}
-
-
-/* Avaliações e produtos relacionados */
-.product-detail-social-proof,.product-related-section{max-width:1100px;margin:0 auto;padding:18px 24px 72px}
-.product-related-section{padding-top:0}
-.product-detail-section-heading{display:flex;align-items:end;justify-content:space-between;gap:28px;margin-bottom:26px}
-.product-detail-section-heading h2{font:400 40px/1.05 'Playfair Display';color:var(--violetta-rose-dark);margin:6px 0 8px}
-.product-detail-section-heading p:not(.store-kicker){color:var(--store-muted);font-size:13px;line-height:1.6;margin:0;max-width:560px}
-.product-rating-summary{display:grid;justify-items:end;gap:3px;flex:none;color:var(--violetta-gold)}
-.product-rating-summary strong{font:400 38px/1 'Playfair Display';color:var(--store-ink)}
-.product-rating-summary span,.product-review-stars{display:flex;gap:2px;color:var(--violetta-gold)}
-.product-rating-summary small,.product-review-card small{font-size:9px;color:var(--store-muted)}
-.product-review-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
-.product-review-card{min-height:170px;padding:22px;background:#fffaf8;border:1px solid var(--store-line);border-radius:8px;display:flex;flex-direction:column;align-items:flex-start}
-.product-review-card p{color:var(--store-muted);font-size:12px;line-height:1.7;margin:16px 0 18px}
-.product-review-card strong{font-size:12px;color:var(--store-ink);margin-top:auto}
-.product-review-empty{justify-content:center;background:#f5e7e2;color:var(--violetta-rose-dark)}
-.product-review-empty>svg{margin-bottom:14px}.product-review-empty p{margin:9px 0 0}
-.product-related-back{border:0;background:transparent;cursor:pointer;display:flex;align-items:center;gap:6px;font:inherit}
-.product-related-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
-@media(max-width:800px){.product-detail-social-proof,.product-related-section{padding-left:18px;padding-right:18px}.product-detail-section-heading{align-items:flex-start;flex-direction:column}.product-rating-summary{justify-items:start}.product-review-grid{grid-template-columns:1fr 1fr}.product-related-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:480px){.product-detail-section-heading h2{font-size:32px}.product-review-grid,.product-related-grid{grid-template-columns:1fr}}
-
-
-/* Status das integrações no painel administrativo */
-.integration-status-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:20px}
-.integration-status-card{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px;border:1px solid var(--line);border-radius:9px;background:#fffdfb;min-height:92px}
-.integration-status-card div{min-width:0}.integration-status-card strong,.integration-status-card span,.integration-status-card small{display:block}.integration-status-card strong{font-size:12px}.integration-status-card span{font-size:10px;color:var(--muted);margin-top:6px}.integration-status-card small{font-size:9px;color:var(--muted);margin-top:5px;line-height:1.4}.integration-status-card>b{font-size:14px;line-height:1}.status-ok{color:var(--green)}.status-muted{color:var(--gold)}
-.settings-toggle{justify-content:center;gap:9px;flex-direction:row!important;align-items:center}.settings-toggle input{width:16px;height:16px;margin:0}
-@media(max-width:1050px){.integration-status-grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:720px){.integration-status-grid{grid-template-columns:1fr}}
