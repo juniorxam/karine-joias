@@ -6,11 +6,29 @@ const cors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const text = (value: unknown, field: string, min: number, max: number) => {
+  const result = String(value ?? "").trim();
+  if (result.length < min || result.length > max) throw new Error(`${field} inválido`);
+  return result;
+};
+
+const digits = (value: unknown) => String(value ?? "").replace(/\D/g, "");
+
+function isValidCpf(value: string) {
+  if (!/^\d{11}$/.test(value) || /^([0-9])\1{10}$/.test(value)) return false;
+  const calculate = (length: number) => {
+    let sum = 0;
+    for (let index = 0; index < length; index += 1) sum += Number(value[index]) * (length + 1 - index);
+    const digit = (sum * 10) % 11;
+    return digit === 10 ? 0 : digit;
+  };
+  return calculate(9) === Number(value[9]) && calculate(10) === Number(value[10]);
+}
 
 async function sha256(value: string) {
   const bytes = new TextEncoder().encode(value);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 Deno.serve(async (req) => {
@@ -22,115 +40,117 @@ Deno.serve(async (req) => {
     const shipping = body.shipping || {};
     const items = Array.isArray(body.items) ? body.items : [];
     const couponCode = String(body.coupon_code || "").trim().toUpperCase();
+    const idempotencyKey = String(body.idempotency_key || "").trim();
 
     if (items.length < 1 || items.length > 30) throw new Error("Carrinho inválido");
-    if (!customer.name || String(customer.name).trim().length < 2) throw new Error("Nome inválido");
+    if (!/^[A-Za-z0-9_-]{20,128}$/.test(idempotencyKey)) throw new Error("Chave de checkout inválida");
 
-    const email = String(customer.email || "").trim().toLowerCase();
+    const customerName = text(customer.name, "Nome", 2, 120);
+    const email = text(customer.email, "E-mail", 5, 180).toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("E-mail inválido");
-    if (!customer.phone || String(customer.phone).replace(/\D/g, "").length < 10) throw new Error("Telefone inválido");
+    const phone = digits(customer.phone);
+    if (!/^\d{10,13}$/.test(phone)) throw new Error("Telefone inválido");
 
-    const recipientCode = String(customer.recipient_code || shipping.recipient_code || "").replace(/\D/g, "");
-    if (!/^\d{11}$/.test(recipientCode)) throw new Error("CPF inválido");
+    const recipientCode = digits(customer.recipient_code || shipping.recipient_code);
+    if (!isValidCpf(recipientCode)) throw new Error("CPF inválido");
 
-    const quoteId = String(shipping.shipping_quote_id || "");
-    const selectedOptionId = String(shipping.shipping_option?.id ?? "");
+    const postalCode = digits(shipping.postal_code);
+    const address = text(shipping.address, "Logradouro", 2, 180);
+    const number = text(shipping.number, "Número", 1, 30);
+    const neighborhood = text(shipping.neighborhood, "Bairro", 2, 100);
+    const city = text(shipping.city, "Cidade", 2, 100);
+    const state = text(shipping.state, "Estado", 2, 2).toUpperCase();
+    const complement = String(shipping.complement || "").trim().slice(0, 120);
+    if (!/^\d{8}$/.test(postalCode)) throw new Error("CEP inválido");
+    if (!/^[A-Z]{2}$/.test(state)) throw new Error("Estado inválido");
+
+    const quoteId = String(shipping.shipping_quote_id || "").trim();
+    const selectedOptionId = String(shipping.shipping_option?.id ?? "").trim();
     if (!quoteId || !selectedOptionId) throw new Error("Frete inválido");
 
-    const url = Deno.env.get("SUPABASE_URL")!;
+    const url = Deno.env.get("SUPABASE_URL");
     const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!url || !key) throw new Error("Servidor não configurado");
-
     const db = createClient(url, key);
 
     const { data: quote, error: quoteError } = await db
       .from("shipping_quotes")
-      .select("id,owner_id,items,options,expires_at")
+      .select("id,owner_id,postal_code,items,options,expires_at")
       .eq("id", quoteId)
       .single();
-
     if (quoteError || !quote) throw new Error("Cotação de frete não encontrada");
     if (!quote.owner_id) throw new Error("Cotação de frete incompatível com a loja");
+    if (String(quote.postal_code) !== postalCode) throw new Error("O CEP não corresponde à cotação");
     if (new Date(quote.expires_at).getTime() <= Date.now()) throw new Error("A cotação de frete expirou");
 
+    const normalizedItems = items.map((item: any) => {
+      const productId = Number(item.product_id);
+      const quantity = Number(item.quantity);
+      if (!Number.isSafeInteger(productId) || productId < 1 || !Number.isInteger(quantity) || quantity < 1 || quantity > 20) {
+        throw new Error("Item inválido");
+      }
+      return { product_id: productId, quantity };
+    }).sort((a: any, b: any) => a.product_id - b.product_id);
+    if (new Set(normalizedItems.map((item: any) => item.product_id)).size !== normalizedItems.length) throw new Error("Produto repetido no carrinho");
+
     const quoteItems = Array.isArray(quote.items) ? quote.items : [];
-    const normalizedItems = items.map((item: any) => ({
-      product_id: Number(item.product_id),
-      quantity: Number(item.quantity),
-    })).sort((a: any, b: any) => a.product_id - b.product_id);
-
-    const normalizedQuoteItems = quoteItems.map((item: any) => ({
-      product_id: Number(item.product_id),
-      quantity: Number(item.quantity),
-    })).sort((a: any, b: any) => a.product_id - b.product_id);
-
-    if (JSON.stringify(normalizedItems) !== JSON.stringify(normalizedQuoteItems)) {
-      throw new Error("A cotação de frete não corresponde ao carrinho");
-    }
+    const normalizedQuoteItems = quoteItems.map((item: any) => ({ product_id: Number(item.product_id), quantity: Number(item.quantity) })).sort((a: any, b: any) => a.product_id - b.product_id);
+    if (JSON.stringify(normalizedItems) !== JSON.stringify(normalizedQuoteItems)) throw new Error("A cotação de frete não corresponde ao carrinho");
 
     const options = Array.isArray(quote.options) ? quote.options : [];
     const selectedOption = options.find((option: any) => String(option.id) === selectedOptionId);
-    if (!selectedOption) throw new Error("Opção de frete inválida");
+    if (!selectedOption || !Number.isFinite(Number(selectedOption.price)) || Number(selectedOption.price) < 0) throw new Error("Opção de frete inválida");
 
-    const shippingAmount = Math.max(0, Number(selectedOption.price) || 0);
-
-    const { data: owners, error: ownersError } = await db
+    const { data: products, error: productsError } = await db
       .from("products")
-      .select("id,owner_id")
+      .select("id,owner_id,active")
       .in("id", normalizedItems.map((item: any) => item.product_id));
+    if (productsError || !products || products.length !== normalizedItems.length) throw new Error("Produto não encontrado");
+    if (products.some((product: any) => product.active === false)) throw new Error("Um dos produtos não está disponível");
+    const ownerIds = [...new Set(products.map((product: any) => String(product.owner_id || "")))];
+    if (ownerIds.length !== 1 || ownerIds[0] !== String(quote.owner_id)) throw new Error("A cotação não pertence aos produtos do pedido");
 
-    if (ownersError || !owners || owners.length !== normalizedItems.length) throw new Error("Produto não encontrado");
-    const ownerIds = [...new Set(owners.map((product: any) => String(product.owner_id || "")))];
-    if (ownerIds.length !== 1 || ownerIds[0] !== String(quote.owner_id)) {
-      throw new Error("A cotação não pertence aos produtos do pedido");
-    }
-    const ownerId = ownerIds[0];
+    const normalizedShipping = {
+      postal_code: postalCode,
+      address,
+      number,
+      complement,
+      neighborhood,
+      city,
+      state,
+      recipient_code: recipientCode,
+      shipping_option: selectedOption,
+      shipping_quote_id: quoteId,
+    };
 
     const { data, error } = await db.rpc("create_store_order_service", {
-      p_owner_id: ownerId,
-      p_customer: {
-        name: String(customer.name).trim(),
-        email,
-        phone: String(customer.phone).trim(),
-        recipient_code: recipientCode,
-      },
-      p_shipping: {
-        ...shipping,
-        recipient_code: recipientCode,
-        shipping_option: selectedOption,
-      },
-      p_items: items,
-      p_shipping_amount: shippingAmount,
+      p_owner_id: ownerIds[0],
+      p_customer: { name: customerName, email, phone, recipient_code: recipientCode },
+      p_shipping: normalizedShipping,
+      p_items: normalizedItems,
+      p_shipping_amount: Number(selectedOption.price),
       p_payment_method: "PENDING",
       p_coupon_code: couponCode || null,
+      p_idempotency_key: idempotencyKey,
     });
-
     if (error) throw error;
 
     const order = Array.isArray(data) ? data[0] : data;
     if (!order?.id) throw new Error("Pedido não criado");
 
-    // Token aleatório para o cliente consultar o próprio pedido sem login.
-    const trackingToken = crypto.randomUUID() + crypto.randomUUID().replaceAll("-", "");
-    const trackingTokenHash = await sha256(trackingToken);
-    const { error: trackingError } = await db
-      .from("orders")
-      .update({
-        tracking_token_hash: trackingTokenHash,
-        tracking_token_created_at: new Date().toISOString(),
-      })
-      .eq("id", order.id);
-
+    const trackingTokenHash = await sha256(idempotencyKey);
+    const { error: trackingError } = await db.from("orders").update({
+      tracking_token_hash: trackingTokenHash,
+      tracking_token_created_at: new Date().toISOString(),
+    }).eq("id", order.id);
     if (trackingError) throw trackingError;
 
-    return new Response(JSON.stringify({ ...order, tracking_token: trackingToken }), {
+    return new Response(JSON.stringify({ ...order, tracking_token: idempotencyKey }), {
       headers: { ...cors, "Content-Type": "application/json" },
     });
-  } catch (e) {
-    console.error(e);
-    return new Response(JSON.stringify({
-      error: e instanceof Error ? e.message : "Erro ao criar pedido",
-    }), {
+  } catch (error) {
+    console.error(error);
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Erro ao criar pedido" }), {
       status: 400,
       headers: { ...cors, "Content-Type": "application/json" },
     });

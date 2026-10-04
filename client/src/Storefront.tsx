@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { toast } from "sonner";
 import { ArrowRight, ArrowLeft, Check, Gem, Heart, Instagram, Menu, Search, ShoppingBag, Sparkles, X, User, Truck, Tag, ShieldCheck, Star, MessageCircle } from "lucide-react";
 import { formatMoney, type CatalogProduct } from "./lib/catalog";
@@ -59,6 +59,7 @@ export default function Storefront() {
   );
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [trackingLoading, setTrackingLoading] = useState(false);
+  const checkoutIdempotencyKey = useRef<string | null>(null);
   const productSlug = decodeURIComponent(window.location.pathname.split("/produto/")[1] || "");
   const selectedProduct = view === "product" ? products.find(product => (product.slug || String(product.id)) === productSlug || String(product.id) === productSlug) : null;
 
@@ -261,12 +262,14 @@ export default function Storefront() {
       toast.error("A loja ainda não está conectada ao Supabase.");
       return;
     }
+    const idempotencyKey = checkoutIdempotencyKey.current ?? (checkoutIdempotencyKey.current = crypto.randomUUID());
     const { data, error } = await supabase.functions.invoke("create-order", {
       body: {
         customer,
         shipping: { ...shipping, recipient_code: customer.recipient_code },
         items: cart.map(item => ({ product_id: Number(item.id), quantity: item.quantity })),
         coupon_code: couponCode || undefined,
+        idempotency_key: idempotencyKey,
       },
     });
     if (error) {
@@ -279,6 +282,7 @@ export default function Storefront() {
     if (data.tracking_token) localStorage.setItem("kj-last-order-token", data.tracking_token);
     setCart([]);
     localStorage.removeItem(checkoutDraftKey);
+    checkoutIdempotencyKey.current = null;
     const payment = await supabase.functions.invoke("create-payment", { body: { order_number: data.order_number, email: customer.email } });
     if (payment.data?.init_point || payment.data?.sandbox_init_point) {
       window.location.href = payment.data.init_point || payment.data.sandbox_init_point;
