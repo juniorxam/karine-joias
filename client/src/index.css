@@ -438,3 +438,12 @@
 .product-related-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:800px){.product-detail-social-proof,.product-related-section{padding-left:18px;padding-right:18px}.product-detail-section-heading{align-items:flex-start;flex-direction:column}.product-rating-summary{justify-items:start}.product-review-grid{grid-template-columns:1fr 1fr}.product-related-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.product-detail-section-heading h2{font-size:32px}.product-review-grid,.product-related-grid{grid-template-columns:1fr}}
+
+
+/* Status das integrações no painel administrativo */
+.integration-status-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:20px}
+.integration-status-card{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px;border:1px solid var(--line);border-radius:9px;background:#fffdfb;min-height:92px}
+.integration-status-card div{min-width:0}.integration-status-card strong,.integration-status-card span,.integration-status-card small{display:block}.integration-status-card strong{font-size:12px}.integration-status-card span{font-size:10px;color:var(--muted);margin-top:6px}.integration-status-card small{font-size:9px;color:var(--muted);margin-top:5px;line-height:1.4}.integration-status-card>b{font-size:14px;line-height:1}.status-ok{color:var(--green)}.status-muted{color:var(--gold)}
+.settings-toggle{justify-content:center;gap:9px;flex-direction:row!important;align-items:center}.settings-toggle input{width:16px;height:16px;margin:0}
+@media(max-width:1050px){.integration-status-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:720px){.integration-status-grid{grid-template-columns:1fr}}
