@@ -13,7 +13,8 @@ Deno.serve(async (req) => {
       return Response.json({ error: "Pedido e e-mail são obrigatórios" }, { status: 400, headers: cors });
     }
 
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
+    const serviceKey = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const accessToken = Deno.env.get("MP_ACCESS_TOKEN");
     const siteUrl = Deno.env.get("PUBLIC_SITE_URL");
