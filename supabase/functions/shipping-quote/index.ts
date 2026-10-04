@@ -93,17 +93,19 @@ Deno.serve(async (req) => {
     const palmasPrice = Math.max(0, Number(settings.shipping_palmas_price ?? 7));
     const palmasPickupEnabled = settings.shipping_palmas_pickup_enabled !== false;
 
-    if (isPalmas && palmasEnabled && subtotal >= palmasMinSubtotal) {
+    if (isPalmas && palmasEnabled) {
+      // A retirada não deve ficar bloqueada pelo valor mínimo da entrega local.
+      // Assim, clientes de Palmas podem retirar no local mesmo em compras menores.
       const localDeliveryPrice = subtotal >= palmasFreeAbove ? 0 : palmasPrice;
       const options = [
-        {
+        ...(subtotal >= palmasMinSubtotal ? [{
           id: "violetta-local-delivery",
           company: "Violetta Joias e Semijoias",
           service: localDeliveryPrice === 0 ? "Entrega local grátis" : "Entrega local",
           price: localDeliveryPrice,
           delivery_time: 1,
           packages: [],
-        },
+        }] : []),
         ...(palmasPickupEnabled ? [{
           id: "violetta-pickup",
           company: "Violetta Joias e Semijoias",
@@ -113,6 +115,10 @@ Deno.serve(async (req) => {
           packages: [],
         }] : []),
       ];
+
+      if (!options.length) {
+        return Response.json({ error: "Entrega local e retirada no local estão desativadas para este pedido" }, { status: 400, headers: cors });
+      }
 
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
       const { data: quote, error: quoteError } = await db
