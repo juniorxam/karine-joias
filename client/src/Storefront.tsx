@@ -209,12 +209,14 @@ export default function Storefront() {
     if (available <= 0) return toast.error("Produto indisponível", { description: product.name });
     setCart(items => {
       const current = items.find(item => String(item.id) === String(product.id));
-      return current
-        ? items.map(item => String(item.id) === String(product.id) ? { ...item, quantity: Math.min(available, item.quantity + 1) } : item)
-        : [...items, { ...product, quantity: 1 }];
+      if (current) {
+        return items.map(item => String(item.id) === String(product.id) ? { ...item, quantity: 1 } : item);
+      }
+      return [...items, { ...product, quantity: 1 }];
     });
     window.history.pushState({}, "", "/loja/checkout");
     setView("checkout");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const changeQty = (id: CatalogProduct["id"], delta: number) => {
