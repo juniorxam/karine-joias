@@ -55,14 +55,16 @@ Deno.serve(async (req) => {
     if (!isValidCpf(recipientCode)) throw new Error("CPF inválido");
 
     const postalCode = digits(shipping.postal_code);
-    const address = text(shipping.address, "Logradouro", 2, 180);
-    const number = text(shipping.number, "Número", 1, 30);
-    const neighborhood = text(shipping.neighborhood, "Bairro", 2, 100);
-    const city = text(shipping.city, "Cidade", 2, 100);
-    const state = text(shipping.state, "Estado", 2, 2).toUpperCase();
+    const pickupSelected = String(shipping.shipping_option?.service || "").trim() === "Retirada no local";
+    const address = pickupSelected ? String(shipping.address || "").trim().slice(0, 180) : text(shipping.address, "Logradouro", 2, 180);
+    const number = pickupSelected ? String(shipping.number || "").trim().slice(0, 30) : text(shipping.number, "Número", 1, 30);
+    const neighborhood = pickupSelected ? String(shipping.neighborhood || "").trim().slice(0, 100) : text(shipping.neighborhood, "Bairro", 2, 100);
+    const city = pickupSelected ? String(shipping.city || "").trim().slice(0, 100) : text(shipping.city, "Cidade", 2, 100);
+    const state = String(shipping.state || "").trim().toUpperCase().slice(0, 2);
     const complement = String(shipping.complement || "").trim().slice(0, 120);
     if (!/^\d{8}$/.test(postalCode)) throw new Error("CEP inválido");
-    if (!/^[A-Z]{2}$/.test(state)) throw new Error("Estado inválido");
+    if (!pickupSelected && (!address || !number || !neighborhood || !city || !/^[A-Z]{2}$/.test(state))) throw new Error("Endereço inválido");
+    if (pickupSelected && (!city || !/^[A-Z]{2}$/.test(state))) throw new Error("Localidade inválida");
 
     const quoteId = String(shipping.shipping_quote_id || "").trim();
     const selectedOptionId = String(shipping.shipping_option?.id ?? "").trim();
