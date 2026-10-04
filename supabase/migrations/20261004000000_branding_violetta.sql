@@ -28,15 +28,3 @@ create policy public_products_auth_update on public.public_products
   for update to authenticated
   using (owner_id = auth.uid())
   with check (owner_id = auth.uid() and store_slug = 'violetta');
-
-drop policy if exists product_images_public_read on public.product_images;
-create policy product_images_public_read on public.product_images
-  for select to anon using (
-    exists (
-      select 1 from public.public_products pp
-      where pp.product_id = product_images.product_id
-        and pp.owner_id = product_images.owner_id
-        and pp.is_published = true
-        and pp.store_slug = 'violetta'
-    )
-  );
