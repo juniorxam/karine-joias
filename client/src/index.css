@@ -320,23 +320,29 @@
 }
 
 
-/* Violetta product purchase actions - refined layout */
+/* Violetta product purchase actions - robust layout */
 .store-product-info{min-width:0}
 .store-product-bottom{display:block}
 .store-product-bottom>strong{display:block;font-size:18px;margin-bottom:14px}
-.product-actions{display:grid;grid-template-columns:1fr;gap:8px;width:100%}
-.product-actions-stack{display:grid;grid-template-columns:1fr 1fr;gap:8px;min-width:0;order:2}
-.product-add-cart,.product-buy-now{width:100%;min-height:40px;border-radius:6px;padding:10px 11px;font-size:10px;font-weight:700;cursor:pointer;transition:all .18s ease;white-space:nowrap;line-height:1.15}
+.product-actions{display:grid;grid-template-columns:1fr;gap:8px;width:100%;min-width:0}
+.product-actions-stack{display:grid;grid-template-columns:1fr;gap:7px;width:100%;min-width:0;order:2}
+.product-actions-stack>button,
+.product-interest{box-sizing:border-box;min-width:0;max-width:100%;width:100%;overflow:hidden}
+.product-add-cart,.product-buy-now{width:100%;min-width:0;min-height:40px;border-radius:6px;padding:10px 10px;font-size:10px;font-weight:700;cursor:pointer;transition:all .18s ease;white-space:normal;line-height:1.2;text-align:center;overflow-wrap:anywhere;word-break:normal}
 .product-add-cart{border:1px solid #c9a961;background:#fffaf3;color:#8d6e3c}
 .product-add-cart:hover:not(:disabled){background:#f7efe3;border-color:#a98a52;transform:translateY(-1px)}
 .product-buy-now{border:1px solid var(--store-ink);background:var(--store-ink);color:#fff}
 .product-buy-now:hover:not(:disabled){background:#a88a4d;border-color:#a88a4d;transform:translateY(-1px)}
 .product-add-cart:disabled,.product-buy-now:disabled{opacity:.45;cursor:not-allowed}
-.product-interest{order:1;display:flex;align-items:center;justify-content:center;gap:7px;width:100%;min-height:36px;padding:8px 10px;border:1px solid #dfd0c7;background:transparent;color:#8d6e3c;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;transition:all .18s ease}
+.product-interest{order:1;display:flex;align-items:center;justify-content:center;gap:7px;min-height:38px;padding:9px 10px;border:1px solid #dfd0c7;background:transparent;color:#8d6e3c;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;transition:all .18s ease;white-space:normal;line-height:1.2;text-align:center;overflow-wrap:anywhere}
 .product-interest:hover:not(:disabled){border-color:#b89a5a;background:#fbf5eb;transform:translateY(-1px)}
 .product-interest svg{flex:none}
+.product-interest span{min-width:0}
 .product-interest:disabled{opacity:.45;cursor:not-allowed}
-@media(max-width:480px){.product-actions-stack{grid-template-columns:1fr 1fr}.product-add-cart,.product-buy-now{min-height:42px}.product-interest{min-height:40px}}
+@media(max-width:480px){
+ .product-add-cart,.product-buy-now{min-height:42px}
+ .product-interest{min-height:40px}
+}
 
 /* Violetta product purchase actions */
 .product-detail-actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:18px}
