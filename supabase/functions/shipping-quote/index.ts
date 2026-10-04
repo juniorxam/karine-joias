@@ -41,13 +41,15 @@ Deno.serve(async (req) => {
     if (owners.length !== 1 || !owners[0]) throw new Error("Carrinho inválido");
     const ownerId = owners[0];
 
-    const originSetting = await db
-      .from("store_settings")
-      .select("value")
-      .eq("key", "shipping_origin_postal_code")
+    const storeSettings = await db
+      .from("storefront_settings")
+      .select("shipping_palmas_enabled,shipping_palmas_min_subtotal,shipping_palmas_free_above,shipping_palmas_price,shipping_palmas_pickup_enabled,shipping_origin_postal_code")
+      .eq("owner_id", ownerId)
+      .eq("store_slug", "violetta")
       .maybeSingle();
 
-    const origin = String(originSetting.data?.value || "77001540").replace(/\D/g, "");
+    const settings = storeSettings.data || {};
+    const origin = String(settings.shipping_origin_postal_code || "77001540").replace(/\D/g, "");
     if (!/^\d{8}$/.test(origin)) throw new Error("CEP de origem da loja inválido");
 
     const productMap = new Map(products.map((p: any) => [Number(p.id), p]));
@@ -85,8 +87,14 @@ Deno.serve(async (req) => {
     const isPalmas = postalNumber >= 77000001 && postalNumber <= 77299999;
     const subtotal = shippingProducts.reduce((sum, item) => sum + Number(item.insurance_value || 0) * Number(item.quantity || 0), 0);
 
-    if (isPalmas && subtotal > 50) {
-      const localDeliveryPrice = subtotal > 100 ? 0 : 7;
+    const palmasEnabled = settings.shipping_palmas_enabled !== false;
+    const palmasMinSubtotal = Math.max(0, Number(settings.shipping_palmas_min_subtotal ?? 50));
+    const palmasFreeAbove = Math.max(palmasMinSubtotal, Number(settings.shipping_palmas_free_above ?? 100));
+    const palmasPrice = Math.max(0, Number(settings.shipping_palmas_price ?? 7));
+    const palmasPickupEnabled = settings.shipping_palmas_pickup_enabled !== false;
+
+    if (isPalmas && palmasEnabled && subtotal >= palmasMinSubtotal) {
+      const localDeliveryPrice = subtotal >= palmasFreeAbove ? 0 : palmasPrice;
       const options = [
         {
           id: "violetta-local-delivery",
@@ -96,14 +104,14 @@ Deno.serve(async (req) => {
           delivery_time: 1,
           packages: [],
         },
-        {
+        ...(palmasPickupEnabled ? [{
           id: "violetta-pickup",
           company: "Violetta Joias e Semijoias",
           service: "Retirada no local",
           price: 0,
           delivery_time: 0,
           packages: [],
-        },
+        }] : []),
       ];
 
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
