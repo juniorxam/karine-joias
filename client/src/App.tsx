@@ -60,7 +60,7 @@ function Promos({promos,setPromos}:any){
    if(error||data?.error)throw new Error(data?.error||error?.message||"Não foi possível criar o cupom");
    setForm({code:"",type:"Percentual",value:"",min:"0",ends:"",maxUses:""});await load();toast.success("Cupom criado");
  }catch(e){toast.error("Não foi possível criar o cupom",{description:e instanceof Error?e.message:"Erro"});}finally{setBusy(false);}};
- const toggle=async(c:any)=>{if(!supabase)return;const {error}=await supabase.functions.invoke("admin-coupons",{body:{id:c.id,active:!c.active}});if(error)toast.error("Não foi possível atualizar");else load();};
+ const toggle=async(c:any)=>{if(!supabase)return;const {error}=await supabase.functions.invoke("admin-coupons",{method:"PATCH",body:{id:c.id,active:!c.active}});if(error)toast.error("Não foi possível atualizar");else load();};
  return <><Head k="CAMPANHAS" title="Promoções" d="Crie e controle cupons usados na loja online."/>
  <section className="panel" style={{marginBottom:20}}><div className="modal-head"><div><p className="eyebrow">NOVO CUPOM</p><h3>Publicar uma oferta</h3></div></div>
  <form onSubmit={create}><div className="form-grid">
