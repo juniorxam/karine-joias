@@ -123,6 +123,8 @@ Deno.serve(async (req) => {
       shipping_quote_id: quoteId,
     };
 
+    const trackingTokenHash = await sha256(idempotencyKey);
+
     const { data, error } = await db.rpc("create_store_order_service", {
       p_owner_id: ownerIds[0],
       p_customer: { name: customerName, email, phone, recipient_code: recipientCode },
@@ -132,18 +134,13 @@ Deno.serve(async (req) => {
       p_payment_method: "PENDING",
       p_coupon_code: couponCode || null,
       p_idempotency_key: idempotencyKey,
+      p_tracking_token_hash: trackingTokenHash,
     });
     if (error) throw error;
 
     const order = Array.isArray(data) ? data[0] : data;
     if (!order?.id) throw new Error("Pedido não criado");
 
-    const trackingTokenHash = await sha256(idempotencyKey);
-    const { error: trackingError } = await db.from("orders").update({
-      tracking_token_hash: trackingTokenHash,
-      tracking_token_created_at: new Date().toISOString(),
-    }).eq("id", order.id);
-    if (trackingError) throw trackingError;
 
     return new Response(JSON.stringify({ ...order, tracking_token: idempotencyKey }), {
       headers: { ...cors, "Content-Type": "application/json" },
