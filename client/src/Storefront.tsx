@@ -452,7 +452,7 @@ function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false
         <strong>{formatMoney(product.price)}</strong>
         <div className="product-actions" onClick={event => event.stopPropagation()}>
           <div className="product-actions-stack"><button className="product-add-cart" onClick={() => onAdd(product)} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Adicionar ao carrinho" : "Esgotado"}</button><button className="product-buy-now" onClick={() => onBuyNow(product)} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Comprar agora" : "Indisponível"}</button></div>
-          <button className="product-interest" onClick={() => onAsk(product)} aria-label={`Tenho interesse em ${product.name}`}>{featured ? "WhatsApp" : <Check size={15} />}</button>
+          <button className="product-interest" onClick={() => onAsk(product)} aria-label={`Tenho interesse em ${product.name} pelo WhatsApp`}><MessageCircle size={15} /><span>WhatsApp</span></button>
         </div>
       </div>
     </div>
