@@ -86,7 +86,7 @@ Deno.serve(async(req)=>{
     products:declaredProducts,
     volumes:quotedVolumes.length ? quotedVolumes : [{height,width,length,weight}],
     options:{
-      platform:"Karine Joias",
+      platform:"Violetta Joias e Semijoias",
       reminder:`Pedido ${order.order_number}`,
       insurance_value:Math.max(0,Number(order.total_amount||0)-Number(order.shipping_amount||0)),
       receipt:false,own_hand:false,reverse:false,

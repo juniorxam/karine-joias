@@ -1,4 +1,4 @@
--- Karine Joias ecommerce core
+-- Violetta ecommerce core
 alter table public.products
   add column if not exists sku text,
   add column if not exists slug text,

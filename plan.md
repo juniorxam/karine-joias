@@ -1,4 +1,4 @@
-# Vitrine pública Karine Joias
+# Vitrine pública Violetta
 
 ## Objetivo
 Criar uma versão pública para clientes acessarem os produtos em `/loja`, sem exigir login e sem expor o painel de gestão.
@@ -20,9 +20,9 @@ Criar uma versão pública para clientes acessarem os produtos em `/loja`, sem e
 - **Animação:** entradas discretas, hover com elevação mínima e transições curtas; nada que prejudique a percepção premium.
 - **Tipografia:** Playfair Display para títulos e DM Sans para leitura, mantendo a identidade atual.
 - **Essência:** joias com presença delicada para mulheres que escolhem detalhes com intenção. Personalidade: delicada, segura, próxima.
-- **Voz:** “Escolha o detalhe que fica.” / “Se apaixonou por uma peça? Fale com a Karine.”
-- **Marca:** wordmark Karine com serif editorial e assinatura JOIAS espaçada; símbolo de gema circular.
-- **Cor proprietária:** dourado Karine `#C9A961`.
+- **Voz:** “Escolha o detalhe que fica.” / “Se apaixonou por uma peça? Fale com a Violetta.”
+- **Marca:** wordmark Violetta com serif editorial e assinatura JOIAS espaçada; símbolo de gema circular.
+- **Cor proprietária:** dourado Violetta `#C9A961`.
 
 ## Estrutura
 - `client/src/Storefront.tsx`: página pública e estados de busca/filtro.

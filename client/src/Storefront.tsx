@@ -44,7 +44,7 @@ export default function Storefront() {
   const [storefrontSettings, setStorefrontSettings] = useState<StorefrontSettings | null>(null);
   useEffect(() => {
     if (!supabase) return;
-    supabase.from("storefront_settings").select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled,collection_enabled,collection_title,collection_subtitle,collection_image_url,collection_cta").eq("store_slug","karine-joias").limit(1).maybeSingle()
+    supabase.from("storefront_settings").select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled,collection_enabled,collection_title,collection_subtitle,collection_image_url,collection_cta").eq("store_slug","violetta").limit(1).maybeSingle()
       .then(({ data }) => { if (data) setStorefrontSettings(data as StorefrontSettings); });
   }, []);
   const [cart, setCart] = useState<CartItem[]>(readCart);
