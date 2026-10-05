@@ -136,11 +136,10 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (settingsError) throw settingsError;
 
-      if (storeSettings?.shipping_palmas_enabled) {
-        if (pickupSelected) {
-          if (storeSettings.shipping_palmas_pickup_enabled !== true) throw new Error("A retirada no local está desativada.");
-          normalizedShippingOption = { id: "violetta-pickup", company: "Violetta", service: "Retirada no local", price: 0, delivery_time: 0 };
-        } else {
+      if (pickupSelected) {
+        if (storeSettings?.shipping_palmas_pickup_enabled !== true) throw new Error("A retirada no local está desativada.");
+        normalizedShippingOption = { id: "violetta-pickup", company: "Violetta", service: "Retirada no local", price: 0, delivery_time: 0 };
+      } else if (storeSettings?.shipping_palmas_enabled) {
           if (requestedService === "Frete a combinar") throw new Error("O frete de Palmas está configurado para cálculo automático.");
           const rules = Array.isArray(storeSettings.shipping_palmas_distance_rules) ? storeSettings.shipping_palmas_distance_rules : [];
           const originCep = String(storeSettings.shipping_origin_postal_code || "").replace(/\D/g, "");
