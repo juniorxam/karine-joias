@@ -31,14 +31,8 @@ as $function$
 declare
   v_order public.orders%rowtype;
 begin
-  select * into v_order
-  from public.orders
-  where id=p_order_id
-  for update;
-
-  if not found or v_order.payment_status <> 'PENDING' then
-    return false;
-  end if;
+  select * into v_order from public.orders where id=p_order_id for update;
+  if not found or v_order.payment_status <> 'PENDING' then return false; end if;
 
   update public.orders
   set payment_status='PAID', status='PAID', updated_at=now()
@@ -50,18 +44,14 @@ begin
   values(
     v_order.owner_id,
     coalesce(v_order.created_at::date, current_date),
-    'Entrada',
-    'Venda online',
+    'Entrada','Venda online',
     'Pedido #' || v_order.order_number,
-    v_order.total_amount,
-    v_order.id,
-    'SALE'
+    v_order.total_amount,v_order.id,'SALE'
   )
   on conflict (order_id, order_entry_type) do nothing;
 
   insert into public.order_status_history(order_id,status,note)
   values(p_order_id,'PAID','Pagamento aprovado pelo Mercado Pago');
-
   return true;
 end;
 $function$;
@@ -75,17 +65,10 @@ as $function$
 declare
   v_order public.orders%rowtype;
 begin
-  select * into v_order
-  from public.orders
-  where id=p_order_id
-  for update;
+  select * into v_order from public.orders where id=p_order_id for update;
+  if not found or v_order.payment_status <> 'PAID' then return false; end if;
 
-  if not found or v_order.payment_status <> 'PAID' then
-    return false;
-  end if;
-
-  if coalesce(v_order.stock_reserved,false)
-     and v_order.status in ('PAID','PROCESSING','READY_TO_SHIP') then
+  if coalesce(v_order.stock_reserved,false) and v_order.status in ('PAID','PROCESSING','READY_TO_SHIP') then
     update public.products p
     set stock=p.stock+oi.quantity, updated_at=now()
     from public.order_items oi
@@ -93,30 +76,46 @@ begin
   end if;
 
   update public.orders
-  set payment_status='REFUNDED',
-      status='REFUNDED',
-      stock_reserved=false,
-      updated_at=now()
+  set payment_status='REFUNDED', status='REFUNDED', stock_reserved=false, updated_at=now()
   where id=p_order_id;
 
   insert into public.cash_entries(
     owner_id,date,type,category,description,amount,order_id,order_entry_type
   )
   values(
-    v_order.owner_id,
-    current_date,
-    'Saída',
-    'Reembolso',
+    v_order.owner_id,current_date,'Saída','Reembolso',
     'Reembolso pedido #' || v_order.order_number,
-    v_order.total_amount,
-    v_order.id,
-    'REFUND'
+    v_order.total_amount,v_order.id,'REFUND'
   )
   on conflict (order_id, order_entry_type) do nothing;
 
   insert into public.order_status_history(order_id,status,note)
   values(p_order_id,'REFUNDED','Pagamento reembolsado');
-
   return true;
 end;
+$function$;
+
+create or replace function public.create_manual_sale(
+  p_date date,
+  p_product_id bigint,
+  p_client_id bigint,
+  p_amount numeric,
+  p_payment text,
+  p_discount numeric default 0
+)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $function$
+  select private.create_manual_sale_service($1,$2,$3,$4,$5,$6);
+$function$;
+
+create or replace function public.delete_manual_sale(p_sale_id bigint)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $function$
+  select private.delete_manual_sale_service($1);
 $function$;
