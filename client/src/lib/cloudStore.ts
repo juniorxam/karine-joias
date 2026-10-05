@@ -104,3 +104,36 @@ export function useSyncedCollection<T extends Record<string, any>>(
 
   return [value, setValue, ready];
 }
+
+
+export async function createManualSale(input: {
+  date: string;
+  productId: number;
+  clientId: number;
+  amount: number;
+  payment: string;
+  discount?: number;
+}) {
+  if (!supabase) throw new Error("Supabase indisponível");
+  const { data, error } = await supabase.rpc("create_manual_sale", {
+    p_date: input.date,
+    p_product_id: input.productId,
+    p_client_id: input.clientId,
+    p_amount: input.amount,
+    p_payment: input.payment,
+    p_discount: input.discount ?? 0,
+  });
+  if (error) throw error;
+  return {
+    sale: fromDb("sales", data.sale) as any,
+    cash: fromDb("cash_entries", data.cash) as any,
+    product: fromDb("products", data.product) as any,
+  };
+}
+
+export async function deleteManualSale(saleId: number) {
+  if (!supabase) throw new Error("Supabase indisponível");
+  const { data, error } = await supabase.rpc("delete_manual_sale", { p_sale_id: saleId });
+  if (error) throw error;
+  return data as { sale_id: number; cash_id: number | null; product_id: number | null };
+}
