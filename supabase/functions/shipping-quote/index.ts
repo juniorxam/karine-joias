@@ -6,10 +6,46 @@ const cors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+async function sha256(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function getClientOrigin(req: Request) {
+  return req.headers.get("cf-connecting-ip")?.trim() ||
+    req.headers.get("x-real-ip")?.trim() ||
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
   try {
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    if (!serviceKey || !supabaseUrl) {
+      return Response.json({ error: "Serviço de loja não configurado no servidor" }, { status: 503, headers: cors });
+    }
+
+    const originHash = await sha256(`${serviceKey}:${getClientOrigin(req)}`);
+    const db = createClient(supabaseUrl, serviceKey);
+    const { data: rateLimit, error: rateLimitError } = await db.rpc("check_order_rate_limit", {
+      p_ip_hash: originHash,
+    });
+    if (rateLimitError) {
+      console.error("Falha no rate limit de frete", rateLimitError);
+      return Response.json({ error: "Não foi possível calcular o frete agora. Tente novamente." }, { status: 503, headers: cors });
+    }
+    if (rateLimit?.allowed === false) {
+      const retryAfter = Number(rateLimit.retry_after_seconds || 60);
+      return new Response(JSON.stringify({ error: "Muitas consultas de frete. Aguarde alguns minutos e tente novamente." }), {
+        status: 429,
+        headers: { ...cors, "Content-Type": "application/json", "Retry-After": String(retryAfter) },
+      });
+    }
+
     const body = await req.json();
     const postalCode = String(body.postal_code || "").replace(/\D/g, "");
     const items = Array.isArray(body.items) ? body.items : [];
@@ -17,8 +53,6 @@ Deno.serve(async (req) => {
     if (!/^\d{8}$/.test(postalCode)) throw new Error("CEP inválido");
     if (!items.length || items.length > 30) throw new Error("Carrinho inválido");
 
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const melhorEnvioToken = Deno.env.get("MELHOR_ENVIO_TOKEN");
     const userAgent = Deno.env.get("MELHOR_ENVIO_USER_AGENT");
 
@@ -26,7 +60,6 @@ Deno.serve(async (req) => {
       return Response.json({ error: "Serviço de loja não configurado no servidor" }, { status: 503, headers: cors });
     }
 
-    const db = createClient(supabaseUrl, serviceKey);
     const productIds = items.map((item: any) => Number(item.product_id)).filter(Number.isInteger);
     if (productIds.length !== items.length) throw new Error("Produto inválido");
 
