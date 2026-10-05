@@ -30,6 +30,25 @@ type Customer = { name: string; email: string; phone: string; recipient_code: st
 type ShippingOption = { id: number | string; company: string; service: string; price: number; delivery_time: number };
 type Shipping = { postal_code: string; address: string; number: string; complement: string; neighborhood: string; city: string; state: string; shipping_option?: ShippingOption; shipping_quote_id?: string };
 
+function isValidCPF(value: string) {
+  const cpf = value.replace(/\D/g, "");
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += Number(cpf[i]) * (10 - i);
+  let digit = (sum * 10) % 11;
+  if (digit === 10) digit = 0;
+  if (digit !== Number(cpf[9])) return false;
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += Number(cpf[i]) * (11 - i);
+  digit = (sum * 10) % 11;
+  if (digit === 10) digit = 0;
+  return digit === Number(cpf[10]);
+}
+
+function normalizePhone(value: string) {
+  return value.replace(/\D/g, "");
+}
+
 const cartKey = "kj-cart";
 const checkoutDraftKey = "kj-checkout-draft";
 
@@ -601,10 +620,25 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!cart.length) return toast.error("Seu carrinho está vazio");
+    if (!customer.name.trim()) return toast.error("Informe seu nome completo");
+    if (!/^\\S+@\\S+\\.\\S+$/.test(customer.email.trim())) return toast.error("Informe um e-mail válido");
+    const phone = normalizePhone(customer.phone);
+    if (phone.length < 10 || phone.length > 11) return toast.error("Informe um WhatsApp válido com DDD");
+    if (!isValidCPF(customer.recipient_code)) return toast.error("Informe um CPF válido");
+    const postalCode = shipping.postal_code.replace(/\\D/g, "");
+    if (postalCode.length !== 8) return toast.error("Informe um CEP válido");
+    if (!shipping.city.trim() || shipping.state.trim().length !== 2) return toast.error("Confira cidade e UF");
     if (!shippingOption) return toast.error("Calcule e selecione uma opção de frete");
+    if (!isPickup && (!shipping.address.trim() || !shipping.number.trim() || !shipping.neighborhood.trim())) {
+      return toast.error("Complete o endereço para entrega");
+    }
     setBusy(true);
     try {
-      await onFinish(customer, { ...shipping, shipping_option: shippingOption, shipping_quote_id: shippingQuoteId || undefined }, couponDiscount > 0 ? couponCode : "");
+      await onFinish(
+        { ...customer, name: customer.name.trim(), email: customer.email.trim().toLowerCase(), phone },
+        { ...shipping, postal_code: postalCode, state: shipping.state.trim().toUpperCase(), shipping_option: shippingOption, shipping_quote_id: shippingQuoteId || undefined },
+        couponDiscount > 0 ? couponCode : ""
+      );
     } finally {
       setBusy(false);
     }
@@ -615,8 +649,8 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     <main className="checkout-layout">
       <form className="checkout-form" onSubmit={submit}>
         <div className="checkout-title"><p className="store-kicker">FINALIZAR PEDIDO</p><h1>Quase seu.</h1><p>Preencha seus dados para reservar as peças e gerar seu pedido. O endereço pode ser dispensado quando você escolher retirada no local.</p></div>
-        <section className="checkout-section"><h2><User size={17}/> Seus dados</h2><div className="checkout-grid"><label>Nome completo<input required value={customer.name} onChange={e => updateCustomer("name", e.target.value)} /></label><label>E-mail<input required type="email" value={customer.email} onChange={e => updateCustomer("email", e.target.value)} /></label><label>WhatsApp<input required inputMode="tel" value={customer.phone} onChange={e => updateCustomer("phone", e.target.value)} /></label><label>CPF<input required inputMode="numeric" maxLength={11} value={customer.recipient_code} onChange={e => updateCustomer("recipient_code", e.target.value.replace(/\D/g, "").slice(0,11))} placeholder="00000000000" /></label></div></section>
-        <section className="checkout-section"><h2><Truck size={17}/> Entrega</h2><div className="checkout-grid"><label>CEP<input required inputMode="numeric" value={shipping.postal_code} onChange={e => fetchZip(e.target.value)} placeholder="00000-000" />{zipLoading && <small>Consultando CEP...</small>}</label><label className="wide">Endereço<input required={!isPickup} value={shipping.address} onChange={e => updateShipping("address", e.target.value)} /></label><label>Número<input required={!isPickup} value={shipping.number} onChange={e => updateShipping("number", e.target.value)} /></label><label>Complemento<input value={shipping.complement} onChange={e => updateShipping("complement", e.target.value)} /></label><label>Bairro<input required={!isPickup} value={shipping.neighborhood} onChange={e => updateShipping("neighborhood", e.target.value)} /></label><label>Cidade<input required value={shipping.city} onChange={e => updateShipping("city", e.target.value)} /></label><label>UF<input required maxLength={2} value={shipping.state} onChange={e => updateShipping("state", e.target.value.toUpperCase())} /></label></div><button type="button" className="shipping-quote-button" onClick={quoteShipping} disabled={shippingLoading}>{shippingLoading ? "Calculando frete..." : "Calcular frete"}</button>{shippingOptions.length > 0 && <div className="shipping-options">{shippingOptions.map((option: ShippingOption) => <label className={shippingOption?.id === option.id ? "shipping-option selected" : "shipping-option"} key={String(option.id)}><input type="radio" name="shipping" checked={shippingOption?.id === option.id} onChange={() => setShippingOption(option)} /><span><strong>{option.company} · {option.service}</strong><small>{option.delivery_time ? `Até ${option.delivery_time} dias úteis` : "Prazo a confirmar"}</small></span><b>{formatMoney(option.price)}</b></label>)}</div>}</section>
+        <section className="checkout-section"><h2><User size={17}/> Seus dados</h2><div className="checkout-grid"><label>Nome completo<input required autoComplete="name" value={customer.name} onChange={e => updateCustomer("name", e.target.value)} /></label><label>E-mail<input required type="email" autoComplete="email" inputMode="email" value={customer.email} onChange={e => updateCustomer("email", e.target.value)} /></label><label>WhatsApp<input required autoComplete="tel" inputMode="tel" value={customer.phone} onChange={e => updateCustomer("phone", e.target.value)} /></label><label>CPF<input required autoComplete="off" inputMode="numeric" maxLength={11} value={customer.recipient_code} onChange={e => updateCustomer("recipient_code", e.target.value.replace(/\D/g, "").slice(0,11))} placeholder="00000000000" /></label></div></section>
+        <section className="checkout-section"><h2><Truck size={17}/> Entrega</h2><div className="checkout-grid"><label>CEP<input required autoComplete="postal-code" inputMode="numeric" value={shipping.postal_code} onChange={e => fetchZip(e.target.value)} placeholder="00000-000" />{zipLoading && <small>Consultando CEP...</small>}</label><label className="wide">Endereço<input required={!isPickup} autoComplete="street-address" value={shipping.address} onChange={e => updateShipping("address", e.target.value)} /></label><label>Número<input required={!isPickup} autoComplete="address-line2" value={shipping.number} onChange={e => updateShipping("number", e.target.value)} /></label><label>Complemento<input autoComplete="address-line2" value={shipping.complement} onChange={e => updateShipping("complement", e.target.value)} /></label><label>Bairro<input required={!isPickup} autoComplete="address-level3" value={shipping.neighborhood} onChange={e => updateShipping("neighborhood", e.target.value)} /></label><label>Cidade<input required autoComplete="address-level2" value={shipping.city} onChange={e => updateShipping("city", e.target.value)} /></label><label>UF<input required autoComplete="address-level1" maxLength={2} value={shipping.state} onChange={e => updateShipping("state", e.target.value.toUpperCase())} /></label></div><button type="button" className="shipping-quote-button" onClick={quoteShipping} disabled={shippingLoading}>{shippingLoading ? "Calculando frete..." : "Calcular frete"}</button>{shippingOptions.length > 0 && <div className="shipping-options">{shippingOptions.map((option: ShippingOption) => <label className={shippingOption?.id === option.id ? "shipping-option selected" : "shipping-option"} key={String(option.id)}><input type="radio" name="shipping" checked={shippingOption?.id === option.id} onChange={() => setShippingOption(option)} /><span><strong>{option.company} · {option.service}</strong><small>{option.delivery_time ? `Até ${option.delivery_time} dias úteis` : "Prazo a confirmar"}</small></span><b>{formatMoney(option.price)}</b></label>)}</div>}</section>
         <section className="checkout-section"><h2><Tag size={17}/> Cupom de desconto</h2><div className="checkout-grid"><label className="wide">Código do cupom<input value={couponCode} onChange={e => { setCouponCode(e.target.value.toUpperCase()); setCouponDiscount(0); setCouponError(""); }} placeholder="EX.: BEMVINDO10" /></label><button type="button" className="shipping-quote-button" onClick={applyCoupon} disabled={couponBusy}>{couponBusy ? "Validando..." : "Aplicar cupom"}</button></div>{couponError && <small>{couponError}</small>}{couponDiscount > 0 && <small>Cupom aplicado: desconto de {formatMoney(couponDiscount)}</small>}</section><section className="checkout-section"><h2><ShieldCheck size={17}/> Pagamento</h2><div className="payment-placeholder"><ShoppingBag size={18}/><div><strong>Pagamento seguro pelo Mercado Pago</strong><p>Ao confirmar o pedido, você será direcionada ao Mercado Pago para concluir o pagamento por PIX ou cartão.</p><div className="payment-methods"><span>PIX</span><span>Cartão</span><span>Ambiente seguro</span></div></div></div></section>
         <div className="checkout-final-note"><ShieldCheck size={16}/><span>Seus dados são usados somente para processar o pedido e organizar a entrega.</span></div>
         <button className="checkout-submit" disabled={busy || !cart.length || !shippingOption}>{busy ? "Criando pedido..." : "Confirmar pedido e pagar"}</button>
