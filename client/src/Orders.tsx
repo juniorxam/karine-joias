@@ -291,7 +291,7 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
     const phone=String(order.customer_phone||"").replace(/\D/g,"");
     if(!phone){toast.error("Cliente sem telefone cadastrado");return;}
     const label=statusLabel[order.status]||order.status;
-    const message="Olá, "+order.customer_name+"! Sobre o pedido "+order.order_number+" da Violetta: o status atual é ""+label+"". Se precisar de alguma informação, estou à disposição.";
+    const message="Olá, "+order.customer_name+"! Sobre o pedido "+order.order_number+" da Violetta: o status atual é \""+label+"\". Se precisar de alguma informação, estou à disposição.";
     window.open("https://wa.me/55"+phone+"?text="+encodeURIComponent(message),"_blank","noopener,noreferrer");
   };
 
