@@ -682,7 +682,7 @@ function OrderSuccess({ order, onStore, onPay, onTrack, paymentLoading, tracking
   ] as const;
   const terminal = order.status === "CANCELLED" || order.status === "REFUNDED";
   const statusIndex = terminal ? -1 : Math.max(0, steps.findIndex(([status]) => status === order.status));
-  const paymentLabels: Record<string,string> = { PAID: "Pagamento confirmado", PENDING: "Pagamento pendente", REFUNDED: "Pagamento reembolsado", FAILED: "Pagamento recusado" };
+  const paymentLabels: Record<string,string> = { PAID: "Pagamento confirmado", APPROVED: "Pagamento confirmado", PENDING: "Pagamento pendente", IN_PROCESS: "Pagamento em análise", REFUNDED: "Pagamento reembolsado", FAILED: "Pagamento recusado", REJECTED: "Pagamento recusado" };
   const statusLabels: Record<string,string> = { PENDING_PAYMENT: "Aguardando pagamento", PAID: "Pagamento confirmado", PROCESSING: "Em preparação", READY_TO_SHIP: "Pronto para envio", SHIPPED: "Enviado", DELIVERED: "Entregue", CANCELLED: "Pedido cancelado", REFUNDED: "Pedido reembolsado" };
   const copyOrder = async () => {
     try { await navigator.clipboard.writeText(order.order_number); toast.success("Número do pedido copiado"); } catch { toast.error("Não foi possível copiar"); }
@@ -700,7 +700,7 @@ function OrderSuccess({ order, onStore, onPay, onTrack, paymentLoading, tracking
       <p className="store-kicker">RASTREAMENTO</p>
       <h2>{order.status === "DELIVERED" ? "Pedido entregue" : "Seu pedido está a caminho"}</h2>
       <p><strong>{order.shipment.carrier || "Transportadora"}</strong>{order.shipment.service ? ` · ${order.shipment.service}` : ""}</p>
-      <div className="tracking-code"><span>Código de rastreio</span><strong>{order.shipment.tracking_code}</strong></div>
+      <div className="tracking-code"><span>Código de rastreio</span><strong>{order.shipment.tracking_code}</strong></div><button type="button" className="shipping-quote-button" onClick={async()=>{try{await navigator.clipboard.writeText(order.shipment?.tracking_code || "");toast.success("Código de rastreio copiado");}catch{toast.error("Não foi possível copiar");}}}>Copiar rastreio</button>
       {order.shipment.shipping_status && <small>Status da entrega: {order.shipment.shipping_status}</small>}
       {order.shipment.tracking_url && <a className="store-primary-cta" href={order.shipment.tracking_url} target="_blank" rel="noreferrer">Acompanhar entrega <ArrowRight size={16}/></a>}
     </div>}
