@@ -32,17 +32,7 @@ async function sha256(value: string) {
 }
 
 function getClientOrigin(req: Request) {
-  return req.headers.get("cf-connecting-ip")?.trim() ||
-    req.headers.get("x-real-ip")?.trim() ||
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    "unknown";
-
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function getClientOrigin(req: Request) {
+  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   return (
     req.headers.get("cf-connecting-ip")?.trim() ||
