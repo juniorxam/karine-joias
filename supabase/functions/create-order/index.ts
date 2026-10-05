@@ -144,10 +144,11 @@ Deno.serve(async (req) => {
         const origin = await geocodePostalCode(originCep);
         const destination = await geocodePostalCode(postalCode);
         const distance = Number(distanceKm(origin, destination).toFixed(1));
-        const rule = rules.find((item: any) => {
+        const rule = rules.find((item: any, index: number) => {
           const min = Number(item?.min_km);
           const max = item?.max_km === null || item?.max_km === undefined || item?.max_km === "" ? null : Number(item.max_km);
-          return Number.isFinite(min) && distance >= min && max !== null && Number.isFinite(max) && distance < max;
+          const isLast = index === rules.length - 1;
+          return Number.isFinite(min) && distance >= min && max !== null && Number.isFinite(max) && (isLast ? distance <= max : distance < max);
         });
         if (!rule) throw new Error("Não há uma faixa de frete configurada para esta distância");
         shippingAmount = Math.max(0, Number(rule.price) || 0);
