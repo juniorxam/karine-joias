@@ -71,7 +71,8 @@ Deno.serve(async (req) => {
 
     const origin = getClientOrigin(req);
     const originHash = await sha256(`${key}:${origin}`);
-    const rateDb = createClient(url, key);\n    const db = rateDb;
+    const rateDb = createClient(url, key);
+    const db = rateDb;
     const { data: rateLimit, error: rateLimitError } = await rateDb.rpc("check_order_rate_limit", {
       p_ip_hash: originHash,
     });
