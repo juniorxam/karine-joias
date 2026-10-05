@@ -33,7 +33,6 @@ async function sha256(value: string) {
 
 function getClientOrigin(req: Request) {
   const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   return (
     req.headers.get("cf-connecting-ip")?.trim() ||
     req.headers.get("x-real-ip")?.trim() ||
