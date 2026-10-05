@@ -23,7 +23,9 @@ Deno.serve(async (req) => {
     if (!paymentRes.ok) return new Response("Payment lookup failed", { status: 502 });
 
     const admin = createClient(supabaseUrl, serviceKey);
-    const ref = payment.external_reference;
+    const paymentId = String(payment.id || dataId);
+    const status = String(payment.status || "").toLowerCase();
+    const ref = String(payment.external_reference || "").trim();
     if (!ref) return new Response("ok");
 
     const { data: order } = await admin.from("orders").select("id,payment_status,total_amount").eq("order_number", ref).single();
@@ -32,12 +34,11 @@ Deno.serve(async (req) => {
     await admin.from("payment_events").upsert({
       order_id: order.id,
       provider: "mercadopago",
-      provider_event_id: String(payment.id),
-      event_type: payment.status || "unknown",
+      provider_event_id: paymentId,
+      event_type: status || "unknown",
       payload: payment
     }, { onConflict: "provider,provider_event_id" });
 
-    const status = payment.status;
     const expectedAmount = Number(order.total_amount);
     const receivedAmount = Number(payment.transaction_amount);
     if (payment.currency_id && payment.currency_id !== "BRL") {
@@ -46,7 +47,7 @@ Deno.serve(async (req) => {
     }
     if (!Number.isFinite(receivedAmount) || Math.abs(receivedAmount - expectedAmount) > 0.01) {
       console.error("Amount mismatch", { expectedAmount, receivedAmount, order: ref });
-      await admin.from("payment_events").update({ event_type: "amount_mismatch" }).eq("provider","mercadopago").eq("provider_event_id",String(payment.id));
+      await admin.from("payment_events").update({ event_type: "amount_mismatch" }).eq("provider","mercadopago").eq("provider_event_id",paymentId);
       return new Response("ok");
     }
     if (status === "approved") {
