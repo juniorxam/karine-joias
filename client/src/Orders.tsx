@@ -83,9 +83,6 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
   const [history,setHistory]=useState<History[]>([]);
   const [payment,setPayment]=useState<PaymentDetails|null>(null);
   const [tracking,setTracking]=useState("");
-  const [syncingTracking,setSyncingTracking]=useState(false);
-  const [creatingShipment,setCreatingShipment]=useState(false);
-  const [labelAction,setLabelAction]=useState<string>("");
   const [healthLoading,setHealthLoading]=useState(false);
   const [health,setHealth]=useState<{ok:boolean;checked_at:string;checks:Array<{name:string;ok:boolean;detail?:string;status?:number;count?:number;message?:string}>}|null>(null);
 
@@ -185,42 +182,6 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
     toast.success(tracking.trim() && selected.status==="READY_TO_SHIP" ? "Rastreamento salvo e pedido enviado" : "Rastreamento atualizado");
     await load();
     await openOrder({...selected,status:tracking.trim() && selected.status==="READY_TO_SHIP"?"SHIPPED":selected.status});
-  };
-
-  const createMelhorEnvioShipment=async()=>{
-    if(!supabase||!selected?.id)return;
-    setCreatingShipment(true);
-    const {error}=await supabase.functions.invoke("melhorenvio-create-shipment",{body:{order_id:selected.id}});
-    setCreatingShipment(false);
-    if(error){toast.error("Não foi possível preparar o envio",{description:error.message});return;}
-    toast.success("Envio criado no carrinho do Melhor Envio");
-    await openOrder(selected);
-  };
-
-  const labelFlow=async(action:"buy"|"generate"|"print")=>{
-    if(!supabase||!selected?.id)return;
-    if(action==="buy"){
-      const confirmed=window.confirm("Comprar esta etiqueta no Melhor Envio consumirá o saldo da conta. Confirma a compra?");
-      if(!confirmed)return;
-    }
-    setLabelAction(action);
-    const {data,error}=await supabase.functions.invoke("melhorenvio-label",{body:{order_id:selected.id,action}});
-    setLabelAction("");
-    if(error){toast.error("Não foi possível processar a etiqueta",{description:error.message});return;}
-    if(data?.label_url) window.open(data.label_url,"_blank","noopener,noreferrer");
-    toast.success(action==="buy"?"Etiqueta comprada no Melhor Envio":action==="generate"?"Etiqueta gerada. Aguarde alguns segundos antes de imprimir.":"Link da etiqueta aberto");
-    await openOrder(selected);
-  };
-
-  const syncTracking=async()=>{
-    if(!supabase||!selected?.id||!shipment?.melhor_envio_order_id)return;
-    setSyncingTracking(true);
-    const {error}=await supabase.functions.invoke("melhorenvio-sync-tracking",{body:{order_id:selected.id}});
-    setSyncingTracking(false);
-    if(error){toast.error("Não foi possível sincronizar o rastreio",{description:error.message});return;}
-    toast.success("Rastreio atualizado pelo Melhor Envio");
-    await load();
-    await openOrder(selected);
   };
 
   const updateStatus=async(order:Order,status:string)=>{
@@ -359,7 +320,7 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
         <button className="secondary" title="WhatsApp do cliente" onClick={()=>openWhatsApp(order)}>WhatsApp</button>
       </div></td></tr>)}
     </tbody></table></div>
-    {selected&&<div className="order-detail-backdrop" onMouseDown={()=>setSelected(null)}><aside className="order-detail" onMouseDown={e=>e.stopPropagation()}><button className="close order-close" onClick={()=>setSelected(null)}><X size={18}/></button><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,paddingRight:34}}><p className="eyebrow" style={{margin:0}}>PEDIDO ONLINE</p><button className="secondary" onClick={()=>void refreshSelected()} title="Atualizar detalhes"><RefreshCw size={14}/> Atualizar</button></div><h2>{selected.order_number}</h2><p className="order-customer"><strong>{selected.customer_name}</strong><br/>{selected.customer_email}<br/>{selected.customer_phone}</p><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}><button className="secondary" onClick={()=>void copyText(selected.order_number,"Número do pedido")}>Copiar pedido</button><button className="secondary" onClick={()=>openWhatsApp(selected)}>WhatsApp</button><button className="secondary" onClick={()=>void copyAddress(selected)}>Copiar endereço</button><button className="secondary" onClick={()=>openStatusWhatsApp(selected)}>Mensagem de status</button>{payment?.payment_url&&<button className="secondary" onClick={()=>window.open(payment.payment_url as string,"_blank","noopener,noreferrer")}>Abrir pagamento</button>}</div><h3>Itens</h3>{items.map(item=><div className="order-item-row" key={item.id}><span>{item.quantity}× {item.product_name}</span><strong>{money(item.total_price)}</strong></div>)}<div className="order-detail-total"><span>Produtos</span><strong>{money(selected.total_amount-Number(selected.shipping_amount||0))}</strong></div><div className="order-detail-total"><span>Frete</span><strong>{money(Number(selected.shipping_amount||0))}</strong></div><div className="order-detail-total grand"><span>Total</span><strong>{money(selected.total_amount)}</strong></div><h3>Pagamento</h3><div style={{padding:"12px 14px",border:"1px solid rgba(0,0,0,.08)",borderRadius:12,background:"rgba(0,0,0,.02)",marginBottom:16}}>
+    {selected&&<div className="order-detail-backdrop" onMouseDown={()=>setSelected(null)}><aside className="order-detail" onMouseDown={e=>e.stopPropagation()}><button className="close order-close" onClick={()=>setSelected(null)}><X size={18}/></button><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,paddingRight:34}}><p className="eyebrow" style={{margin:0}}>PEDIDO ONLINE</p><button className="secondary" onClick={()=>void refreshSelected()} title="Atualizar detalhes"><RefreshCw size={14}/> Atualizar</button></div><h2>{selected.order_number}</h2><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}><span className="payment-pill">{Number(selected.shipping_amount||0)===0 ? "Frete a combinar" : "Frete " + money(Number(selected.shipping_amount||0))}</span></div><p className="order-customer"><strong>{selected.customer_name}</strong><br/>{selected.customer_email}<br/>{selected.customer_phone}</p><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}><button className="secondary" onClick={()=>void copyText(selected.order_number,"Número do pedido")}>Copiar pedido</button><button className="secondary" onClick={()=>openWhatsApp(selected)}>WhatsApp</button><button className="secondary" onClick={()=>void copyAddress(selected)}>Copiar endereço</button><button className="secondary" onClick={()=>openStatusWhatsApp(selected)}>Mensagem de status</button>{payment?.payment_url&&<button className="secondary" onClick={()=>window.open(payment.payment_url as string,"_blank","noopener,noreferrer")}>Abrir pagamento</button>}</div><h3>Itens</h3>{items.map(item=><div className="order-item-row" key={item.id}><span>{item.quantity}× {item.product_name}</span><strong>{money(item.total_price)}</strong></div>)}<div className="order-detail-total"><span>Produtos</span><strong>{money(selected.total_amount-Number(selected.shipping_amount||0))}</strong></div><div className="order-detail-total"><span>Frete</span><strong>{Number(selected.shipping_amount||0)===0 ? "À parte" : money(Number(selected.shipping_amount||0))}</strong></div><div className="order-detail-total grand"><span>Total</span><strong>{money(selected.total_amount)}</strong></div><h3>Pagamento</h3><div style={{padding:"12px 14px",border:"1px solid rgba(0,0,0,.08)",borderRadius:12,background:"rgba(0,0,0,.02)",marginBottom:16}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
         <div><small>Provedor</small><strong style={{display:"block"}}>{payment?.provider==="mercadopago"?"Mercado Pago":payment?.provider||"—"}</strong></div>
         <div><small>Status</small><strong style={{display:"block"}}>{payment?.status||"—"}{payment?.status_detail?(" · "+payment.status_detail):""}</strong></div>
@@ -375,6 +336,6 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
       {payment?.payment_url&&<p style={{margin:"12px 0 0"}}><a href={payment.payment_url} target="_blank" rel="noreferrer">Abrir pagamento/checkout do Mercado Pago ↗</a></p>}
       <h4 style={{margin:"16px 0 8px"}}>Eventos do pagamento</h4>
       {payment?.events?.length ? payment.events.map(e=><div key={e.id} style={{padding:"8px 0",borderTop:"1px solid rgba(0,0,0,.06)"}}><strong>{e.event_type||"Evento"}</strong><small style={{display:"block"}}>{e.provider||"Mercado Pago"} · {e.provider_event_id||"sem ID"} · {date(e.created_at)}</small></div>) : <small>Nenhum evento registrado para este pedido.</small>}
-    </div><h3>Entrega</h3><p>{selected.shipping_address?.address}, {selected.shipping_address?.number}<br/>{selected.shipping_address?.neighborhood}<br/>{selected.shipping_address?.city} - {selected.shipping_address?.state}<br/>CEP {selected.shipping_address?.postal_code}</p><h3>Rastreamento</h3>{selected.status==="READY_TO_SHIP"&&!shipment?.melhor_envio_order_id&&<button className="secondary" disabled={creatingShipment} onClick={()=>void createMelhorEnvioShipment()}>{creatingShipment?"Preparando envio...":"Criar envio no Melhor Envio"}</button>}<div className="tracking-edit"><input placeholder="Código de rastreio" value={tracking} onChange={e=>setTracking(e.target.value)}/><button className="primary" onClick={()=>void saveShipment()}>Salvar</button>{tracking&&<button className="secondary" onClick={()=>void copyText(tracking,"Código de rastreio")}>Copiar</button>}</div>{shipment?.carrier&&<p><strong>Transportadora:</strong> {shipment.carrier}{shipment.service?` — ${shipment.service}`:""}</p>}{shipment?.melhor_envio_order_id&&<p><strong>ID Melhor Envio:</strong> {shipment.melhor_envio_order_id}</p>}{shipment?.melhor_envio_order_id&&<div className="tracking-actions">{(!shipment.melhor_envio_label_status||shipment.melhor_envio_label_status==="cart")&&<button className="secondary" disabled={!!labelAction} onClick={()=>void labelFlow("buy")}>{labelAction==="buy"?"Comprando...":"Comprar etiqueta"}</button>}{shipment.melhor_envio_label_status==="purchased"&&<button className="secondary" disabled={!!labelAction} onClick={()=>void labelFlow("generate")}>{labelAction==="generate"?"Gerando...":"Gerar etiqueta"}</button>}{shipment.melhor_envio_label_status==="generated"&&!shipment.label_url&&<button className="secondary" disabled={!!labelAction} onClick={()=>void labelFlow("print")}>{labelAction==="print"?"Obtendo link...":"Obter etiqueta"}</button>}</div>}{shipment?.melhor_envio_tracking_status&&<p><strong>Status Melhor Envio:</strong> {shipment.melhor_envio_tracking_status}</p>}{shipment?.tracking_url&&<a href={shipment.tracking_url} target="_blank" rel="noreferrer">Abrir rastreio</a>}{shipment?.label_url&&<a href={shipment.label_url} target="_blank" rel="noreferrer">Abrir etiqueta</a>}{shipment?.melhor_envio_order_id&&<button className="secondary" disabled={syncingTracking} onClick={()=>void syncTracking()}>{syncingTracking?"Sincronizando...":"Atualizar pelo Melhor Envio"}</button>}<h3>Linha do tempo</h3>{timeline.length?timeline.map((event,index)=><div className="history-row" key={event.kind+"-"+event.date+"-"+index}><strong>{event.kind==="payment"?"💳 ":""}{event.title}</strong><small>{date(event.date)} · {event.detail}</small></div>):<small>Nenhuma movimentação registrada.</small>}</aside></div>}
+    </div><h3>Entrega</h3><p>{selected.shipping_address?.address}, {selected.shipping_address?.number}<br/>{selected.shipping_address?.neighborhood}<br/>{selected.shipping_address?.city} - {selected.shipping_address?.state}<br/>CEP {selected.shipping_address?.postal_code}</p><h3>Entrega e frete</h3><div style={{padding:"12px 14px",border:"1px solid rgba(0,0,0,.08)",borderRadius:12,background:"rgba(0,0,0,.02)",marginBottom:16}}><strong>{Number(selected.shipping_amount||0)===0 ? "Frete a combinar" : "Frete calculado"}</strong><p style={{margin:"6px 0 0"}}>{String(selected.shipping_address?.shipping_option?.service||"").includes("Entrega em Palmas") ? "Entrega em Palmas: combinar diretamente com a loja." : "O frete não foi calculado automaticamente e será negociado diretamente com a loja."}</p></div><h3>Rastreamento</h3><div className="tracking-edit"><input placeholder="Código de rastreio (opcional)" value={tracking} onChange={e=>setTracking(e.target.value)}/><button className="primary" onClick={()=>void saveShipment()}>Salvar</button>{tracking&&<button className="secondary" onClick={()=>void copyText(tracking,"Código de rastreio")}>Copiar</button>}</div>{shipment?.carrier&&<p><strong>Transportadora:</strong> {shipment.carrier}{shipment.service ? " — " + shipment.service : ""}</p>}{shipment?.tracking_url&&<a href={shipment.tracking_url} target="_blank" rel="noreferrer">Abrir rastreio</a>}{shipment?.label_url&&<a href={shipment.label_url} target="_blank" rel="noreferrer">Abrir etiqueta</a>}<h3>Linha do tempo</h3>{timeline.length?timeline.map((event,index)=><div className="history-row" key={event.kind+"-"+event.date+"-"+index}><strong>{event.kind==="payment"?"💳 ":""}{event.title}</strong><small>{date(event.date)} · {event.detail}</small></div>):<small>Nenhuma movimentação registrada.</small>}</aside></div>}
   </>;
 }
