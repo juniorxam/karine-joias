@@ -517,6 +517,9 @@ function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false
 
 function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNow, onCheckout, onCart, onRelatedOpen, onRelatedAdd, onRelatedBuyNow, onRelatedAsk }: { product: CatalogProduct; relatedProducts: CatalogProduct[]; onBack: () => void; onAdd: () => void; onBuyNow: () => void; onCheckout: () => void; onCart: () => void; onRelatedOpen: (product: CatalogProduct) => void; onRelatedAdd: (product: CatalogProduct) => void; onRelatedBuyNow: (product: CatalogProduct) => void; onRelatedAsk: (product: CatalogProduct) => void }) {
   const available = Number(product.stock ?? 0) > 0;
+  const maxQuantity = Math.max(1, Number(product.stock ?? 0));
+  const [quantity, setQuantity] = useState(1);
+  const adjustQuantity = (delta: number) => setQuantity(current => Math.min(maxQuantity, Math.max(1, current + delta)));
   return <div className="storefront checkout-page">
     <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><a className="store-logo" href="/loja" onClick={event => { event.preventDefault(); onBack(); }}><img className="store-logo-image" src={logoSrc} alt="Violetta Prata 925 e Semijoias" /><span><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></span></a><button className="store-cart-button" onClick={onCart} aria-label="Abrir carrinho"><ShoppingBag size={18}/></button></header>
     <div className="product-detail-promo"><span>VIOLETTA JOIAS E SEMIJOIAS</span><b>Detalhes escolhidos para acompanhar seus momentos.</b></div>
@@ -532,6 +535,14 @@ function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNow, onCh
         <div className="product-detail-meta">
           <div><Gem size={17}/><span><b>Material</b><small>{product.material}</small></span></div>
           <div><Check size={17}/><span><b>Disponibilidade</b><small>{Number(product.stock ?? 0) > 0 ? "Em estoque" : "Esgotado"}</small></span></div>
+        </div>
+        <div className="product-detail-quantity" aria-label="Quantidade">
+          <span>Quantidade</span>
+          <div className="qty-controls">
+            <button type="button" onClick={() => adjustQuantity(-1)} disabled={!available || quantity <= 1} aria-label="Diminuir quantidade">−</button>
+            <strong>{quantity}</strong>
+            <button type="button" onClick={() => adjustQuantity(1)} disabled={!available || quantity >= maxQuantity} aria-label="Aumentar quantidade">+</button>
+          </div>
         </div>
         <div className="product-detail-actions"><div className="product-detail-buy-actions"><button className="product-detail-add" onClick={onAdd} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Adicionar ao carrinho" : "Produto esgotado"}</button><button className="product-detail-buy-now" onClick={onBuyNow} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Comprar agora" : "Indisponível"}</button></div><button className="product-detail-whatsapp" onClick={() => { if (!storeWhatsApp) return; const text = encodeURIComponent(`Olá! Tenho interesse em ${product.name} (${formatMoney(product.price)}).`); window.open(`https://wa.me/${storeWhatsApp}?text=${text}`, "_blank", "noopener,noreferrer"); }} disabled={!storeWhatsApp}>Tenho interesse <ArrowRight size={15}/></button></div>
         <div className="product-detail-benefits"><span><ShieldCheck size={15}/> Compra segura</span><span><Truck size={15}/> Envio calculado no checkout</span></div><button className="store-primary-cta" onClick={onCart}>Ver carrinho <ArrowRight size={16}/></button>
