@@ -605,7 +605,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     calculate();
     return()=>{cancelled=true;};
   },[isPalmas,shipping.postal_code,storefrontSettings?.shipping_palmas_enabled,storefrontSettings?.shipping_origin_postal_code]);
-  const matchingRule=distanceKmValue===null?null:(storefrontSettings?.shipping_palmas_distance_rules||[]).find(rule=>distanceKmValue>=Number(rule.min_km)&&(rule.max_km===null||distanceKmValue<=Number(rule.max_km)));
+  const matchingRule=distanceKmValue===null?null:(storefrontSettings?.shipping_palmas_distance_rules||[]).find(rule=>distanceKmValue>=Number(rule.min_km)&&(rule.max_km===null||distanceKmValue<Number(rule.max_km)));
   const shippingOption: ShippingOption | null = shipping.city.trim() ? (isPalmas ? (storefrontSettings?.shipping_palmas_enabled&&matchingRule ? {id:"palmas-distance-"+matchingRule.min_km+"-"+(matchingRule.max_km??"plus"),company:"Violetta",service:"Entrega em Palmas · "+distanceKmValue!.toFixed(1)+" km",price:Number(matchingRule.price),delivery_time:0}:null) : {id:"outside-palmas",company:"Violetta",service:"Frete a combinar",price:0,delivery_time:0}) : null;
   const shippingPrice=shippingOption?.price||0;
   const orderTotal=Math.max(0,subtotal-couponDiscount+shippingPrice);
