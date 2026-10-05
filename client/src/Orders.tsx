@@ -52,6 +52,17 @@ const statusLabel: Record<string,string> = {
   CANCELLED:"Cancelado", REFUNDED:"Reembolsado"
 };
 
+const statusTransitions: Record<string,string[]> = {
+  PENDING_PAYMENT:["CANCELLED"],
+  PAID:["PROCESSING","REFUNDED"],
+  PROCESSING:["READY_TO_SHIP","REFUNDED"],
+  READY_TO_SHIP:["SHIPPED","REFUNDED"],
+  SHIPPED:["DELIVERED"],
+  DELIVERED:[],
+  CANCELLED:[],
+  REFUNDED:[]
+};
+
 const money=(n:number)=>Number(n).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 const date=(v:string)=>new Date(v).toLocaleString("pt-BR");
 const paymentMethodLabel=(id:string|null|undefined)=>{const map:Record<string,string>={pix:"PIX",credit_card:"Cartão de crédito",debit_card:"Cartão de débito",account_money:"Saldo Mercado Pago",bank_transfer:"Transferência bancária",ticket:"Boleto"};return id?map[id]||id:"—";};
@@ -189,17 +200,8 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
   const updateStatus=async(order:Order,status:string)=>{
     if(!supabase)return;
 
-    const allowed: Record<string,string[]> = {
-      PENDING_PAYMENT:["CANCELLED"],
-      PAID:["PROCESSING","REFUNDED"],
-      PROCESSING:["READY_TO_SHIP","REFUNDED"],
-      READY_TO_SHIP:["SHIPPED","REFUNDED"],
-      SHIPPED:["DELIVERED"],
-      DELIVERED:[],
-      CANCELLED:[],
-      REFUNDED:[]
-    };
     if(status===order.status)return;
+    const allowed = statusTransitions;
     if(!(allowed[order.status]||[]).includes(status)){
       toast.error("Transição de status inválida",{
         description:`Não é possível mudar de "${statusLabel[order.status]||order.status}" para "${statusLabel[status]||status}".`
@@ -214,6 +216,10 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
     }
 
     if(status==="CANCELLED") {
+      if(order.payment_status==="PAID"){
+        toast.error("Pedido pago não pode ser cancelado diretamente", {description:"Use o fluxo de reembolso para pedidos já pagos."});
+        return;
+      }
       const {error}=await supabase.rpc("cancel_order_admin_service",{
         p_order_id: order.id,
         p_owner_id: ownerId
@@ -223,6 +229,10 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
         return;
       }
     } else if(status==="REFUNDED") {
+      if(order.payment_status!=="PAID"){
+        toast.error("Só é possível reembolsar um pagamento confirmado");
+        return;
+      }
       const {error}=await supabase.functions.invoke("admin-refund",{
         body:{order_id:order.id}
       });
@@ -254,7 +264,7 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
     {health&&<section style={{margin:"0 0 18px",padding:16,border:"1px solid rgba(0,0,0,.1)",borderRadius:14,background:"rgba(255,255,255,.7)"}}><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",marginBottom:10}}><strong>{health.ok?"Produção sem falhas críticas":"Produção com pendências"}</strong><small>{new Date(health.checked_at).toLocaleString("pt-BR")}</small></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8}}>{(health.checks||[]).map((check)=><div key={check.name} style={{padding:"10px 12px",borderRadius:10,border:"1px solid rgba(0,0,0,.08)"}}><div style={{fontWeight:700}}>{check.ok?"✓":"!"} {check.name}</div><small>{check.detail||check.message||"Verificado"}</small></div>)}</div></section>}
     <div className="orders-summary">{["TODOS","PENDING_PAYMENT","PAID","PROCESSING","READY_TO_SHIP","SHIPPED","DELIVERED","CANCELLED","REFUNDED"].map(s=><button key={s} className={filter===s?"selected":""} onClick={()=>setFilter(s)}>{s==="TODOS"?"Todos":statusLabel[s]||s}<b>{s==="TODOS"?orders.length:orders.filter(x=>x.status===s).length}</b></button>)}</div><div style={{display:"grid",gridTemplateColumns:"minmax(220px,1fr) 160px 160px",gap:8,marginBottom:14}}><input placeholder="Buscar pedido, cliente ou e-mail" value={query} onChange={e=>setQuery(e.target.value)}/><select value={paymentFilter} onChange={e=>setPaymentFilter(e.target.value)}><option value="TODOS">Todos pagamentos</option><option value="PAID">Pago</option><option value="PENDING">Pendente</option><option value="REFUNDED">Reembolsado</option><option value="FAILED">Falhou</option></select><select value={period} onChange={e=>setPeriod(e.target.value)}><option value="TODOS">Todo período</option><option value="7">Últimos 7 dias</option><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option></select></div>
     <div className="table-wrap"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Data</th><th>Pagamento</th><th>Total</th><th>Status</th><th>Ação</th></tr></thead><tbody>
-      {loading?<tr><td colSpan={7}>Carregando pedidos...</td></tr>:visible.length===0?<tr><td colSpan={7}>Nenhum pedido encontrado.</td></tr>:visible.map(order=><tr key={order.id}><td><button className="order-link" onClick={()=>void openOrder(order)}><strong>{order.order_number}</strong></button></td><td><strong>{order.customer_name}</strong><small className="order-email">{order.customer_email}</small></td><td>{date(order.created_at)}</td><td><span className="payment-pill">{paymentStatusLabel(order.payment_status)}</span></td><td><strong>{money(order.total_amount)}</strong></td><td><span className="order-status">{icon(order.status)} {statusLabel[order.status]||order.status}</span></td><td><select className="order-select" value={order.status} onChange={e=>void updateStatus(order,e.target.value)}>{statusOptions.filter(s=>s===order.status||((({PENDING_PAYMENT:["CANCELLED"],PAID:["PROCESSING","REFUNDED"],PROCESSING:["READY_TO_SHIP","REFUNDED"],READY_TO_SHIP:["SHIPPED","REFUNDED"],SHIPPED:["DELIVERED"],DELIVERED:[],CANCELLED:[],REFUNDED:[]}) as Record<string,string[]>)[order.status]||[]).includes(s)).map(s=><option key={s} value={s}>{statusLabel[s]||s}</option>)}</select></td></tr>)}
+      {loading?<tr><td colSpan={7}>Carregando pedidos...</td></tr>:visible.length===0?<tr><td colSpan={7}>Nenhum pedido encontrado.</td></tr>:visible.map(order=><tr key={order.id}><td><button className="order-link" onClick={()=>void openOrder(order)}><strong>{order.order_number}</strong></button></td><td><strong>{order.customer_name}</strong><small className="order-email">{order.customer_email}</small></td><td>{date(order.created_at)}</td><td><span className="payment-pill">{paymentStatusLabel(order.payment_status)}</span></td><td><strong>{money(order.total_amount)}</strong></td><td><span className="order-status">{icon(order.status)} {statusLabel[order.status]||order.status}</span></td><td><select className="order-select" value={order.status} onChange={e=>void updateStatus(order,e.target.value)}>{statusOptions.filter(s=>s===order.status||(statusTransitions[order.status]||[]).includes(s)).map(s=><option key={s} value={s}>{statusLabel[s]||s}</option>)}</select></td></tr>)}
     </tbody></table></div>
     {selected&&<div className="order-detail-backdrop" onMouseDown={()=>setSelected(null)}><aside className="order-detail" onMouseDown={e=>e.stopPropagation()}><button className="close order-close" onClick={()=>setSelected(null)}><X size={18}/></button><p className="eyebrow">PEDIDO ONLINE</p><h2>{selected.order_number}</h2><p className="order-customer"><strong>{selected.customer_name}</strong><br/>{selected.customer_email}<br/>{selected.customer_phone}</p><h3>Itens</h3>{items.map(item=><div className="order-item-row" key={item.id}><span>{item.quantity}× {item.product_name}</span><strong>{money(item.total_price)}</strong></div>)}<div className="order-detail-total"><span>Produtos</span><strong>{money(selected.total_amount-Number(selected.shipping_amount||0))}</strong></div><div className="order-detail-total"><span>Frete</span><strong>{money(Number(selected.shipping_amount||0))}</strong></div><div className="order-detail-total grand"><span>Total</span><strong>{money(selected.total_amount)}</strong></div><h3>Pagamento</h3><div style={{padding:"12px 14px",border:"1px solid rgba(0,0,0,.08)",borderRadius:12,background:"rgba(0,0,0,.02)",marginBottom:16}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
