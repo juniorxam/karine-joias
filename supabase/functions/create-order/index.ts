@@ -131,7 +131,6 @@ Deno.serve(async (req) => {
       const { data: storeSettings, error: settingsError } = await db
         .from("storefront_settings")
         .select("shipping_palmas_enabled,shipping_origin_postal_code,shipping_palmas_distance_rules")
-        .eq("owner_id", ownerIds.length === 1 ? ownerIds[0] : "")
         .eq("store_slug", "violetta")
         .maybeSingle();
       if (settingsError) throw settingsError;
