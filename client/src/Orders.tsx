@@ -60,6 +60,9 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
   const [orders,setOrders]=useState<Order[]>([]);
   const [loading,setLoading]=useState(true);
   const [filter,setFilter]=useState("TODOS");
+  const [paymentFilter,setPaymentFilter]=useState("TODOS");
+  const [period,setPeriod]=useState("TODOS");
+  const [query,setQuery]=useState("");
   const [selected,setSelected]=useState<Order|null>(null);
   const [items,setItems]=useState<OrderItem[]>([]);
   const [shipment,setShipment]=useState<Shipment|null>(null);
@@ -242,12 +245,12 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
     await openOrder({...order,status});
   };
 
-  const visible=filter==="TODOS"?orders:orders.filter(x=>x.status===filter);
+  const visible=orders.filter(x=>{const statusOk=filter==="TODOS"||x.status===filter;const paymentOk=paymentFilter==="TODOS"||x.payment_status===paymentFilter;const queryOk=!query.trim()||`${x.order_number} ${x.customer_name} ${x.customer_email}`.toLowerCase().includes(query.toLowerCase());const days=period==="TODOS"?Infinity:Number(period);const periodOk=period==="TODOS"||((Date.now()-new Date(x.created_at).getTime())<=days*86400000);return statusOk&&paymentOk&&queryOk&&periodOk;});
   const icon=(status:string)=>status==="SHIPPED"?<Truck size={16}/>:status==="DELIVERED"?<CheckCircle2 size={16}/>:status==="PAID"||status==="PROCESSING"?<PackageCheck size={16}/>:<Clock3 size={16}/>;
 
   return <><div className="page-head"><div><p className="eyebrow">E-COMMERCE</p><h2>Pedidos online</h2><p>Acompanhe pagamentos, preparação e entrega dos pedidos da loja.</p></div><div style={{display:"flex",gap:8,alignItems:"center"}}><button className="secondary" onClick={()=>void runProductionHealthcheck()} disabled={healthLoading}><ShieldCheck size={14}/> {healthLoading?"Diagnosticando...":"Diagnóstico de produção"}</button><button className="secondary" onClick={()=>void load()}><RefreshCw size={14}/> Atualizar</button></div></div>
     {health&&<section style={{margin:"0 0 18px",padding:16,border:"1px solid rgba(0,0,0,.1)",borderRadius:14,background:"rgba(255,255,255,.7)"}}><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",marginBottom:10}}><strong>{health.ok?"Produção sem falhas críticas":"Produção com pendências"}</strong><small>{new Date(health.checked_at).toLocaleString("pt-BR")}</small></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8}}>{(health.checks||[]).map((check)=><div key={check.name} style={{padding:"10px 12px",borderRadius:10,border:"1px solid rgba(0,0,0,.08)"}}><div style={{fontWeight:700}}>{check.ok?"✓":"!"} {check.name}</div><small>{check.detail||check.message||"Verificado"}</small></div>)}</div></section>}
-    <div className="orders-summary">{["TODOS","PENDING_PAYMENT","PAID","PROCESSING","READY_TO_SHIP","SHIPPED","DELIVERED","CANCELLED","REFUNDED"].map(s=><button key={s} className={filter===s?"selected":""} onClick={()=>setFilter(s)}>{s==="TODOS"?"Todos":statusLabel[s]||s}<b>{s==="TODOS"?orders.length:orders.filter(x=>x.status===s).length}</b></button>)}</div>
+    <div className="orders-summary">{["TODOS","PENDING_PAYMENT","PAID","PROCESSING","READY_TO_SHIP","SHIPPED","DELIVERED","CANCELLED","REFUNDED"].map(s=><button key={s} className={filter===s?"selected":""} onClick={()=>setFilter(s)}>{s==="TODOS"?"Todos":statusLabel[s]||s}<b>{s==="TODOS"?orders.length:orders.filter(x=>x.status===s).length}</b></button>)}</div><div style={{display:"grid",gridTemplateColumns:"minmax(220px,1fr) 160px 160px",gap:8,marginBottom:14}}><input placeholder="Buscar pedido, cliente ou e-mail" value={query} onChange={e=>setQuery(e.target.value)}/><select value={paymentFilter} onChange={e=>setPaymentFilter(e.target.value)}><option value="TODOS">Todos pagamentos</option><option value="PAID">Pago</option><option value="PENDING">Pendente</option><option value="REFUNDED">Reembolsado</option><option value="FAILED">Falhou</option></select><select value={period} onChange={e=>setPeriod(e.target.value)}><option value="TODOS">Todo período</option><option value="7">Últimos 7 dias</option><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option></select></div>
     <div className="table-wrap"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Data</th><th>Pagamento</th><th>Total</th><th>Status</th><th>Ação</th></tr></thead><tbody>
       {loading?<tr><td colSpan={7}>Carregando pedidos...</td></tr>:visible.length===0?<tr><td colSpan={7}>Nenhum pedido encontrado.</td></tr>:visible.map(order=><tr key={order.id}><td><button className="order-link" onClick={()=>void openOrder(order)}><strong>{order.order_number}</strong></button></td><td><strong>{order.customer_name}</strong><small className="order-email">{order.customer_email}</small></td><td>{date(order.created_at)}</td><td><span className="payment-pill">{order.payment_status}</span></td><td><strong>{money(order.total_amount)}</strong></td><td><span className="order-status">{icon(order.status)} {statusLabel[order.status]||order.status}</span></td><td><select className="order-select" value={order.status} onChange={e=>void updateStatus(order,e.target.value)}>{statusOptions.map(s=><option key={s} value={s}>{statusLabel[s]||s}</option>)}</select></td></tr>)}
     </tbody></table></div>
@@ -256,7 +259,7 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
         <div><small>Provedor</small><strong style={{display:"block"}}>{payment?.provider==="mercadopago"?"Mercado Pago":payment?.provider||"—"}</strong></div>
         <div><small>Status</small><strong style={{display:"block"}}>{payment?.status||"—"}{payment?.status_detail?(" · "+payment.status_detail):""}</strong></div>
         <div><small>Método</small><strong style={{display:"block"}}>{paymentMethodLabel(payment?.method)}</strong></div>
-        <div><small>ID do pagamento</small><strong style={{display:"block",wordBreak:"break-all"}}>{payment?.provider_id||"—"}</strong></div>
+        <div><small>ID do pagamento</small><strong style={{display:"block",wordBreak:"break-all"}}>{payment?.provider_id||"—"}</strong></div><div><small>ID transação</small><strong style={{display:"block",wordBreak:"break-all"}}>{payment?.transaction_id||"—"}</strong></div>
         <div><small>Valor processado</small><strong style={{display:"block"}}>{payment?.amount!=null?money(payment.amount):"—"}</strong></div>
         <div><small>Valor líquido</small><strong style={{display:"block"}}>{payment?.net_amount!=null?money(payment.net_amount):"—"}</strong></div>
         <div><small>Parcelas</small><strong style={{display:"block"}}>{payment?.installments??"—"}</strong></div>
