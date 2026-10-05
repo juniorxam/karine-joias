@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceKey);
     const { data: order, error: orderError } = await admin
       .from("orders")
-      .select("id,order_number,customer_name,customer_email,total_amount,shipping_amount,discount_amount,status,payment_status,payment_provider,payment_provider_id,payment_url")
+      .select("id,order_number,customer_name,customer_email,customer_phone,shipping_address,total_amount,shipping_amount,discount_amount,status,payment_status,payment_provider,payment_provider_id,payment_url")
       .eq("order_number", order_number)
       .eq("customer_email", String(email).trim().toLowerCase())
       .single();
@@ -129,6 +129,11 @@ Deno.serve(async (req) => {
     }
     if (remainingDiscountCents > 0) return Response.json({ error: "Desconto do pedido excede o valor dos produtos" }, { status: 409, headers: cors });
 
+    const shippingAddress = order.shipping_address && typeof order.shipping_address === "object" ? order.shipping_address as Record<string, unknown> : {};
+    const recipientCpf = String(shippingAddress.recipient_code || "").replace(/\D/g, "");
+    const payer: Record<string, unknown> = { name: order.customer_name, email: order.customer_email };
+    if (recipientCpf.length === 11) payer.identification = { type: "CPF", number: recipientCpf };
+
     const mpResponse = await fetch("https://api.mercadopago.com/checkout/preferences", {
       method: "POST",
       headers: {
@@ -145,7 +150,7 @@ Deno.serve(async (req) => {
             currency_id: "BRL",
           }] : []),
         ],
-        payer: { name: order.customer_name, email: order.customer_email },
+        payer,
         external_reference: order.order_number,
         back_urls: {
           success: `${siteUrl}/loja/pedido?status=success&order=${encodeURIComponent(order.order_number)}`,
