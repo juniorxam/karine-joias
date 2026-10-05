@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
         const rule = rules.find((item: any) => {
           const min = Number(item?.min_km);
           const max = item?.max_km === null || item?.max_km === undefined || item?.max_km === "" ? null : Number(item.max_km);
-          return Number.isFinite(min) && distance >= min && (max === null ? true : Number.isFinite(max) && distance < max);
+          return Number.isFinite(min) && distance >= min && max !== null && Number.isFinite(max) && distance < max;
         });
         if (!rule) throw new Error("Não há uma faixa de frete configurada para esta distância");
         shippingAmount = Math.max(0, Number(rule.price) || 0);
