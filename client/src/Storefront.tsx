@@ -401,7 +401,7 @@ export default function Storefront() {
       <div className="store-header-actions">
         <a className="store-admin-link" href="/gestao">Acesso da proprietária</a>
         <button className="store-header-search" onClick={() => document.getElementById("colecao")?.scrollIntoView({behavior:"smooth"})} aria-label="Buscar peças"><Search size={17}/></button>
-        <button className="store-cart-button" onClick={openCart} aria-label="Abrir carrinho"><ShoppingBag size={18}/>{cartCount > 0 && <b>{cartCount}</b>}</button>
+        <button className="store-cart-button" onClick={openCart} aria-label={cartCount ? {`Abrir carrinho com ${cartCount} ${cartCount === 1 ? "item" : "itens"}`} : "Abrir carrinho"}><ShoppingBag size={18}/>{cartCount > 0 && <b>{cartCount > 99 ? "99+" : cartCount}</b>}</button>
         <button className="store-menu-button" aria-label="Abrir menu" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={20} /> : <Menu size={20} />}</button>
       </div>
     </header>
@@ -526,7 +526,7 @@ function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNow, onCh
       </div>
       <div className="product-detail-copy">
         <p className="store-kicker">{product.category}</p><p className="product-material">{product.material}</p><h1>{product.name}</h1>
-        <strong className="product-detail-price">{formatMoney(product.price)}</strong><span className={available ? "product-stock-note" : "product-stock-note sold-out"}>{available ? (Number(product.stock) <= 3 ? "Últimas unidades disponíveis" : "Disponível para envio") : "Produto temporariamente esgotado"}</span>
+        <strong className="product-detail-price">{formatMoney(product.price)}</strong><span className="product-detail-payment-note"><ShieldCheck size={14}/> Pagamento seguro pelo Mercado Pago</span><span className={available ? "product-stock-note" : "product-stock-note sold-out"}>{available ? (Number(product.stock) <= 3 ? "Últimas unidades disponíveis" : "Disponível para envio") : "Produto temporariamente esgotado"}</span>
         <p className="product-detail-description">{product.description || "Uma peça escolhida para trazer delicadeza, presença e brilho aos seus momentos."}</p>
         <div className="product-detail-meta">
           <div><Gem size={17}/><span><b>Material</b><small>{product.material}</small></span></div>
