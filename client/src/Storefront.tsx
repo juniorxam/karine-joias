@@ -635,22 +635,31 @@ function OrderSuccess({ order, onStore, onPay, onTrack, paymentLoading, tracking
     ["SHIPPED", "Pedido enviado"],
     ["DELIVERED", "Entregue"],
   ] as const;
-  const statusIndex = Math.max(0, steps.findIndex(([status]) => status === order.status));
+  const terminal = order.status === "CANCELLED" || order.status === "REFUNDED";
+  const statusIndex = terminal ? -1 : Math.max(0, steps.findIndex(([status]) => status === order.status));
+  const paymentLabels: Record<string,string> = { PAID: "Pagamento confirmado", PENDING: "Pagamento pendente", REFUNDED: "Pagamento reembolsado", FAILED: "Pagamento recusado" };
+  const statusLabels: Record<string,string> = { PENDING_PAYMENT: "Aguardando pagamento", PAID: "Pagamento confirmado", PROCESSING: "Em preparação", READY_TO_SHIP: "Pronto para envio", SHIPPED: "Enviado", DELIVERED: "Entregue", CANCELLED: "Pedido cancelado", REFUNDED: "Pedido reembolsado" };
+  const copyOrder = async () => {
+    try { await navigator.clipboard.writeText(order.order_number); toast.success("Número do pedido copiado"); } catch { toast.error("Não foi possível copiar"); }
+  };
   return <div className="storefront success-page"><main className="success-card">
-    <div className="success-icon"><Check size={30}/></div>
+    <div className="success-icon">{terminal ? <X size={30}/> : <Check size={30}/>}</div>
     <p className="store-kicker">ACOMPANHAMENTO DO PEDIDO</p>
     <h1>Pedido {order.order_number}</h1>
-    <p>{order.payment_status === "PAID" ? "Pagamento confirmado." : "O pagamento ainda está aguardando confirmação."}</p>
+    <button type="button" className="shipping-quote-button" onClick={copyOrder}>Copiar número do pedido</button>
+    <p>{terminal ? (statusLabels[order.status || ""] || "Pedido encerrado.") : (paymentLabels[order.payment_status || ""] || "Pedido recebido. Acompanhe a atualização abaixo.")}</p>
     <div className="success-total">Total do pedido <strong>{formatMoney(Number(order.total_amount))}</strong></div>
-    <div className="order-timeline">{steps.map(([status, label], index) => <div className={index <= statusIndex ? "timeline-step done" : "timeline-step"} key={status}><span>{index < statusIndex ? "✓" : index + 1}</span><div><strong>{label}</strong><small>{index === statusIndex ? "Status atual" : index < statusIndex ? "Concluído" : "Aguardando"}</small></div></div>)}</div>
+    <div className="order-current-status"><span>Status do pedido</span><strong>{statusLabels[order.status || ""] || order.status || "Recebido"}</strong><small>{paymentLabels[order.payment_status || ""] || "Pagamento em processamento"}</small></div>
+    {!terminal && <div className="order-timeline">{steps.map(([status, label], index) => <div className={index <= statusIndex ? "timeline-step done" : "timeline-step"} key={status}><span>{index < statusIndex ? "✓" : index + 1}</span><div><strong>{label}</strong><small>{index === statusIndex ? "Status atual" : index < statusIndex ? "Concluído" : "Aguardando"}</small></div></div>)}</div>}
     {order.shipment?.tracking_code && <div className="shipping-tracking-card">
       <p className="store-kicker">RASTREAMENTO</p>
-      <h2>Seu pedido está a caminho</h2>
+      <h2>{order.status === "DELIVERED" ? "Pedido entregue" : "Seu pedido está a caminho"}</h2>
       <p><strong>{order.shipment.carrier || "Transportadora"}</strong>{order.shipment.service ? ` · ${order.shipment.service}` : ""}</p>
       <div className="tracking-code"><span>Código de rastreio</span><strong>{order.shipment.tracking_code}</strong></div>
+      {order.shipment.shipping_status && <small>Status da entrega: {order.shipment.shipping_status}</small>}
       {order.shipment.tracking_url && <a className="store-primary-cta" href={order.shipment.tracking_url} target="_blank" rel="noreferrer">Acompanhar entrega <ArrowRight size={16}/></a>}
     </div>}
-    {order.payment_status !== "PAID" && <button className="checkout-submit" onClick={onPay} disabled={paymentLoading}>{paymentLoading ? "Gerando pagamento..." : "Continuar para pagamento"}</button>}
+    {order.payment_status !== "PAID" && order.status !== "CANCELLED" && order.status !== "REFUNDED" && <button className="checkout-submit" onClick={onPay} disabled={paymentLoading}>{paymentLoading ? "Gerando pagamento..." : "Continuar para pagamento"}</button>}
     <button className="shipping-quote-button" onClick={onTrack} disabled={trackingLoading}>{trackingLoading ? "Atualizando..." : "Atualizar status do pedido"}</button>
     <button className="store-primary-cta" onClick={onStore}>Voltar para a loja <ArrowRight size={16}/></button>
   </main></div>;
