@@ -113,7 +113,7 @@ function StoreSettings({ownerId}:{ownerId?:string}){
  const u=(k:string,v:any)=>setSettings((x:any)=>({...x,[k]:v}));
  const updateRule=(index:number,key:string,value:any)=>u("shipping_palmas_distance_rules",(settings.shipping_palmas_distance_rules||[]).map((r:any,i:number)=>i===index?{...r,[key]:value}:r));
  const addRule=()=>{const rules=settings.shipping_palmas_distance_rules||[];const last=rules[rules.length-1];if(last?.max_km===null)return toast.error("A última faixa já é aberta. Edite-a antes de adicionar outra.");const start=Number(last?.max_km||0);u("shipping_palmas_distance_rules",[...rules,{min_km:start,max_km:null,price:0}]);};
- const removeRule=(index:number)=>{const rules=(settings.shipping_palmas_distance_rules||[]).filter((_:any,i:number)=>i!==index);if(!rules.length)return toast.error("Mantenha pelo menos uma faixa de frete");if(index>0&&rules[index-1]?.max_km!==null)rules[index-1]={...rules[index-1],max_km:rules[index].max_km};u("shipping_palmas_distance_rules",rules);};
+ const removeRule=(index:number)=>{const original=settings.shipping_palmas_distance_rules||[];const removed=original[index];const rules=original.filter((_:any,i:number)=>i!==index);if(!rules.length)return toast.error("Mantenha pelo menos uma faixa de frete");if(index>0)rules[index-1]={...rules[index-1],max_km:removed?.max_km??null};else rules[0]={...rules[0],min_km:0};u("shipping_palmas_distance_rules",rules);};
  const check=(name:string)=>health?.checks?.find((x:any)=>x.name===name);
  const statusLabel=(c:any, fallback:string)=>c?(c.ok?"Configurado":"Aguardando configuração"):fallback;
  const rules=settings.shipping_palmas_distance_rules||[];
