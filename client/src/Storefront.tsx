@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateActio
 import { toast } from "sonner";
 import { ArrowRight, ArrowLeft, Check, Gem, Heart, Instagram, Menu, Search, ShoppingBag, Sparkles, X, User, Truck, Tag, ShieldCheck, Star, MessageCircle } from "lucide-react";
 import { formatMoney, type CatalogProduct } from "./lib/catalog";
-type StorefrontSettings = { hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string };
+type ShippingDistanceRule = { min_km:number; max_km:number|null; price:number };\ntype StorefrontSettings = { hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string; shipping_palmas_enabled:boolean; shipping_palmas_pickup_enabled:boolean; shipping_origin_postal_code:string; shipping_palmas_distance_rules:ShippingDistanceRule[] };
 import { loadPublicCatalog } from "./lib/publicCatalog";
 import { supabase } from "./lib/supabase";
 
@@ -52,6 +52,8 @@ function formatCPF(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 11);
   return digits.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
 }
+async function geocodePostalCode(postalCode:string){ const cep=postalCode.replace(/\D/g,""); if(cep.length!==8) throw new Error("CEP inválido"); const response=await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&postalcode="+cep+"&country=Brazil&limit=1"); if(!response.ok) throw new Error("Não foi possível calcular a distância"); const data=await response.json(); if(!Array.isArray(data)||!data[0]) throw new Error("Não foi possível localizar o CEP para calcular a distância"); return {lat:Number(data[0].lat),lon:Number(data[0].lon)}; }
+function distanceKm(a:{lat:number;lon:number},b:{lat:number;lon:number}){ const rad=(v:number)=>v*Math.PI/180; const dLat=rad(b.lat-a.lat),dLon=rad(b.lon-a.lon); const h=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLon/2)**2; return 6371*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h)); }
 function formatPhone(value: string) {
   const digits = normalizePhone(value).slice(0, 11);
   if (digits.length <= 10) return digits.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3").replace(/-$/, "");
@@ -86,7 +88,7 @@ export default function Storefront() {
   const [storefrontSettings, setStorefrontSettings] = useState<StorefrontSettings | null>(null);
   useEffect(() => {
     if (!supabase) return;
-    supabase.from("storefront_settings").select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled,collection_enabled,collection_title,collection_subtitle,collection_image_url,collection_cta").eq("store_slug","violetta").limit(1).maybeSingle()
+    supabase.from("storefront_settings").select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled,collection_enabled,collection_title,collection_subtitle,collection_image_url,collection_cta,shipping_palmas_enabled,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_palmas_distance_rules").eq("store_slug","violetta").limit(1).maybeSingle()
       .then(({ data }) => { if (data) setStorefrontSettings(data as StorefrontSettings); });
   }, []);
   const [cart, setCart] = useState<CartItem[]>(readCart);
@@ -352,7 +354,7 @@ export default function Storefront() {
   }
 
   if (view === "checkout") {
-    return <Checkout cart={cart} subtotal={subtotal} draft={checkoutDraft} onDraftChange={setCheckoutDraft} onBack={backToStore} onFinish={finishOrder} onChangeQty={changeQty} />;
+    return <Checkout cart={cart} subtotal={subtotal} draft={checkoutDraft} onDraftChange={setCheckoutDraft} onBack={backToStore} onFinish={finishOrder} onChangeQty={changeQty} storefrontSettings={storefrontSettings} />;
   }
 
   if (view === "success" && order) {
@@ -555,7 +557,7 @@ function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNow, onCh
   </div>;
 }
 
-function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onChangeQty }: { cart: CartItem[]; subtotal: number; draft: { customer: Customer; shipping: Shipping; couponCode: string }; onDraftChange: Dispatch<SetStateAction<{ customer: Customer; shipping: Shipping; couponCode: string }>>; onBack: () => void; onFinish: (customer: Customer, shipping: Shipping, couponCode?: string) => Promise<void>; onChangeQty: (id: CatalogProduct["id"], delta: number) => void }) {
+function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onChangeQty, storefrontSettings }: { cart: CartItem[]; subtotal: number; draft: { customer: Customer; shipping: Shipping; couponCode: string }; onDraftChange: Dispatch<SetStateAction<{ customer: Customer; shipping: Shipping; couponCode: string }>>; onBack: () => void; onFinish: (customer: Customer, shipping: Shipping, couponCode?: string) => Promise<void>; onChangeQty: (id: CatalogProduct["id"], delta: number) => void; storefrontSettings: StorefrontSettings | null }) {
   const [customer, setCustomer] = useState<Customer>(draft.customer);
   const [shipping, setShipping] = useState<Shipping>(draft.shipping);
   const [busy, setBusy] = useState(false);
@@ -563,7 +565,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   const [couponCode, setCouponCode] = useState(draft.couponCode);
   const [couponBusy, setCouponBusy] = useState(false);
   const [couponError, setCouponError] = useState("");
-  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [couponDiscount, setCouponDiscount] = useState(0);\n  const [distanceKmValue, setDistanceKmValue] = useState<number|null>(null);\n  const [distanceLoading, setDistanceLoading] = useState(false);\n  const [distanceError, setDistanceError] = useState("");
   useEffect(() => { onDraftChange(v => ({ ...v, customer, shipping, couponCode })); }, [customer, shipping, couponCode, onDraftChange]);
   const cartSignature = cart.map(item => item.id + ":" + item.quantity).sort().join("|");
   useEffect(() => { setCouponDiscount(0); setCouponError(""); }, [cartSignature]);
@@ -583,8 +585,26 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     finally { setZipLoading(false); }
   };
   const isPalmas = shipping.city.trim().toLowerCase() === "palmas" && shipping.state.trim().toUpperCase() === "TO";
-  const shippingOption: ShippingOption | null = shipping.city.trim() ? (isPalmas ? { id: "palmas-delivery", company: "Violetta", service: "Entrega em Palmas — frete a combinar", price: 0, delivery_time: 0 } : { id: "outside-palmas", company: "Violetta", service: "Frete a combinar", price: 0, delivery_time: 0 }) : null;
-  const orderTotal = Math.max(0, subtotal - couponDiscount);
+  useEffect(() => {
+    let cancelled=false;
+    const calculate=async()=>{
+      if(!isPalmas || !shipping.postal_code || !storefrontSettings?.shipping_palmas_enabled){ setDistanceKmValue(null); setDistanceError(""); return; }
+      setDistanceLoading(true); setDistanceError("");
+      try{
+        const origin=await geocodePostalCode(storefrontSettings.shipping_origin_postal_code);
+        const destination=await geocodePostalCode(shipping.postal_code);
+        const km=distanceKm(origin,destination);
+        if(!cancelled)setDistanceKmValue(Number(km.toFixed(1)));
+      }catch(error){if(!cancelled){setDistanceKmValue(null);setDistanceError(error instanceof Error?error.message:"Não foi possível calcular a distância");}}
+      finally{if(!cancelled)setDistanceLoading(false);}
+    };
+    calculate();
+    return()=>{cancelled=true;};
+  },[isPalmas,shipping.postal_code,storefrontSettings?.shipping_palmas_enabled,storefrontSettings?.shipping_origin_postal_code]);
+  const matchingRule=distanceKmValue===null?null:(storefrontSettings?.shipping_palmas_distance_rules||[]).find(rule=>distanceKmValue>=Number(rule.min_km)&&(rule.max_km===null||distanceKmValue<=Number(rule.max_km)));
+  const shippingOption: ShippingOption | null = shipping.city.trim() ? (isPalmas ? (storefrontSettings?.shipping_palmas_enabled&&matchingRule ? {id:"palmas-distance-"+matchingRule.min_km+"-"+(matchingRule.max_km??"plus"),company:"Violetta",service:"Entrega em Palmas · "+distanceKmValue!.toFixed(1)+" km",price:Number(matchingRule.price),delivery_time:0}:null) : {id:"outside-palmas",company:"Violetta",service:"Frete a combinar",price:0,delivery_time:0}) : null;
+  const shippingPrice=shippingOption?.price||0;
+  const orderTotal=Math.max(0,subtotal-couponDiscount+shippingPrice);
   const applyCoupon = async () => {
     const code = couponCode.trim().toUpperCase();
     if (!code) return toast.error("Informe o código do cupom");
@@ -621,15 +641,15 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
       <div className="checkout-title"><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}><span className="payment-methods"><span>1. Dados</span><span>2. Entrega</span><span>3. Pagamento</span></span></div><p className="store-kicker">FINALIZAR PEDIDO</p><h1>Quase seu.</h1><p>Preencha seus dados para reservar as peças e gerar seu pedido. O endereço será usado para organizar a entrega.</p></div>
       <section className="checkout-section"><h2><User size={17}/> Seus dados</h2><div className="checkout-grid"><label>Nome completo<input required autoComplete="name" value={customer.name} onChange={e=>updateCustomer("name",e.target.value)}/></label><label>E-mail<input required type="email" autoComplete="email" value={customer.email} onChange={e=>updateCustomer("email",e.target.value)}/></label><label>WhatsApp<input required autoComplete="tel" value={customer.phone} onChange={e=>updateCustomer("phone",formatPhone(e.target.value))}/></label><label>CPF<input required inputMode="numeric" maxLength={14} value={customer.recipient_code} onChange={e=>updateCustomer("recipient_code",formatCPF(e.target.value))} placeholder="000.000.000-00"/></label></div></section>
       <section className="checkout-section"><h2><Truck size={17}/> Entrega</h2><div className="checkout-grid"><label>CEP<input required inputMode="numeric" value={shipping.postal_code} onChange={e=>fetchZip(e.target.value)} placeholder="00000-000"/>{zipLoading&&<small>Consultando CEP...</small>}</label><label className="wide">Endereço<input required value={shipping.address} onChange={e=>updateShipping("address",e.target.value)}/></label><label>Número<input required value={shipping.number} onChange={e=>updateShipping("number",e.target.value)}/></label><label>Complemento<input value={shipping.complement} onChange={e=>updateShipping("complement",e.target.value)}/></label><label>Bairro<input required value={shipping.neighborhood} onChange={e=>updateShipping("neighborhood",e.target.value)}/></label><label>Cidade<input required value={shipping.city} onChange={e=>updateShipping("city",e.target.value)}/></label><label>UF<input required maxLength={2} value={shipping.state} onChange={e=>updateShipping("state",e.target.value.toUpperCase())}/></label></div>
-        {shippingOption&&<div className="shipping-options"><label className="shipping-option selected"><input type="radio" checked readOnly/><span><strong>{shippingOption.company} · {shippingOption.service}</strong><small>{isPalmas ? "Entrega local em Palmas: combinaremos os detalhes diretamente com você." : "No momento, entregas fora de Palmas têm frete negociado separadamente. Nossa equipe entrará em contato para combinar o envio."}</small></span><b>À parte</b></label></div>}
-        {!shippingOption&&<div className="checkout-final-note"><Truck size={16}/><span>Informe cidade e UF para visualizar como o frete será tratado.</span></div>}
+        {isPalmas&&distanceLoading&&<div className="checkout-final-note"><Truck size={16}/><span>Calculando a distância para definir o frete…</span></div>}{isPalmas&&distanceError&&<div className="checkout-final-note"><Truck size={16}/><span>{distanceError}. Confira o CEP ou tente novamente.</span></div>}{shippingOption&&<div className="shipping-options"><label className="shipping-option selected"><input type="radio" checked readOnly/><span><strong>{shippingOption.company} · {shippingOption.service}</strong><small>{isPalmas ? "Frete calculado pela distância entre o CEP da loja e o seu endereço." : "No momento, entregas fora de Palmas têm frete negociado separadamente. Nossa equipe entrará em contato para combinar o envio."}</small></span><b>{formatMoney(shippingOption.price)}</b></label></div>}
+        {!shippingOption&&!isPalmas&&<div className="checkout-final-note"><Truck size={16}/><span>Informe cidade e UF para visualizar como o frete será tratado.</span></div>}
       </section>
       <section className="checkout-section"><h2><Tag size={17}/> Cupom de desconto</h2><div className="checkout-grid"><label className="wide">Código do cupom<input value={couponCode} onChange={e=>{setCouponCode(e.target.value.toUpperCase());setCouponDiscount(0);setCouponError("")}} placeholder="EX.: BEMVINDO10"/></label><button type="button" className="shipping-quote-button" onClick={applyCoupon} disabled={couponBusy}>{couponBusy?"Validando...":"Aplicar cupom"}</button></div>{couponError&&<small>{couponError}</small>}{couponDiscount>0&&<small>Cupom aplicado: desconto de {formatMoney(couponDiscount)}</small>}</section>
       <section className="checkout-section"><h2><ShieldCheck size={17}/> Pagamento</h2><div className="payment-placeholder"><ShoppingBag size={18}/><div><strong>Pagamento seguro pelo Mercado Pago</strong><p>Ao confirmar o pedido, você será direcionada ao Mercado Pago. O frete negociado separadamente não entra neste pagamento.</p><div className="payment-methods"><span>PIX</span><span>Cartão</span><span>Ambiente seguro</span></div></div></div></section>
-      <div className="checkout-final-note"><ShieldCheck size={16}/><span>O pedido será criado com frete de R$ 0,00. Quando houver frete a combinar, ele será acertado separadamente com a loja.</span></div>
+      <div className="checkout-final-note"><ShieldCheck size={16}/><span>{isPalmas&&shippingOption ? "Frete de "+formatMoney(shippingPrice)+" calculado automaticamente pela distância." : "Para entregas fora de Palmas, o frete será acertado separadamente com a loja."}</span></div>
       <button className="checkout-submit" disabled={busy||!cart.length||!shippingOption}>{busy?"Criando pedido...":"Confirmar pedido e pagar"}</button>
     </form>
-    <aside className="checkout-summary"><div className="checkout-summary-head"><div><p className="store-kicker">RESUMO</p><h2>Seu pedido</h2></div><span>{cart.reduce((sum,item)=>sum+item.quantity,0)} itens</span></div>{cart.map(item=><div className="checkout-item" key={item.id}><div className="checkout-item-thumb" style={item.imageUrl?{backgroundImage:"url("+item.imageUrl+")"}:undefined}>{!item.imageUrl&&<Gem size={18}/>}</div><div className="checkout-item-main"><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span><div className="qty-controls"><button type="button" onClick={()=>onChangeQty(item.id,-1)}>−</button><span>{item.quantity}</span><button type="button" onClick={()=>onChangeQty(item.id,1)}>+</button></div></div><b>{formatMoney(item.price*item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total"><span>Frete</span><strong>À parte</strong></div>{couponDiscount>0&&<div className="checkout-total"><span>Desconto</span><strong>- {formatMoney(couponDiscount)}</strong></div>}<div className="checkout-total grand"><span>Total no Mercado Pago</span><strong>{formatMoney(orderTotal)}</strong></div><p className="checkout-note">O Mercado Pago cobrará somente os produtos menos o desconto. O frete, quando aplicável, será combinado e pago separadamente.</p></aside>
+    <aside className="checkout-summary"><div className="checkout-summary-head"><div><p className="store-kicker">RESUMO</p><h2>Seu pedido</h2></div><span>{cart.reduce((sum,item)=>sum+item.quantity,0)} itens</span></div>{cart.map(item=><div className="checkout-item" key={item.id}><div className="checkout-item-thumb" style={item.imageUrl?{backgroundImage:"url("+item.imageUrl+")"}:undefined}>{!item.imageUrl&&<Gem size={18}/>}</div><div className="checkout-item-main"><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span><div className="qty-controls"><button type="button" onClick={()=>onChangeQty(item.id,-1)}>−</button><span>{item.quantity}</span><button type="button" onClick={()=>onChangeQty(item.id,1)}>+</button></div></div><b>{formatMoney(item.price*item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total"><span>Frete</span><strong>{shippingOption?.price ? formatMoney(shippingOption.price) : "À parte"}</strong></div>{couponDiscount>0&&<div className="checkout-total"><span>Desconto</span><strong>- {formatMoney(couponDiscount)}</strong></div>}<div className="checkout-total grand"><span>Total no Mercado Pago</span><strong>{formatMoney(orderTotal)}</strong></div><p className="checkout-note">{shippingOption?.price ? "O Mercado Pago cobrará os produtos, desconto e frete calculado para Palmas." : "O Mercado Pago cobrará somente os produtos menos o desconto. O frete, quando aplicável, será combinado e pago separadamente."}</p></aside>
     </main></div>;
 }
 
