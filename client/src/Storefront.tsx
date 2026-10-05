@@ -621,11 +621,11 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     event.preventDefault();
     if (!cart.length) return toast.error("Seu carrinho está vazio");
     if (!customer.name.trim()) return toast.error("Informe seu nome completo");
-    if (!/^\\S+@\\S+\\.\\S+$/.test(customer.email.trim())) return toast.error("Informe um e-mail válido");
+    if (!/^\S+@\S+\.\S+$/.test(customer.email.trim())) return toast.error("Informe um e-mail válido");
     const phone = normalizePhone(customer.phone);
     if (phone.length < 10 || phone.length > 11) return toast.error("Informe um WhatsApp válido com DDD");
     if (!isValidCPF(customer.recipient_code)) return toast.error("Informe um CPF válido");
-    const postalCode = shipping.postal_code.replace(/\\D/g, "");
+    const postalCode = shipping.postal_code.replace(/\D/g, "");
     if (postalCode.length !== 8) return toast.error("Informe um CEP válido");
     if (!shipping.city.trim() || shipping.state.trim().length !== 2) return toast.error("Confira cidade e UF");
     if (!shippingOption) return toast.error("Calcule e selecione uma opção de frete");
