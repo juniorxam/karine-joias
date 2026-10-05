@@ -101,22 +101,12 @@ Deno.serve(async (req) => {
     if (!pickupSelected && (!address || !number || !neighborhood || !city || !/^[A-Z]{2}$/.test(state))) throw new Error("Endereço inválido");
     if (pickupSelected && (!city || !/^[A-Z]{2}$/.test(state))) throw new Error("Localidade inválida");
 
-    const quoteId = String(shipping.shipping_quote_id || "").trim();
-    const selectedOptionId = String(shipping.shipping_option?.id ?? "").trim();
-    if (!quoteId || !selectedOptionId) throw new Error("Frete inválido");
-
-    const db = createClient(url, key);
-
-    const { data: quote, error: quoteError } = await db
-      .from("shipping_quotes")
-      .select("id,owner_id,postal_code,items,options,expires_at")
-      .eq("id", quoteId)
-      .single();
-    if (quoteError || !quote) throw new Error("Cotação de frete não encontrada");
-    if (!quote.owner_id) throw new Error("Cotação de frete incompatível com a loja");
-    if (String(quote.postal_code) !== postalCode) throw new Error("O CEP não corresponde à cotação");
-    if (new Date(quote.expires_at).getTime() <= Date.now()) throw new Error("A cotação de frete expirou");
-
+    const requestedService = String(shipping.shipping_option?.service || "").trim();
+    const normalizedCity = city.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+    const isPalmas = normalizedCity === "PALMAS" && state === "TO";
+    const allowedServices = isPalmas ? ["Entrega em Palmas — frete a combinar", "Frete a combinar"] : ["Frete a combinar"];
+    if (!allowedServices.includes(requestedService)) throw new Error(isPalmas ? "Selecione a modalidade de entrega de Palmas." : "Para este endereço, o frete será negociado diretamente com a loja.");
+    const normalizedShippingOption = { id: isPalmas ? "palmas-delivery" : "outside-palmas", company: "Violetta", service: isPalmas ? "Entrega em Palmas — frete a combinar" : "Frete a combinar", price: 0, delivery_time: 0 };
     const normalizedItems = items.map((item: any) => {
       const productId = Number(item.product_id);
       const quantity = Number(item.quantity);
@@ -127,14 +117,6 @@ Deno.serve(async (req) => {
     }).sort((a: any, b: any) => a.product_id - b.product_id);
     if (new Set(normalizedItems.map((item: any) => item.product_id)).size !== normalizedItems.length) throw new Error("Produto repetido no carrinho");
 
-    const quoteItems = Array.isArray(quote.items) ? quote.items : [];
-    const normalizedQuoteItems = quoteItems.map((item: any) => ({ product_id: Number(item.product_id), quantity: Number(item.quantity) })).sort((a: any, b: any) => a.product_id - b.product_id);
-    if (JSON.stringify(normalizedItems) !== JSON.stringify(normalizedQuoteItems)) throw new Error("A cotação de frete não corresponde ao carrinho");
-
-    const options = Array.isArray(quote.options) ? quote.options : [];
-    const selectedOption = options.find((option: any) => String(option.id) === selectedOptionId);
-    if (!selectedOption || !Number.isFinite(Number(selectedOption.price)) || Number(selectedOption.price) < 0) throw new Error("Opção de frete inválida");
-
     const { data: products, error: productsError } = await db
       .from("products")
       .select("id,owner_id,active")
@@ -142,7 +124,7 @@ Deno.serve(async (req) => {
     if (productsError || !products || products.length !== normalizedItems.length) throw new Error("Produto não encontrado");
     if (products.some((product: any) => product.active === false)) throw new Error("Um dos produtos não está disponível");
     const ownerIds = [...new Set(products.map((product: any) => String(product.owner_id || "")))];
-    if (ownerIds.length !== 1 || ownerIds[0] !== String(quote.owner_id)) throw new Error("A cotação não pertence aos produtos do pedido");
+    if (ownerIds.length !== 1 || !ownerIds[0]) throw new Error("Produtos de lojas diferentes não podem ser combinados");
 
     const normalizedShipping = {
       postal_code: postalCode,
@@ -153,8 +135,7 @@ Deno.serve(async (req) => {
       city,
       state,
       recipient_code: recipientCode,
-      shipping_option: selectedOption,
-      shipping_quote_id: quoteId,
+      shipping_option: normalizedShippingOption,
     };
 
     const trackingTokenHash = await sha256(idempotencyKey);
@@ -164,7 +145,7 @@ Deno.serve(async (req) => {
       p_customer: { name: customerName, email, phone, recipient_code: recipientCode },
       p_shipping: normalizedShipping,
       p_items: normalizedItems,
-      p_shipping_amount: Number(selectedOption.price),
+      p_shipping_amount: 0,
       p_payment_method: "PENDING",
       p_coupon_code: couponCode || null,
       p_idempotency_key: idempotencyKey,
