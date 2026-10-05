@@ -197,8 +197,7 @@ export default function Storefront() {
           payment_status: data.order.payment_status,
           status: data.order.status,
           shipment: data.shipment || null,
-        });
-      }
+        });      }
     });
   }, [view, returnedOrder]);
 
@@ -397,8 +396,7 @@ export default function Storefront() {
         <a href="#categorias" onClick={() => setMenuOpen(false)}>Categorias</a>
         <a href="#presentes" onClick={() => setMenuOpen(false)}>Presentes</a>
         <a href="#contato" onClick={() => setMenuOpen(false)}>Atendimento</a>
-      </nav>
-      <div className="store-header-actions">
+      </nav>      <div className="store-header-actions">
         <a className="store-admin-link" href="/gestao">Acesso da proprietária</a>
         <button className="store-header-search" onClick={() => document.getElementById("colecao")?.scrollIntoView({behavior:"smooth"})} aria-label="Buscar peças"><Search size={17}/></button>
         <button className="store-cart-button" onClick={openCart} aria-label={cartCount ? `Abrir carrinho com ${cartCount} ${cartCount === 1 ? "item" : "itens"}` : "Abrir carrinho"}><ShoppingBag size={18}/>{cartCount > 0 && <b>{cartCount > 99 ? "99+" : cartCount}</b>}</button>
@@ -562,75 +560,31 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   const [shipping, setShipping] = useState<Shipping>(draft.shipping);
   const [busy, setBusy] = useState(false);
   const [zipLoading, setZipLoading] = useState(false);
-  const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
-  const [shippingOption, setShippingOption] = useState<ShippingOption | null>(null);
-  const [shippingQuoteId, setShippingQuoteId] = useState<string | null>(null);
-  const [shippingLoading, setShippingLoading] = useState(false);
   const [couponCode, setCouponCode] = useState(draft.couponCode);
   const [couponBusy, setCouponBusy] = useState(false);
   const [couponError, setCouponError] = useState("");
   const [couponDiscount, setCouponDiscount] = useState(0);
-
-  useEffect(() => {
-    onDraftChange(v => ({ ...v, customer, shipping, couponCode }));
-  }, [customer, shipping, couponCode, onDraftChange]);
-
-  const cartSignature = cart.map(item => `${item.id}:${item.quantity}`).sort().join("|");
-
-  // Frete e cupom dependem do carrinho. Qualquer alteração de quantidade
-  // invalida os dados anteriores para evitar checkout com cotação/desconto antigos.
-  useEffect(() => {
-    setShippingOptions([]);
-    setShippingOption(null);
-    setShippingQuoteId(null);
-    setCouponDiscount(0);
-    setCouponError("");
-  }, [cartSignature]);
-
+  useEffect(() => { onDraftChange(v => ({ ...v, customer, shipping, couponCode })); }, [customer, shipping, couponCode, onDraftChange]);
+  const cartSignature = cart.map(item => item.id + ":" + item.quantity).sort().join("|");
+  useEffect(() => { setCouponDiscount(0); setCouponError(""); }, [cartSignature]);
   const updateCustomer = (field: keyof Customer, value: string) => setCustomer(v => ({ ...v, [field]: value }));
-  const updateShipping = (field: keyof Shipping, value: string) => {
-    setShipping(v => ({ ...v, [field]: value }));
-    if (field === "postal_code") {
-      setShippingOptions([]);
-      setShippingOption(null);
-      setShippingQuoteId(null);
-    }
-  };
-
+  const updateShipping = (field: keyof Shipping, value: string) => setShipping(v => ({ ...v, [field]: value }));
   const fetchZip = async (value: string) => {
     const postal_code = value.replace(/\D/g, "").slice(0, 8);
     updateShipping("postal_code", postal_code);
     if (postal_code.length !== 8) return;
     setZipLoading(true);
     try {
-      const response = await fetch(`https://viacep.com.br/ws/${postal_code}/json/`);
+      const response = await fetch("https://viacep.com.br/ws/" + postal_code + "/json/");
       const data = await response.json();
       if (data.erro) throw new Error("CEP não encontrado");
       setShipping(v => ({ ...v, postal_code, address: data.logradouro || v.address, neighborhood: data.bairro || v.neighborhood, city: data.localidade || v.city, state: data.uf || v.state }));
     } catch { toast.error("Não foi possível localizar o CEP"); }
     finally { setZipLoading(false); }
   };
-
-  const quoteShipping = async () => {
-    if (!supabase || shipping.postal_code.replace(/\D/g, "").length !== 8) return toast.error("Informe um CEP válido");
-    setShippingLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("shipping-quote", {
-        body: { postal_code: shipping.postal_code, items: cart.map(item => ({ product_id: Number(item.id), quantity: item.quantity })) }
-      });
-      if (error || data?.error) throw new Error(data?.error || error?.message || "Erro ao calcular frete");
-      setShippingOptions(data.options || []);
-      setShippingOption(data.options?.[0] || null);
-      setShippingQuoteId(data.quote_id || null);
-    } catch (e) {
-      toast.error("Não foi possível calcular o frete", { description: e instanceof Error ? e.message : "Tente novamente" });
-    } finally { setShippingLoading(false); }
-  };
-
-  const isPickup = shippingOption?.service === "Retirada no local";
-  const selectedShippingPrice = Number(shippingOption?.price || 0);
-  const orderTotal = Math.max(0, subtotal - couponDiscount + selectedShippingPrice);
-
+  const isPalmas = shipping.city.trim().toLowerCase() === "palmas" && shipping.state.trim().toUpperCase() === "TO";
+  const shippingOption: ShippingOption | null = shipping.city.trim() ? (isPalmas ? { id: "palmas-delivery", company: "Violetta", service: "Entrega em Palmas — frete a combinar", price: 0, delivery_time: 0 } : { id: "outside-palmas", company: "Violetta", service: "Frete a combinar", price: 0, delivery_time: 0 }) : null;
+  const orderTotal = Math.max(0, subtotal - couponDiscount);
   const applyCoupon = async () => {
     const code = couponCode.trim().toUpperCase();
     if (!code) return toast.error("Informe o código do cupom");
@@ -639,13 +593,11 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     try {
       const { data, error } = await supabase.functions.invoke("validate-coupon", { body: { code, items: cart.map(item => ({ product_id: Number(item.id), quantity: item.quantity })) } });
       if (error || !data?.valid) throw new Error(data?.error || error?.message || "Cupom inválido");
-      setCouponDiscount(Number(data.discount_amount) || 0);
-      setCouponCode(data.code || code);
-      toast.success("Cupom aplicado", { description: `Desconto de ${formatMoney(Number(data.discount_amount) || 0)}` });
+      setCouponDiscount(Number(data.discount_amount) || 0); setCouponCode(data.code || code);
+      toast.success("Cupom aplicado", { description: "Desconto de " + formatMoney(Number(data.discount_amount) || 0) });
     } catch (e) { setCouponDiscount(0); setCouponError(e instanceof Error ? e.message : "Cupom inválido"); toast.error("Cupom não aplicado", { description: e instanceof Error ? e.message : "Verifique o código" }); }
     finally { setCouponBusy(false); }
   };
-
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!cart.length) return toast.error("Seu carrinho está vazio");
@@ -656,37 +608,29 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     if (!isValidCPF(customer.recipient_code)) return toast.error("Informe um CPF válido");
     const postalCode = shipping.postal_code.replace(/\D/g, "");
     if (postalCode.length !== 8) return toast.error("Informe um CEP válido");
+    if (!shipping.address.trim() || !shipping.number.trim() || !shipping.neighborhood.trim()) return toast.error("Complete o endereço para entrega");
     if (!shipping.city.trim() || shipping.state.trim().length !== 2) return toast.error("Confira cidade e UF");
-    if (!shippingOption) return toast.error("Calcule e selecione uma opção de frete");
-    if (!isPickup && (!shipping.address.trim() || !shipping.number.trim() || !shipping.neighborhood.trim())) {
-      return toast.error("Complete o endereço para entrega");
-    }
+    if (!shippingOption) return toast.error("Informe sua cidade para definir a modalidade de entrega");
     setBusy(true);
-    try {
-      await onFinish(
-        { ...customer, name: customer.name.trim(), email: customer.email.trim().toLowerCase(), phone },
-        { ...shipping, postal_code: postalCode, state: shipping.state.trim().toUpperCase(), shipping_option: shippingOption, shipping_quote_id: shippingQuoteId || undefined },
-        couponDiscount > 0 ? couponCode : ""
-      );
-    } finally {
-      setBusy(false);
-    }
+    try { await onFinish({ ...customer, name: customer.name.trim(), email: customer.email.trim().toLowerCase(), phone }, { ...shipping, postal_code: postalCode, state: shipping.state.trim().toUpperCase(), shipping_option: shippingOption }, couponDiscount > 0 ? couponCode : ""); }
+    finally { setBusy(false); }
   };
-
   return <div className="storefront checkout-page">
     <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></span></span><span className="checkout-secure">Checkout seguro</span></header>
-    <main className="checkout-layout">
-      <form className="checkout-form" onSubmit={submit}>
-        <div className="checkout-title"><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}><span className="payment-methods"><span>1. Dados</span><span>2. Entrega</span><span>3. Pagamento</span></span></div><p className="store-kicker">FINALIZAR PEDIDO</p><h1>Quase seu.</h1><p>Preencha seus dados para reservar as peças e gerar seu pedido. O endereço pode ser dispensado quando você escolher retirada no local.</p></div>
-        <section className="checkout-section"><h2><User size={17}/> Seus dados</h2><div className="checkout-grid"><label>Nome completo<input required autoComplete="name" value={customer.name} onChange={e => updateCustomer("name", e.target.value)} /></label><label>E-mail<input required type="email" autoComplete="email" inputMode="email" value={customer.email} onChange={e => updateCustomer("email", e.target.value)} /></label><label>WhatsApp<input required autoComplete="tel" inputMode="tel" value={customer.phone} onChange={e => updateCustomer("phone", formatPhone(e.target.value))} /></label><label>CPF<input required autoComplete="off" inputMode="numeric" maxLength={14} value={customer.recipient_code} onChange={e => updateCustomer("recipient_code", formatCPF(e.target.value))} placeholder="000.000.000-00" /></label></div></section>
-        <section className="checkout-section"><h2><Truck size={17}/> Entrega</h2><div className="checkout-grid"><label>CEP<input required autoComplete="postal-code" inputMode="numeric" value={shipping.postal_code} onChange={e => fetchZip(e.target.value)} placeholder="00000-000" />{zipLoading && <small>Consultando CEP...</small>}</label><label className="wide">Endereço<input required={!isPickup} autoComplete="street-address" value={shipping.address} onChange={e => updateShipping("address", e.target.value)} /></label><label>Número<input required={!isPickup} autoComplete="address-line2" value={shipping.number} onChange={e => updateShipping("number", e.target.value)} /></label><label>Complemento<input autoComplete="address-line2" value={shipping.complement} onChange={e => updateShipping("complement", e.target.value)} /></label><label>Bairro<input required={!isPickup} autoComplete="address-level3" value={shipping.neighborhood} onChange={e => updateShipping("neighborhood", e.target.value)} /></label><label>Cidade<input required autoComplete="address-level2" value={shipping.city} onChange={e => updateShipping("city", e.target.value)} /></label><label>UF<input required autoComplete="address-level1" maxLength={2} value={shipping.state} onChange={e => updateShipping("state", e.target.value.toUpperCase())} /></label></div><button type="button" className="shipping-quote-button" onClick={quoteShipping} disabled={shippingLoading}>{shippingLoading ? "Calculando frete..." : "Calcular frete"}</button>{shippingOptions.length > 0 && <div className="shipping-options">{shippingOptions.map((option: ShippingOption) => <label className={shippingOption?.id === option.id ? "shipping-option selected" : "shipping-option"} key={String(option.id)}><input type="radio" name="shipping" checked={shippingOption?.id === option.id} onChange={() => setShippingOption(option)} /><span><strong>{option.company} · {option.service}</strong><small>{option.delivery_time ? `Até ${option.delivery_time} dias úteis` : "Prazo a confirmar"}</small></span><b>{formatMoney(option.price)}</b></label>)}</div>}</section>
-        <section className="checkout-section"><h2><Tag size={17}/> Cupom de desconto</h2><div className="checkout-grid"><label className="wide">Código do cupom<input value={couponCode} onChange={e => { setCouponCode(e.target.value.toUpperCase()); setCouponDiscount(0); setCouponError(""); }} placeholder="EX.: BEMVINDO10" /></label><button type="button" className="shipping-quote-button" onClick={applyCoupon} disabled={couponBusy}>{couponBusy ? "Validando..." : "Aplicar cupom"}</button></div>{couponError && <small>{couponError}</small>}{couponDiscount > 0 && <small>Cupom aplicado: desconto de {formatMoney(couponDiscount)}</small>}</section><section className="checkout-section"><h2><ShieldCheck size={17}/> Pagamento</h2><div className="payment-placeholder"><ShoppingBag size={18}/><div><strong>Pagamento seguro pelo Mercado Pago</strong><p>Ao confirmar o pedido, você será direcionada ao Mercado Pago para concluir o pagamento por PIX ou cartão.</p><div className="payment-methods"><span>PIX</span><span>Cartão</span><span>Ambiente seguro</span></div></div></div></section>
-        <div className="checkout-final-note"><ShieldCheck size={16}/><span>Seus dados são usados somente para processar o pedido e organizar a entrega.</span></div>
-        <button className="checkout-submit" disabled={busy || !cart.length || !shippingOption}>{busy ? "Criando pedido..." : "Confirmar pedido e pagar"}</button>
-      </form>
-      <aside className="checkout-summary"><div className="checkout-summary-head"><div><p className="store-kicker">RESUMO</p><h2>Seu pedido</h2></div><span>{cart.reduce((sum, item) => sum + item.quantity, 0)} itens</span></div>{cart.map(item => <div className="checkout-item" key={item.id}><div className="checkout-item-thumb" style={item.imageUrl ? {backgroundImage: `url(${item.imageUrl})`} : undefined}>{!item.imageUrl && <Gem size={18}/>}</div><div className="checkout-item-main"><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span><div className="qty-controls"><button type="button" onClick={() => onChangeQty(item.id, -1)} aria-label="Diminuir">−</button><span>{item.quantity}</span><button type="button" onClick={() => onChangeQty(item.id, 1)} aria-label="Aumentar">+</button></div></div><b>{formatMoney(item.price * item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total"><span>Frete</span><strong>{shippingOption ? formatMoney(shippingOption.price) : "A calcular"}</strong></div>{couponDiscount > 0 && <div className="checkout-total"><span>Desconto</span><strong>- {formatMoney(couponDiscount)}</strong></div>}<div className="checkout-total grand"><span>Total</span><strong>{formatMoney(orderTotal)}</strong></div><p className="checkout-note">As opções de entrega e retirada são calculadas conforme as regras atuais da loja. O valor final do frete aparece antes da confirmação.</p></aside>
-    </main>
-  </div>;
+    <main className="checkout-layout"><form className="checkout-form" onSubmit={submit}>
+      <div className="checkout-title"><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}><span className="payment-methods"><span>1. Dados</span><span>2. Entrega</span><span>3. Pagamento</span></span></div><p className="store-kicker">FINALIZAR PEDIDO</p><h1>Quase seu.</h1><p>Preencha seus dados para reservar as peças e gerar seu pedido. O endereço será usado para organizar a entrega.</p></div>
+      <section className="checkout-section"><h2><User size={17}/> Seus dados</h2><div className="checkout-grid"><label>Nome completo<input required autoComplete="name" value={customer.name} onChange={e=>updateCustomer("name",e.target.value)}/></label><label>E-mail<input required type="email" autoComplete="email" value={customer.email} onChange={e=>updateCustomer("email",e.target.value)}/></label><label>WhatsApp<input required autoComplete="tel" value={customer.phone} onChange={e=>updateCustomer("phone",formatPhone(e.target.value))}/></label><label>CPF<input required inputMode="numeric" maxLength={14} value={customer.recipient_code} onChange={e=>updateCustomer("recipient_code",formatCPF(e.target.value))} placeholder="000.000.000-00"/></label></div></section>
+      <section className="checkout-section"><h2><Truck size={17}/> Entrega</h2><div className="checkout-grid"><label>CEP<input required inputMode="numeric" value={shipping.postal_code} onChange={e=>fetchZip(e.target.value)} placeholder="00000-000"/>{zipLoading&&<small>Consultando CEP...</small>}</label><label className="wide">Endereço<input required value={shipping.address} onChange={e=>updateShipping("address",e.target.value)}/></label><label>Número<input required value={shipping.number} onChange={e=>updateShipping("number",e.target.value)}/></label><label>Complemento<input value={shipping.complement} onChange={e=>updateShipping("complement",e.target.value)}/></label><label>Bairro<input required value={shipping.neighborhood} onChange={e=>updateShipping("neighborhood",e.target.value)}/></label><label>Cidade<input required value={shipping.city} onChange={e=>updateShipping("city",e.target.value)}/></label><label>UF<input required maxLength={2} value={shipping.state} onChange={e=>updateShipping("state",e.target.value.toUpperCase())}/></label></div>
+        {shippingOption&&<div className="shipping-options"><label className="shipping-option selected"><input type="radio" checked readOnly/><span><strong>{shippingOption.company} · {shippingOption.service}</strong><small>{isPalmas ? "Entrega local em Palmas: combinaremos os detalhes diretamente com você." : "No momento, entregas fora de Palmas têm frete negociado separadamente. Nossa equipe entrará em contato para combinar o envio."}</small></span><b>À parte</b></label></div>}
+        {!shippingOption&&<div className="checkout-final-note"><Truck size={16}/><span>Informe cidade e UF para visualizar como o frete será tratado.</span></div>}
+      </section>
+      <section className="checkout-section"><h2><Tag size={17}/> Cupom de desconto</h2><div className="checkout-grid"><label className="wide">Código do cupom<input value={couponCode} onChange={e=>{setCouponCode(e.target.value.toUpperCase());setCouponDiscount(0);setCouponError("")}} placeholder="EX.: BEMVINDO10"/></label><button type="button" className="shipping-quote-button" onClick={applyCoupon} disabled={couponBusy}>{couponBusy?"Validando...":"Aplicar cupom"}</button></div>{couponError&&<small>{couponError}</small>}{couponDiscount>0&&<small>Cupom aplicado: desconto de {formatMoney(couponDiscount)}</small>}</section>
+      <section className="checkout-section"><h2><ShieldCheck size={17}/> Pagamento</h2><div className="payment-placeholder"><ShoppingBag size={18}/><div><strong>Pagamento seguro pelo Mercado Pago</strong><p>Ao confirmar o pedido, você será direcionada ao Mercado Pago. O frete negociado separadamente não entra neste pagamento.</p><div className="payment-methods"><span>PIX</span><span>Cartão</span><span>Ambiente seguro</span></div></div></div></section>
+      <div className="checkout-final-note"><ShieldCheck size={16}/><span>O pedido será criado com frete de R$ 0,00. Quando houver frete a combinar, ele será acertado separadamente com a loja.</span></div>
+      <button className="checkout-submit" disabled={busy||!cart.length||!shippingOption}>{busy?"Criando pedido...":"Confirmar pedido e pagar"}</button>
+    </form>
+    <aside className="checkout-summary"><div className="checkout-summary-head"><div><p className="store-kicker">RESUMO</p><h2>Seu pedido</h2></div><span>{cart.reduce((sum,item)=>sum+item.quantity,0)} itens</span></div>{cart.map(item=><div className="checkout-item" key={item.id}><div className="checkout-item-thumb" style={item.imageUrl?{backgroundImage:"url("+item.imageUrl+")"}:undefined}>{!item.imageUrl&&<Gem size={18}/>}</div><div className="checkout-item-main"><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span><div className="qty-controls"><button type="button" onClick={()=>onChangeQty(item.id,-1)}>−</button><span>{item.quantity}</span><button type="button" onClick={()=>onChangeQty(item.id,1)}>+</button></div></div><b>{formatMoney(item.price*item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total"><span>Frete</span><strong>À parte</strong></div>{couponDiscount>0&&<div className="checkout-total"><span>Desconto</span><strong>- {formatMoney(couponDiscount)}</strong></div>}<div className="checkout-total grand"><span>Total no Mercado Pago</span><strong>{formatMoney(orderTotal)}</strong></div><p className="checkout-note">O Mercado Pago cobrará somente os produtos menos o desconto. O frete, quando aplicável, será combinado e pago separadamente.</p></aside>
+    </main></div>;
 }
 
 function OrderSuccess({ order, onStore, onPay, onTrack, paymentLoading, trackingLoading }: { order: { order_number: string; total_amount: number; payment_status?: string; payment_url?: string; status?: string; shipment?: { carrier?: string | null; service?: string | null; tracking_code?: string | null; tracking_url?: string | null; shipping_status?: string | null } | null }; onStore: () => void; onPay: () => void; onTrack: () => void; paymentLoading: boolean; trackingLoading: boolean }) {
