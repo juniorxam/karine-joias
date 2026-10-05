@@ -100,6 +100,15 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
 
   useEffect(()=>{void load()},[ownerId]);
 
+  useEffect(()=>{
+    if(!selected)return;
+    const onKeyDown=(event:KeyboardEvent)=>{
+      if(event.key==="Escape")setSelected(null);
+    };
+    window.addEventListener("keydown",onKeyDown);
+    return()=>window.removeEventListener("keydown",onKeyDown);
+  },[selected]);
+
   const copyText=async(value:string,label:string)=>{
     try{
       await navigator.clipboard.writeText(value);
@@ -227,13 +236,13 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
     }
 
     // A loja só pode iniciar a preparação depois da confirmação do pagamento.
-    if(status==="PROCESSING" && order.payment_status!=="PAID"){
+    if(status==="PROCESSING" && !["PAID","APPROVED"].includes(String(order.payment_status||"").toUpperCase())){
       toast.error("Pagamento ainda não confirmado");
       return;
     }
 
     if(status==="CANCELLED") {
-      if(order.payment_status==="PAID"){
+      if(["PAID","APPROVED"].includes(String(order.payment_status||"").toUpperCase())){
         toast.error("Pedido pago não pode ser cancelado diretamente", {description:"Use o fluxo de reembolso para pedidos já pagos."});
         return;
       }
@@ -246,7 +255,7 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
         return;
       }
     } else if(status==="REFUNDED") {
-      if(order.payment_status!=="PAID"){
+      if(!["PAID","APPROVED"].includes(String(order.payment_status||"").toUpperCase())){
         toast.error("Só é possível reembolsar um pagamento confirmado");
         return;
       }
