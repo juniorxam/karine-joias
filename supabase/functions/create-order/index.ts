@@ -131,28 +131,33 @@ Deno.serve(async (req) => {
     if (isPalmas) {
       const { data: storeSettings, error: settingsError } = await db
         .from("storefront_settings")
-        .select("shipping_palmas_enabled,shipping_origin_postal_code,shipping_palmas_distance_rules")
+        .select("shipping_palmas_enabled,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_palmas_distance_rules")
         .eq("store_slug", "violetta")
         .maybeSingle();
       if (settingsError) throw settingsError;
 
       if (storeSettings?.shipping_palmas_enabled) {
-        if (requestedService === "Frete a combinar") throw new Error("O frete de Palmas está configurado para cálculo automático.");
-        const rules = Array.isArray(storeSettings.shipping_palmas_distance_rules) ? storeSettings.shipping_palmas_distance_rules : [];
-        const originCep = String(storeSettings.shipping_origin_postal_code || "").replace(/\D/g, "");
-        if (!/^\d{8}$/.test(originCep)) throw new Error("O CEP de origem da loja não está configurado corretamente");
-        const origin = await geocodePostalCode(originCep);
-        const destination = await geocodePostalCode(postalCode);
-        const distance = Number(distanceKm(origin, destination).toFixed(1));
-        const rule = rules.find((item: any, index: number) => {
-          const min = Number(item?.min_km);
-          const max = item?.max_km === null || item?.max_km === undefined || item?.max_km === "" ? null : Number(item.max_km);
-          const isLast = index === rules.length - 1;
-          return Number.isFinite(min) && distance >= min && max !== null && Number.isFinite(max) && (isLast ? distance <= max : distance < max);
-        });
-        if (!rule) throw new Error("Não há uma faixa de frete configurada para esta distância");
-        shippingAmount = Math.max(0, Number(rule.price) || 0);
-        normalizedShippingOption = { id: "palmas-distance-" + Number(rule.min_km) + "-" + (rule.max_km ?? "plus"), company: "Violetta", service: "Entrega em Palmas · " + distance.toFixed(1) + " km", price: shippingAmount, delivery_time: 0 };
+        if (pickupSelected) {
+          if (storeSettings.shipping_palmas_pickup_enabled !== true) throw new Error("A retirada no local está desativada.");
+          normalizedShippingOption = { id: "violetta-pickup", company: "Violetta", service: "Retirada no local", price: 0, delivery_time: 0 };
+        } else {
+          if (requestedService === "Frete a combinar") throw new Error("O frete de Palmas está configurado para cálculo automático.");
+          const rules = Array.isArray(storeSettings.shipping_palmas_distance_rules) ? storeSettings.shipping_palmas_distance_rules : [];
+          const originCep = String(storeSettings.shipping_origin_postal_code || "").replace(/\D/g, "");
+          if (!/^\d{8}$/.test(originCep)) throw new Error("O CEP de origem da loja não está configurado corretamente");
+          const origin = await geocodePostalCode(originCep);
+          const destination = await geocodePostalCode(postalCode);
+          const distance = Number(distanceKm(origin, destination).toFixed(1));
+          const rule = rules.find((item: any, index: number) => {
+            const min = Number(item?.min_km);
+            const max = item?.max_km === null || item?.max_km === undefined || item?.max_km === "" ? null : Number(item.max_km);
+            const isLast = index === rules.length - 1;
+            return Number.isFinite(min) && distance >= min && max !== null && Number.isFinite(max) && (isLast ? distance <= max : distance < max);
+          });
+          if (!rule) throw new Error("Não há uma faixa de frete configurada para esta distância");
+          shippingAmount = Math.max(0, Number(rule.price) || 0);
+          normalizedShippingOption = { id: "palmas-distance-" + Number(rule.min_km) + "-" + (rule.max_km ?? "plus"), company: "Violetta", service: "Entrega em Palmas · " + distance.toFixed(1) + " km", price: shippingAmount, delivery_time: 0 };
+        }
       } else {
         if (requestedService !== "Frete a combinar") throw new Error("O cálculo automático de frete de Palmas está desativado.");
         normalizedShippingOption = { id: "palmas-combine", company: "Violetta", service: "Frete a combinar", price: 0, delivery_time: 0 };
