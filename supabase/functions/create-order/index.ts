@@ -31,10 +31,45 @@ async function sha256(value: string) {
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+function getClientOrigin(req: Request) {
+  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  return (
+    req.headers.get("cf-connecting-ip")?.trim() ||
+    req.headers.get("x-real-ip")?.trim() ||
+    forwarded ||
+    "unknown"
+  );
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
   try {
+    const url = Deno.env.get("SUPABASE_URL");
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!url || !key) throw new Error("Servidor não configurado");
+
+    const origin = getClientOrigin(req);
+    const originHash = await sha256(`${key}:${origin}`);
+    const rateDb = createClient(url, key);
+    const { data: rateLimit, error: rateLimitError } = await rateDb.rpc("check_order_rate_limit", {
+      p_ip_hash: originHash,
+    });
+    if (rateLimitError) {
+      console.error("Falha no rate limit do checkout", rateLimitError);
+      return new Response(JSON.stringify({ error: "Não foi possível iniciar o pedido agora. Tente novamente." }), {
+        status: 503,
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+    if (rateLimit?.allowed === false) {
+      const retryAfter = Number(rateLimit.retry_after_seconds || 60);
+      return new Response(JSON.stringify({ error: "Muitas tentativas de checkout. Aguarde alguns minutos e tente novamente." }), {
+        status: 429,
+        headers: { ...cors, "Content-Type": "application/json", "Retry-After": String(retryAfter) },
+      });
+    }
+
     const body = await req.json();
     const customer = body.customer || {};
     const shipping = body.shipping || {};
@@ -70,9 +105,6 @@ Deno.serve(async (req) => {
     const selectedOptionId = String(shipping.shipping_option?.id ?? "").trim();
     if (!quoteId || !selectedOptionId) throw new Error("Frete inválido");
 
-    const url = Deno.env.get("SUPABASE_URL");
-    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!url || !key) throw new Error("Servidor não configurado");
     const db = createClient(url, key);
 
     const { data: quote, error: quoteError } = await db
