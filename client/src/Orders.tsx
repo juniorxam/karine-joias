@@ -13,6 +13,16 @@ type PaymentDetails = {
   payment_url: string | null;
   method: string | null;
   status: string | null;
+  status_detail: string | null;
+  transaction_id: string | null;
+  amount: number | null;
+  net_amount: number | null;
+  installments: number | null;
+  payer_email: string | null;
+  payer_name: string | null;
+  external_reference: string | null;
+  date_approved: string | null;
+  expiration_date: string | null;
   events: PaymentEvent[];
 };
 
@@ -44,6 +54,7 @@ const statusLabel: Record<string,string> = {
 
 const money=(n:number)=>Number(n).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 const date=(v:string)=>new Date(v).toLocaleString("pt-BR");
+const paymentMethodLabel=(id:string|null|undefined)=>{const map:Record<string,string>={pix:"PIX",credit_card:"Cartão de crédito",debit_card:"Cartão de débito",account_money:"Saldo Mercado Pago",bank_transfer:"Transferência bancária",ticket:"Boleto"};return id?map[id]||id:"—";};
 
 export default function Orders({ ownerId }: { ownerId?: string }) {
   const [orders,setOrders]=useState<Order[]>([]);
@@ -94,12 +105,23 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
     ]);
     if(i.error||s.error||h.error||p.error) toast.error("Não foi possível carregar os detalhes do pedido");
     setItems((i.data||[]) as OrderItem[]); setShipment((s.data||null) as Shipment|null); setHistory((h.data||[]) as History[]);
+    const latest=(p.data?.[0]?.payload||{}) as Record<string,any>;
     setPayment({
-      provider: order.payment_provider || null,
-      provider_id: order.payment_provider_id || null,
-      payment_url: order.payment_url || null,
-      method: order.payment_method || null,
-      status: order.payment_status || null,
+      provider: order.payment_provider || latest.provider || null,
+      provider_id: order.payment_provider_id || (latest.id?String(latest.id):null),
+      payment_url: order.payment_url || latest.point_of_interaction?.transaction_data?.ticket_url || null,
+      method: latest.payment_method_id || latest.payment_type_id || order.payment_method || null,
+      status: latest.status || order.payment_status || null,
+      status_detail: latest.status_detail || null,
+      transaction_id: latest.transaction_details?.transaction_id || latest.point_of_interaction?.transaction_data?.e2e_id || null,
+      amount: latest.transaction_amount ?? null,
+      net_amount: latest.transaction_details?.net_received_amount ?? null,
+      installments: latest.installments ?? null,
+      payer_email: latest.payer?.email || null,
+      payer_name: [latest.payer?.first_name,latest.payer?.last_name].filter(Boolean).join(" ") || latest.additional_info?.payer?.first_name || null,
+      external_reference: latest.external_reference || null,
+      date_approved: latest.date_approved || null,
+      expiration_date: latest.date_of_expiration || null,
       events: (p.data||[]) as PaymentEvent[]
     });
     setTracking(s.data?.tracking_code||"");
@@ -232,11 +254,17 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
     {selected&&<div className="order-detail-backdrop" onMouseDown={()=>setSelected(null)}><aside className="order-detail" onMouseDown={e=>e.stopPropagation()}><button className="close order-close" onClick={()=>setSelected(null)}><X size={18}/></button><p className="eyebrow">PEDIDO ONLINE</p><h2>{selected.order_number}</h2><p className="order-customer"><strong>{selected.customer_name}</strong><br/>{selected.customer_email}<br/>{selected.customer_phone}</p><h3>Itens</h3>{items.map(item=><div className="order-item-row" key={item.id}><span>{item.quantity}× {item.product_name}</span><strong>{money(item.total_price)}</strong></div>)}<div className="order-detail-total"><span>Produtos</span><strong>{money(selected.total_amount-Number(selected.shipping_amount||0))}</strong></div><div className="order-detail-total"><span>Frete</span><strong>{money(Number(selected.shipping_amount||0))}</strong></div><div className="order-detail-total grand"><span>Total</span><strong>{money(selected.total_amount)}</strong></div><h3>Pagamento</h3><div style={{padding:"12px 14px",border:"1px solid rgba(0,0,0,.08)",borderRadius:12,background:"rgba(0,0,0,.02)",marginBottom:16}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
         <div><small>Provedor</small><strong style={{display:"block"}}>{payment?.provider==="mercadopago"?"Mercado Pago":payment?.provider||"—"}</strong></div>
-        <div><small>Status</small><strong style={{display:"block"}}>{payment?.status||"—"}</strong></div>
-        <div><small>Método</small><strong style={{display:"block"}}>{payment?.method||"—"}</strong></div>
-        <div><small>ID da preferência/pagamento</small><strong style={{display:"block",wordBreak:"break-all"}}>{payment?.provider_id||"—"}</strong></div>
+        <div><small>Status</small><strong style={{display:"block"}}>{payment?.status||"—"}{payment?.status_detail?(" · "+payment.status_detail):""}</strong></div>
+        <div><small>Método</small><strong style={{display:"block"}}>{paymentMethodLabel(payment?.method)}</strong></div>
+        <div><small>ID do pagamento</small><strong style={{display:"block",wordBreak:"break-all"}}>{payment?.provider_id||"—"}</strong></div>
+        <div><small>Valor processado</small><strong style={{display:"block"}}>{payment?.amount!=null?money(payment.amount):"—"}</strong></div>
+        <div><small>Valor líquido</small><strong style={{display:"block"}}>{payment?.net_amount!=null?money(payment.net_amount):"—"}</strong></div>
+        <div><small>Parcelas</small><strong style={{display:"block"}}>{payment?.installments??"—"}</strong></div>
+        <div><small>Referência externa</small><strong style={{display:"block",wordBreak:"break-all"}}>{payment?.external_reference||"—"}</strong></div>
       </div>
-      {payment?.payment_url&&<p style={{margin:"12px 0 0"}}><a href={payment.payment_url} target="_blank" rel="noreferrer">Abrir checkout do Mercado Pago ↗</a></p>}
+      {(payment?.payer_name||payment?.payer_email)&&<p style={{margin:"12px 0 0"}}><strong>Pagador:</strong> {payment?.payer_name||"—"}{payment?.payer_email?(" · "+payment.payer_email):""}</p>}
+      {(payment?.date_approved||payment?.expiration_date)&&<p style={{margin:"8px 0 0"}}><small>{payment?.date_approved?("Aprovado em "+date(payment.date_approved)):""}{payment?.expiration_date?(" · Expira em "+date(payment.expiration_date)):""}</small></p>}
+      {payment?.payment_url&&<p style={{margin:"12px 0 0"}}><a href={payment.payment_url} target="_blank" rel="noreferrer">Abrir pagamento/checkout do Mercado Pago ↗</a></p>}
       <h4 style={{margin:"16px 0 8px"}}>Eventos do pagamento</h4>
       {payment?.events?.length ? payment.events.map(e=><div key={e.id} style={{padding:"8px 0",borderTop:"1px solid rgba(0,0,0,.06)"}}><strong>{e.event_type||"Evento"}</strong><small style={{display:"block"}}>{e.provider||"Mercado Pago"} · {e.provider_event_id||"sem ID"} · {date(e.created_at)}</small></div>) : <small>Nenhum evento registrado para este pedido.</small>}
     </div><h3>Entrega</h3><p>{selected.shipping_address?.address}, {selected.shipping_address?.number}<br/>{selected.shipping_address?.neighborhood}<br/>{selected.shipping_address?.city} - {selected.shipping_address?.state}<br/>CEP {selected.shipping_address?.postal_code}</p><h3>Rastreamento</h3>{selected.status==="READY_TO_SHIP"&&!shipment?.melhor_envio_order_id&&<button className="secondary" disabled={creatingShipment} onClick={()=>void createMelhorEnvioShipment()}>{creatingShipment?"Preparando envio...":"Criar envio no Melhor Envio"}</button>}<div className="tracking-edit"><input placeholder="Código de rastreio" value={tracking} onChange={e=>setTracking(e.target.value)}/><button className="primary" onClick={()=>void saveShipment()}>Salvar</button></div>{shipment?.carrier&&<p><strong>Transportadora:</strong> {shipment.carrier}{shipment.service?` — ${shipment.service}`:""}</p>}{shipment?.melhor_envio_order_id&&<p><strong>ID Melhor Envio:</strong> {shipment.melhor_envio_order_id}</p>}{shipment?.melhor_envio_order_id&&<div className="tracking-actions">{(!shipment.melhor_envio_label_status||shipment.melhor_envio_label_status==="cart")&&<button className="secondary" disabled={!!labelAction} onClick={()=>void labelFlow("buy")}>{labelAction==="buy"?"Comprando...":"Comprar etiqueta"}</button>}{shipment.melhor_envio_label_status==="purchased"&&<button className="secondary" disabled={!!labelAction} onClick={()=>void labelFlow("generate")}>{labelAction==="generate"?"Gerando...":"Gerar etiqueta"}</button>}{shipment.melhor_envio_label_status==="generated"&&!shipment.label_url&&<button className="secondary" disabled={!!labelAction} onClick={()=>void labelFlow("print")}>{labelAction==="print"?"Obtendo link...":"Obter etiqueta"}</button>}</div>}{shipment?.melhor_envio_tracking_status&&<p><strong>Status Melhor Envio:</strong> {shipment.melhor_envio_tracking_status}</p>}{shipment?.tracking_url&&<a href={shipment.tracking_url} target="_blank" rel="noreferrer">Abrir rastreio</a>}{shipment?.label_url&&<a href={shipment.label_url} target="_blank" rel="noreferrer">Abrir etiqueta</a>}{shipment?.melhor_envio_order_id&&<button className="secondary" disabled={syncingTracking} onClick={()=>void syncTracking()}>{syncingTracking?"Sincronizando...":"Atualizar pelo Melhor Envio"}</button>}<h3>Histórico</h3>{history.map(h=><div className="history-row" key={h.id}><strong>{statusLabel[h.status]||h.status}</strong><small>{date(h.created_at)}</small></div>)}</aside></div>}
