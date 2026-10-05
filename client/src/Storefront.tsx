@@ -326,6 +326,8 @@ export default function Storefront() {
     if (payment.error || payment.data?.error) {
       const message = await getFunctionErrorMessage(payment.error, payment.data, "Verifique a configuração do Mercado Pago no Supabase.");
       toast.error("Pedido criado, mas o pagamento não foi gerado", { description: message });
+    } else {
+      toast.success("Pedido criado", { description: "Você já pode acompanhar o pedido e tentar o pagamento novamente." });
     }
     window.history.pushState({}, "", "/loja/pedido");
     setView("success");
