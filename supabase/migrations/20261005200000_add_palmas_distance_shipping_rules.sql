@@ -3,5 +3,5 @@ alter table public.storefront_settings
     {"min_km":0,"max_km":5,"price":7},
     {"min_km":5,"max_km":10,"price":10},
     {"min_km":10,"max_km":20,"price":15},
-    {"min_km":20,"max_km":null,"price":20}
+    
   ]'::jsonb;
