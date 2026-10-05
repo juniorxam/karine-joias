@@ -11,6 +11,20 @@ const storeWhatsApp = (import.meta.env.VITE_STORE_WHATSAPP as string | undefined
 const storeInstagram = (import.meta.env.VITE_STORE_INSTAGRAM as string | undefined)?.trim();
 const logoSrc = "/logo-violetta.jpeg";
 
+async function getFunctionErrorMessage(error: unknown, data?: unknown, fallback = "Não foi possível concluir a operação.") {
+  if (data && typeof data === "object" && "error" in data && typeof data.error === "string") return data.error;
+  const context = error && typeof error === "object" && "context" in error ? error.context : null;
+  if (context && typeof context === "object" && "clone" in context && typeof context.clone === "function") {
+    try {
+      const body = await context.clone().json() as { error?: string; message?: string };
+      if (body?.error) return body.error;
+      if (body?.message) return body.message;
+    } catch { /* A resposta pode não ser JSON. */ }
+  }
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
+  return fallback;
+}
+
 type CartItem = CatalogProduct & { quantity: number };
 type Customer = { name: string; email: string; phone: string; recipient_code: string };
 type ShippingOption = { id: number | string; company: string; service: string; price: number; delivery_time: number };
@@ -290,7 +304,10 @@ export default function Storefront() {
       window.location.href = payment.data.init_point || payment.data.sandbox_init_point;
       return;
     }
-    if (payment.error) toast.success("Pedido criado", { description: "O pagamento online ainda não está configurado." });
+    if (payment.error || payment.data?.error) {
+      const message = await getFunctionErrorMessage(payment.error, payment.data, "Verifique a configuração do Mercado Pago no Supabase.");
+      toast.error("Pedido criado, mas o pagamento não foi gerado", { description: message });
+    }
     window.history.pushState({}, "", "/loja/pedido");
     setView("success");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -327,7 +344,10 @@ export default function Storefront() {
       const payment = await supabase.functions.invoke("create-payment", { body: { order_number: order.order_number, email } });
       setPaymentLoading(false);
       if (payment.data?.init_point || payment.data?.sandbox_init_point) window.location.href = payment.data.init_point || payment.data.sandbox_init_point;
-      else toast.error("Não foi possível gerar o pagamento", { description: payment.error?.message || "Verifique a configuração do Mercado Pago." });
+      else {
+        const message = await getFunctionErrorMessage(payment.error, payment.data, "Verifique a configuração do Mercado Pago no Supabase.");
+        toast.error("Não foi possível gerar o pagamento", { description: message });
+      }
     }} paymentLoading={paymentLoading} trackingLoading={trackingLoading} />;
   }
 
