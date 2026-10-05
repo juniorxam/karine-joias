@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateActio
 import { toast } from "sonner";
 import { ArrowRight, ArrowLeft, Check, Gem, Heart, Instagram, Menu, Search, ShoppingBag, Sparkles, X, User, Truck, Tag, ShieldCheck, Star, MessageCircle } from "lucide-react";
 import { formatMoney, type CatalogProduct } from "./lib/catalog";
-type ShippingDistanceRule = { min_km:number; max_km:number|null; price:number };\ntype StorefrontSettings = { hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string; shipping_palmas_enabled:boolean; shipping_palmas_pickup_enabled:boolean; shipping_origin_postal_code:string; shipping_palmas_distance_rules:ShippingDistanceRule[] };
+type ShippingDistanceRule = { min_km:number; max_km:number|null; price:number };
+type StorefrontSettings = { hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string; shipping_palmas_enabled:boolean; shipping_palmas_pickup_enabled:boolean; shipping_origin_postal_code:string; shipping_palmas_distance_rules:ShippingDistanceRule[] };
 import { loadPublicCatalog } from "./lib/publicCatalog";
 import { supabase } from "./lib/supabase";
 
@@ -565,7 +566,10 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   const [couponCode, setCouponCode] = useState(draft.couponCode);
   const [couponBusy, setCouponBusy] = useState(false);
   const [couponError, setCouponError] = useState("");
-  const [couponDiscount, setCouponDiscount] = useState(0);\n  const [distanceKmValue, setDistanceKmValue] = useState<number|null>(null);\n  const [distanceLoading, setDistanceLoading] = useState(false);\n  const [distanceError, setDistanceError] = useState("");
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [distanceKmValue, setDistanceKmValue] = useState<number|null>(null);
+  const [distanceLoading, setDistanceLoading] = useState(false);
+  const [distanceError, setDistanceError] = useState("");
   useEffect(() => { onDraftChange(v => ({ ...v, customer, shipping, couponCode })); }, [customer, shipping, couponCode, onDraftChange]);
   const cartSignature = cart.map(item => item.id + ":" + item.quantity).sort().join("|");
   useEffect(() => { setCouponDiscount(0); setCouponError(""); }, [cartSignature]);
