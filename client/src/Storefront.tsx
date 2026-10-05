@@ -504,6 +504,7 @@ function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false
       <h3>{product.name}</h3>
       <div className="store-product-bottom">
         <strong>{formatMoney(product.price)}</strong>
+        {Number(product.stock ?? 0) > 0 && Number(product.stock ?? 0) <= 3 && <small className="product-low-stock">Últimas unidades</small>}
         <div className="product-actions" onClick={event => event.stopPropagation()}>
           <button className="product-interest" onClick={() => onAsk(product)} aria-label={`Tenho interesse em ${product.name} pelo WhatsApp`}><MessageCircle size={15} /><span>WhatsApp</span></button>
           <button className="product-add-cart" onClick={() => onAdd(product)} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Adicionar ao carrinho" : "Esgotado"}</button>
@@ -526,7 +527,7 @@ function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNow, onCh
       </div>
       <div className="product-detail-copy">
         <p className="store-kicker">{product.category}</p><p className="product-material">{product.material}</p><h1>{product.name}</h1>
-        <strong className="product-detail-price">{formatMoney(product.price)}</strong><span className="product-detail-payment-note"><ShieldCheck size={14}/> Pagamento seguro pelo Mercado Pago</span><span className={available ? "product-stock-note" : "product-stock-note sold-out"}>{available ? (Number(product.stock) <= 3 ? "Últimas unidades disponíveis" : "Disponível para envio") : "Produto temporariamente esgotado"}</span>
+        <strong className="product-detail-price">{formatMoney(product.price)}</strong><span className="product-installment-note">Parcelamento e opções de pagamento disponíveis no Mercado Pago</span><span className="product-detail-payment-note"><ShieldCheck size={14}/> Pagamento seguro pelo Mercado Pago</span><span className={available ? "product-stock-note" : "product-stock-note sold-out"}>{available ? (Number(product.stock) <= 3 ? "Últimas unidades disponíveis" : "Disponível para envio") : "Produto temporariamente esgotado"}</span>
         <p className="product-detail-description">{product.description || "Uma peça escolhida para trazer delicadeza, presença e brilho aos seus momentos."}</p>
         <div className="product-detail-meta">
           <div><Gem size={17}/><span><b>Material</b><small>{product.material}</small></span></div>
