@@ -288,6 +288,10 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
   const paidVisible=visible.filter(x=>["PAID","APPROVED"].includes(String(x.payment_status||"").toUpperCase())).reduce((sum,x)=>sum+Number(x.total_amount||0),0);
   const pendingVisible=visible.filter(x=>["PENDING","IN_PROCESS"].includes(String(x.payment_status||"").toUpperCase())).reduce((sum,x)=>sum+Number(x.total_amount||0),0);
   const openVisible=visible.filter(x=>!["DELIVERED","CANCELLED","REFUNDED"].includes(x.status)).length;
+  const attentionVisible=visible.filter(x=>
+    ["PENDING_PAYMENT","PAID","PROCESSING","READY_TO_SHIP"].includes(x.status) ||
+    ["PENDING","IN_PROCESS"].includes(String(x.payment_status||"").toUpperCase())
+  ).length;
   const sortedVisible=[...visible].sort((a,b)=>{
     if(sort==="MAIOR_VALOR") return Number(b.total_amount||0)-Number(a.total_amount||0);
     if(sort==="MENOR_VALOR") return Number(a.total_amount||0)-Number(b.total_amount||0);
@@ -300,7 +304,7 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
   return <><div className="page-head"><div><p className="eyebrow">E-COMMERCE</p><h2>Pedidos online</h2><p>Acompanhe pagamentos, preparação e entrega dos pedidos da loja.</p></div><div style={{display:"flex",gap:8,alignItems:"center"}}><button className="secondary" onClick={()=>void runProductionHealthcheck()} disabled={healthLoading}><ShieldCheck size={14}/> {healthLoading?"Diagnosticando...":"Diagnóstico de produção"}</button><button className="secondary" onClick={()=>void load()}><RefreshCw size={14}/> Atualizar</button></div></div>
     {health&&<section style={{margin:"0 0 18px",padding:16,border:"1px solid rgba(0,0,0,.1)",borderRadius:14,background:"rgba(255,255,255,.7)"}}><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",marginBottom:10}}><strong>{health.ok?"Produção sem falhas críticas":"Produção com pendências"}</strong><small>{new Date(health.checked_at).toLocaleString("pt-BR")}</small></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8}}>{(health.checks||[]).map((check)=><div key={check.name} style={{padding:"10px 12px",borderRadius:10,border:"1px solid rgba(0,0,0,.08)"}}><div style={{fontWeight:700}}>{check.ok?"✓":"!"} {check.name}</div><small>{check.detail||check.message||"Verificado"}</small></div>)}</div></section>}
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:10,marginBottom:14}}>
-      <div className="stat"><small>Pedidos filtrados</small><strong>{visible.length}</strong><span>{openVisible} em andamento</span></div>
+      <div className="stat"><small>Pedidos filtrados</small><strong>{visible.length}</strong><span>{openVisible} em andamento · {attentionVisible} com atenção</span></div>
       <div className="stat"><small>Faturamento filtrado</small><strong>{money(totalVisible)}</strong><span>ticket médio {visible.length?money(totalVisible/visible.length):money(0)}</span></div>
       <div className="stat"><small>Pagamentos confirmados</small><strong>{money(paidVisible)}</strong><span>{visible.filter(x=>["PAID","APPROVED"].includes(String(x.payment_status||"").toUpperCase())).length} pedidos</span></div>
       <div className="stat"><small>Pagamentos pendentes</small><strong>{money(pendingVisible)}</strong><span>{visible.filter(x=>["PENDING","IN_PROCESS"].includes(String(x.payment_status||"").toUpperCase())).length} pedidos</span></div>
