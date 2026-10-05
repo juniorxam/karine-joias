@@ -707,7 +707,7 @@ function OrderSuccess({ order, onStore, onPay, onTrack, paymentLoading, tracking
     <div className="success-icon">{terminal ? <X size={30}/> : <Check size={30}/>}</div>
     <p className="store-kicker">ACOMPANHAMENTO DO PEDIDO</p>
     <h1>Pedido {order.order_number}</h1>
-    <button type="button" className="shipping-quote-button" onClick={copyOrder}>Copiar número do pedido</button>
+    <div className="success-order-actions"><button type="button" className="shipping-quote-button" onClick={copyOrder}>Copiar número do pedido</button><button type="button" className="shipping-quote-button" onClick={onTrack} disabled={trackingLoading}>{trackingLoading ? "Atualizando..." : "Atualizar agora"}</button></div>
     <p>{terminal ? (statusLabels[order.status || ""] || "Pedido encerrado.") : (paymentLabels[order.payment_status || ""] || "Pedido recebido. Acompanhe a atualização abaixo.")}</p>
     <div className="success-total">Total do pedido <strong>{formatMoney(Number(order.total_amount))}</strong></div>
     <div className="order-current-status"><span>Status do pedido</span><strong>{statusLabels[order.status || ""] || order.status || "Recebido"}</strong><small>{paymentLabels[order.payment_status || ""] || "Pagamento em processamento"}</small></div>
@@ -721,7 +721,7 @@ function OrderSuccess({ order, onStore, onPay, onTrack, paymentLoading, tracking
       {order.shipment.tracking_url && <a className="store-primary-cta" href={order.shipment.tracking_url} target="_blank" rel="noreferrer">Acompanhar entrega <ArrowRight size={16}/></a>}
     </div>}
     {![ "PAID", "APPROVED" ].includes(String(order.payment_status || "").toUpperCase()) && order.status !== "CANCELLED" && order.status !== "REFUNDED" && <button className="checkout-submit" onClick={onPay} disabled={paymentLoading}>{paymentLoading ? "Gerando pagamento..." : "Continuar para pagamento"}</button>}
-    <button className="shipping-quote-button" onClick={onTrack} disabled={trackingLoading}>{trackingLoading ? "Atualizando..." : "Atualizar status do pedido"}</button>
+    <p className="order-refresh-hint">Você pode atualizar o status sempre que quiser para conferir as novidades do pedido.</p>
     <button className="store-primary-cta" onClick={onStore}>Voltar para a loja <ArrowRight size={16}/></button>
   </main></div>;
 }
