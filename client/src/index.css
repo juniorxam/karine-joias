@@ -342,3 +342,16 @@
  .product-interest{min-height:40px}
 }
 
+
+
+/* Violetta image assets - preserve original proportions */
+.store-logo-image{width:48px;height:48px;display:block;flex:0 0 48px;object-fit:contain;object-position:center;border-radius:50%;}
+.footer-logo-image{width:52px;height:52px;display:block;flex:0 0 52px;object-fit:contain;object-position:center;border-radius:50%;}
+.store-logo{min-width:0;}
+.store-logo-image + span{min-width:0;}
+.store-cart-thumb{background-repeat:no-repeat;background-position:center;background-size:cover;overflow:hidden;}
+.product-detail-image{background-repeat:no-repeat;background-size:cover;background-position:center;overflow:hidden;}
+@media(max-width:700px){
+ .store-logo-image{width:42px;height:42px;flex-basis:42px;}
+ .footer-logo-image{width:46px;height:46px;flex-basis:46px;}
+}
