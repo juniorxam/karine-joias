@@ -138,6 +138,7 @@ Deno.serve(async (req) => {
 
       if (pickupSelected) {
         if (storeSettings?.shipping_palmas_pickup_enabled !== true) throw new Error("A retirada no local está desativada.");
+        if (city.toLowerCase() !== "palmas" || state !== "TO") throw new Error("A retirada no local está disponível somente em Palmas-TO.");
         normalizedShippingOption = { id: "violetta-pickup", company: "Violetta", service: "Retirada no local", price: 0, delivery_time: 0 };
       } else if (storeSettings?.shipping_palmas_enabled) {
           if (requestedService === "Frete a combinar") throw new Error("O frete de Palmas está configurado para cálculo automático.");
