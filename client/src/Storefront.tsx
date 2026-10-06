@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { ArrowRight, ArrowLeft, Check, Gem, Heart, Instagram, Menu, Search, ShoppingBag, Sparkles, X, User, Truck, Tag, ShieldCheck, Star, MessageCircle } from "lucide-react";
 import { formatMoney, type CatalogProduct } from "./lib/catalog";
 type ShippingDistanceRule = { min_km:number; max_km:number|null; price:number };
+type ProductReview = { id:string; product_id:number; rating:number; comment:string; display_name:string; created_at:string };
 type StorefrontSettings = { hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string; shipping_palmas_enabled:boolean; shipping_palmas_pickup_enabled:boolean; shipping_origin_postal_code:string; shipping_palmas_distance_rules:ShippingDistanceRule[] };
 import { loadPublicCatalog } from "./lib/publicCatalog";
 import { supabase } from "./lib/supabase";
@@ -99,7 +100,7 @@ export default function Storefront() {
   const [view, setView] = useState<"store" | "checkout" | "success" | "product">(
     window.location.pathname.includes("/checkout") ? "checkout" : window.location.pathname.includes("/pedido") ? "success" : window.location.pathname.includes("/produto/") ? "product" : "store"
   );
-  const [order, setOrder] = useState<{ order_number: string; total_amount: number; payment_status?: string; payment_url?: string; status?: string; shipment?: { carrier?: string | null; service?: string | null; tracking_code?: string | null; tracking_url?: string | null; shipping_status?: string | null } | null } | null>(
+  const [order, setOrder] = useState<{ order_number: string; total_amount: number; payment_status?: string; payment_url?: string; status?: string; shipment?: { carrier?: string | null; service?: string | null; tracking_code?: string | null; tracking_url?: string | null; shipping_status?: string | null } | null; items?: Array<{ id:string; product_id:number; product_name:string; quantity:number; unit_price:number; total_price:number }>; reviews?: Array<{ order_item_id:string; status:string }> } | null>(
     returnedOrder ? { order_number: returnedOrder, total_amount: 0, payment_status: returnParams.get("status") || "success" } : null
   );
   const [paymentLoading, setPaymentLoading] = useState(false);
@@ -200,6 +201,8 @@ export default function Storefront() {
           payment_status: data.order.payment_status,
           status: data.order.status,
           shipment: data.shipment || null,
+          items: data.items || [],
+          reviews: data.reviews || [],
         });      }
     });
   }, [view, returnedOrder]);
@@ -303,6 +306,17 @@ export default function Storefront() {
     setView("store");
   };
 
+  const submitReview = async (orderItemId: string, rating: number, comment: string) => {
+    if (!supabase || !order?.order_number) throw new Error("Pedido não disponível.");
+    const token = localStorage.getItem("kj-last-order-token") || "";
+    if (!token) throw new Error("Token de acompanhamento não encontrado.");
+    const { data, error } = await supabase.functions.invoke("submit-product-review", {
+      body: { order_number: order.order_number, token, order_item_id: orderItemId, rating, comment },
+    });
+    if (error || data?.error) throw new Error(await getFunctionErrorMessage(error, data, "Não foi possível enviar a avaliação."));
+    setOrder(current => current ? { ...current, reviews: [...(current.reviews || []).filter((review:any) => review.order_item_id !== orderItemId), { order_item_id: orderItemId, status: data.review?.status || "PENDING" }] } : current);
+  };
+
   const finishOrder = async (customer: Customer, shipping: Shipping, couponCode = "") => {
     if (!supabase) {
       toast.error("A loja ainda não está conectada ao Supabase.");
@@ -359,7 +373,7 @@ export default function Storefront() {
   }
 
   if (view === "success" && order) {
-    return <OrderSuccess order={order} onStore={backToStore} onTrack={async () => {
+    return <OrderSuccess order={order} onStore={backToStore onTrack={async () => {
       if (!supabase || !order.order_number) return;
       const token = localStorage.getItem("kj-last-order-token") || "";
       if (!token) return toast.error("Token de acompanhamento não encontrado", { description: "Este pedido só pode ser consultado pelo link recebido após a compra." });
@@ -367,7 +381,7 @@ export default function Storefront() {
       const { data, error } = await supabase.functions.invoke("order-status", { body: { order_number: order.order_number, token } });
       setTrackingLoading(false);
       if (error || !data?.order) return toast.error("Não foi possível consultar o pedido", { description: error?.message || data?.error || "Tente novamente." });
-      setOrder({ ...order, ...data.order, shipment: data.shipment || null });
+      setOrder({ ...order, ...data.order, shipment: data.shipment || null, items: data.items || [], reviews: data.reviews || [] });
     }} onPay={async () => {
       if (!supabase || !order.order_number) return;
       setPaymentLoading(true);
@@ -384,7 +398,7 @@ export default function Storefront() {
         const message = await getFunctionErrorMessage(payment.error, payment.data, "Verifique a configuração do Mercado Pago no Supabase.");
         toast.error("Não foi possível gerar o pagamento", { description: message });
       }
-    }} paymentLoading={paymentLoading} trackingLoading={trackingLoading} />;
+    }} onReview={submitReview} paymentLoading={paymentLoading} trackingLoading={trackingLoading} />;
   }
 
   return <div className="storefront">
