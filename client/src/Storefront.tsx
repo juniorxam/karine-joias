@@ -590,7 +590,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   const [shipping, setShipping] = useState<Shipping>(draft.shipping);
   const [busy, setBusy] = useState(false);
   const [zipLoading, setZipLoading] = useState(false);
-  const [couponCode, setCouponCode] = useState(draft.couponCode);
+  const [couponCode, setCouponCode] = useState(draft.couponCode || (() => { try { return localStorage.getItem("kj-first-purchase-coupon") || ""; } catch { return ""; } })());
   const [couponBusy, setCouponBusy] = useState(false);
   const [couponError, setCouponError] = useState("");
   const [couponDiscount, setCouponDiscount] = useState(0);
@@ -656,7 +656,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     } catch (e) { setCouponDiscount(0); setCouponError(e instanceof Error ? e.message : "Cupom inválido"); toast.error("Cupom não aplicado", { description: e instanceof Error ? e.message : "Verifique o código" }); }
     finally { setCouponBusy(false); }
   };
-  const submit = async (event: React.FormEvent) => {
+  useEffect(() => { if (couponCode) void applyCoupon(); }, []);\n  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!cart.length) return toast.error("Seu carrinho está vazio");
     if (!customer.name.trim()) return toast.error("Informe seu nome completo");
