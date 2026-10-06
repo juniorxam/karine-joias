@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
 
     const { data: coupon, error: couponError } = await db
       .from("coupons")
-      .select("id,code,discount_type,discount_value,min_order_amount,starts_at,expires_at,max_uses,used_count,active")
+      .select("id,code,discount_type,discount_value,min_order_amount,starts_at,expires_at,max_uses,used_count,active,gift_description")
       .eq("code", code)
       .eq("owner_id", ownerId)
       .eq("active", true)
@@ -57,9 +57,12 @@ Deno.serve(async (req) => {
     if (coupon.max_uses !== null && Number(coupon.used_count) >= Number(coupon.max_uses)) throw new Error("Cupom esgotado");
     if (subtotal < Number(coupon.min_order_amount)) throw new Error(`Pedido mínimo de ${Number(coupon.min_order_amount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} para este cupom`);
 
+    const shippingAmount = Math.max(0, Number(body.shipping_amount) || 0);
     const discount = coupon.discount_type === "PERCENT"
-      ? Math.round(subtotal * Number(coupon.discount_value)) / 100
-      : Math.min(subtotal, Number(coupon.discount_value));
+      ? Math.min(subtotal, Math.round(subtotal * Number(coupon.discount_value)) / 100)
+      : coupon.discount_type === "FREIGHT"
+        ? (Number(coupon.discount_value) <= 0 ? shippingAmount : Math.min(shippingAmount, Number(coupon.discount_value)))
+        : Math.min(subtotal, Number(coupon.discount_value));
 
     return new Response(JSON.stringify({
       valid: true,
@@ -68,6 +71,7 @@ Deno.serve(async (req) => {
       discount_value: Number(coupon.discount_value),
       discount_amount: Math.round(discount * 100) / 100,
       subtotal,
+      gift_description: coupon.gift_description || null,
     }), { headers: { ...cors, "Content-Type": "application/json" } });
   } catch (e) {
     return new Response(JSON.stringify({ valid: false, error: e instanceof Error ? e.message : "Cupom inválido" }), {
