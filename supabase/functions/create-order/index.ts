@@ -158,7 +158,7 @@ Deno.serve(async (req) => {
           shippingAmount = Math.max(0, Number(rule.price) || 0);
           normalizedShippingOption = { id: "palmas-distance-" + Number(rule.min_km) + "-" + (rule.max_km ?? "plus"), company: "Violetta", service: "Entrega em Palmas · " + distance.toFixed(1) + " km", price: shippingAmount, delivery_time: 0 };
         }
-      } else {
+      else {
         if (requestedService !== "Frete a combinar") throw new Error("O cálculo automático de frete de Palmas está desativado.");
         normalizedShippingOption = { id: "palmas-combine", company: "Violetta", service: "Frete a combinar", price: 0, delivery_time: 0 };
       }
