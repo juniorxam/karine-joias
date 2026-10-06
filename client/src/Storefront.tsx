@@ -564,12 +564,23 @@ function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNow, onCh
         <p className="product-detail-note">Pagamento online processado pelo Mercado Pago. Consulte as opções de entrega no checkout.</p>
       </div>
     </main>
-    <section className="product-detail-social-proof">
-      <div className="product-detail-section-heading"><div><p className="store-kicker">EXPERIÊNCIAS VIOLETTA</p><h2>Avaliações de clientes</h2><p>As avaliações reais das nossas clientes aparecerão aqui conforme forem coletadas.</p></div></div>
-      <div className="product-review-grid"><article className="product-review-card product-review-empty"><MessageCircle size={22}/><strong>Seja a primeira a avaliar</strong><p>Depois da sua compra, compartilhe sua experiência com esta peça. Em breve, as avaliações reais ficarão disponíveis aqui.</p></article></div>
-    </section>
+    <ProductReviews productId={Number(product.id)} />
     {relatedProducts.length > 0 && <section className="product-related-section"><div className="product-detail-section-heading"><div><p className="store-kicker">VOCÊ TAMBÉM PODE GOSTAR</p><h2>Produtos relacionados</h2><p>Mais peças da categoria {product.category} para completar sua escolha.</p></div><button className="store-text-link product-related-back" onClick={onBack}>Ver toda a coleção <ArrowRight size={14} /></button></div><div className="store-product-grid product-related-grid">{relatedProducts.map(related => <ProductCard key={related.id} product={related} onAdd={onRelatedAdd} onBuyNow={onRelatedBuyNow} onAsk={onRelatedAsk} onOpen={onRelatedOpen} />)}</div></section>}
   </div>;
+}
+
+function ProductReviews({ productId }: { productId: number }) {
+  const [reviews, setReviews] = useState<ProductReview[]>([]);
+  useEffect(() => {
+    if (!supabase || !Number.isFinite(productId)) return;
+    supabase.from("product_reviews").select("id,product_id,rating,comment,display_name,created_at").eq("product_id", productId).eq("status", "PUBLISHED").order("created_at", { ascending: false }).limit(20)
+      .then(({ data }) => setReviews((data || []) as ProductReview[]));
+  }, [productId]);
+  const average = reviews.length ? reviews.reduce((sum, review) => sum + Number(review.rating), 0) / reviews.length : 0;
+  return <section className="product-detail-social-proof">
+    <div className="product-detail-section-heading"><div><p className="store-kicker">EXPERIÊNCIAS VIOLETTA</p><h2>Avaliações de clientes</h2><p>{reviews.length ? `${average.toFixed(1).replace(".", ",")} de 5 · ${reviews.length} avaliação${reviews.length === 1 ? "" : "s"} verificadas` : "Ainda não há avaliações publicadas para esta peça."}</p></div></div>
+    {reviews.length ? <div className="product-review-grid">{reviews.map(review => <article className="product-review-card" key={review.id}><div className="product-review-stars">{[1,2,3,4,5].map(star => <Star key={star} size={15} fill={star <= Number(review.rating) ? "currentColor" : "none"} />)}</div><strong>{review.display_name}</strong><p>{review.comment || "Cliente avaliou esta peça."}</p><small>Compra verificada · {new Date(review.created_at).toLocaleDateString("pt-BR")}</small></article>)}</div> : <div className="product-review-grid"><article className="product-review-card product-review-empty"><MessageCircle size={22}/><strong>Seja a primeira a avaliar</strong><p>As avaliações são liberadas somente para clientes que receberam o pedido.</p></article></div>}
+  </section>;
 }
 
 function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onChangeQty, storefrontSettings }: { cart: CartItem[]; subtotal: number; draft: { customer: Customer; shipping: Shipping; couponCode: string }; onDraftChange: Dispatch<SetStateAction<{ customer: Customer; shipping: Shipping; couponCode: string }>>; onBack: () => void; onFinish: (customer: Customer, shipping: Shipping, couponCode?: string) => Promise<void>; onChangeQty: (id: CatalogProduct["id"], delta: number) => void; storefrontSettings: StorefrontSettings | null }) {
@@ -678,41 +689,31 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     </main></div>;
 }
 
-function OrderSuccess({ order, onStore, onPay, onTrack, paymentLoading, trackingLoading }: { order: { order_number: string; total_amount: number; payment_status?: string; payment_url?: string; status?: string; shipment?: { carrier?: string | null; service?: string | null; tracking_code?: string | null; tracking_url?: string | null; shipping_status?: string | null } | null }; onStore: () => void; onPay: () => void; onTrack: () => void; paymentLoading: boolean; trackingLoading: boolean }) {
-  const steps = [
-    ["PENDING_PAYMENT", "Pedido recebido"],
-    ["PAID", "Pagamento confirmado"],
-    ["PROCESSING", "Preparando pedido"],
-    ["READY_TO_SHIP", "Pronto para envio"],
-    ["SHIPPED", "Pedido enviado"],
-    ["DELIVERED", "Entregue"],
-  ] as const;
+function OrderSuccess({ order, onStore, onPay, onTrack, onReview, paymentLoading, trackingLoading }: { order: { order_number: string; total_amount: number; payment_status?: string; status?: string; shipment?: { carrier?: string | null; service?: string | null; tracking_code?: string | null; tracking_url?: string | null; shipping_status?: string | null } | null; items?: Array<{ id:string; product_id:number; product_name:string; quantity:number; unit_price:number; total_price:number }>; reviews?: Array<{ order_item_id:string; status:string }> }; onStore: () => void; onPay: () => void; onTrack: () => void; onReview: (orderItemId: string, rating: number, comment: string) => Promise<void>; paymentLoading: boolean; trackingLoading: boolean }) {
+  const steps = [["PENDING_PAYMENT","Pedido recebido"],["PAID","Pagamento confirmado"],["PROCESSING","Preparando pedido"],["READY_TO_SHIP","Pronto para envio"],["SHIPPED","Pedido enviado"],["DELIVERED","Entregue"]] as const;
   const terminal = order.status === "CANCELLED" || order.status === "REFUNDED";
   const statusIndex = terminal ? -1 : Math.max(0, steps.findIndex(([status]) => status === order.status));
-  const paymentLabels: Record<string,string> = { PAID: "Pagamento confirmado", APPROVED: "Pagamento confirmado", PENDING: "Pagamento pendente", IN_PROCESS: "Pagamento em análise", REFUNDED: "Pagamento reembolsado", FAILED: "Pagamento recusado", REJECTED: "Pagamento recusado" };
-  const statusLabels: Record<string,string> = { PENDING_PAYMENT: "Aguardando pagamento", PAID: "Pagamento confirmado", PROCESSING: "Em preparação", READY_TO_SHIP: "Pronto para envio", SHIPPED: "Enviado", DELIVERED: "Entregue", CANCELLED: "Pedido cancelado", REFUNDED: "Pedido reembolsado" };
-  const copyOrder = async () => {
-    try { await navigator.clipboard.writeText(order.order_number); toast.success("Número do pedido copiado"); } catch { toast.error("Não foi possível copiar"); }
+  const paymentLabels: Record<string,string> = { PAID:"Pagamento confirmado", APPROVED:"Pagamento confirmado", PENDING:"Pagamento pendente", IN_PROCESS:"Pagamento em análise", REFUNDED:"Pagamento reembolsado", FAILED:"Pagamento recusado", REJECTED:"Pagamento recusado" };
+  const statusLabels: Record<string,string> = { PENDING_PAYMENT:"Aguardando pagamento", PAID:"Pagamento confirmado", PROCESSING:"Em preparação", READY_TO_SHIP:"Pronto para envio", SHIPPED:"Enviado", DELIVERED:"Entregue", CANCELLED:"Pedido cancelado", REFUNDED:"Pedido reembolsado" };
+  const [reviewDrafts, setReviewDrafts] = useState<Record<string,{rating:number;comment:string;busy:boolean}>>({});
+  const copyOrder = async () => { try { await navigator.clipboard.writeText(order.order_number); toast.success("Número do pedido copiado"); } catch { toast.error("Não foi possível copiar"); } };
+  const submit = async (itemId:string) => {
+    const draft=reviewDrafts[itemId] || {rating:0,comment:"",busy:false};
+    if(!draft.rating) return toast.error("Escolha uma nota de 1 a 5 estrelas.");
+    setReviewDrafts(v=>({...v,[itemId]:{...draft,busy:true}}));
+    try { await onReview(itemId,draft.rating,draft.comment); toast.success("Avaliação enviada",{description:"Ela ficará visível após a aprovação da loja."}); setReviewDrafts(v=>({...v,[itemId]:{...draft,busy:false}})); }
+    catch(error){ setReviewDrafts(v=>({...v,[itemId]:{...draft,busy:false}})); toast.error("Não foi possível enviar",{description:error instanceof Error?error.message:"Tente novamente."}); }
   };
   return <div className="storefront success-page"><main className="success-card">
-    <div className="success-icon">{terminal ? <X size={30}/> : <Check size={30}/>}</div>
-    <p className="store-kicker">ACOMPANHAMENTO DO PEDIDO</p>
-    <h1>Pedido {order.order_number}</h1>
-    <div className="success-order-actions"><button type="button" className="shipping-quote-button" onClick={copyOrder}>Copiar número do pedido</button><button type="button" className="shipping-quote-button" onClick={onTrack} disabled={trackingLoading}>{trackingLoading ? "Atualizando..." : "Atualizar agora"}</button></div>
-    <p>{terminal ? (statusLabels[order.status || ""] || "Pedido encerrado.") : (paymentLabels[order.payment_status || ""] || "Pedido recebido. Acompanhe a atualização abaixo.")}</p>
+    <div className="success-icon">{terminal?<X size={30}/>:<Check size={30}/>}</div><p className="store-kicker">ACOMPANHAMENTO DO PEDIDO</p><h1>Pedido {order.order_number}</h1>
+    <div className="success-order-actions"><button type="button" className="shipping-quote-button" onClick={copyOrder}>Copiar número do pedido</button><button type="button" className="shipping-quote-button" onClick={onTrack} disabled={trackingLoading}>{trackingLoading?"Atualizando...":"Atualizar agora"}</button></div>
+    <p>{terminal?(statusLabels[order.status||""]||"Pedido encerrado."):(paymentLabels[order.payment_status||""]||"Pedido recebido. Acompanhe a atualização abaixo.")}</p>
     <div className="success-total">Total do pedido <strong>{formatMoney(Number(order.total_amount))}</strong></div>
-    <div className="order-current-status"><span>Status do pedido</span><strong>{statusLabels[order.status || ""] || order.status || "Recebido"}</strong><small>{paymentLabels[order.payment_status || ""] || "Pagamento em processamento"}</small></div>
-    {!terminal && <div className="order-timeline">{steps.map(([status, label], index) => <div className={index <= statusIndex ? "timeline-step done" : "timeline-step"} key={status}><span>{index < statusIndex ? "✓" : index + 1}</span><div><strong>{label}</strong><small>{index === statusIndex ? "Status atual" : index < statusIndex ? "Concluído" : "Aguardando"}</small></div></div>)}</div>}
-    {order.shipment?.tracking_code && <div className="shipping-tracking-card">
-      <p className="store-kicker">RASTREAMENTO</p>
-      <h2>{order.status === "DELIVERED" ? "Pedido entregue" : "Seu pedido está a caminho"}</h2>
-      <p><strong>{order.shipment.carrier || "Transportadora"}</strong>{order.shipment.service ? ` · ${order.shipment.service}` : ""}</p>
-      <div className="tracking-code"><span>Código de rastreio</span><strong>{order.shipment.tracking_code}</strong></div><button type="button" className="shipping-quote-button" onClick={async()=>{try{await navigator.clipboard.writeText(order.shipment?.tracking_code || "");toast.success("Código de rastreio copiado");}catch{toast.error("Não foi possível copiar");}}}>Copiar rastreio</button>
-      {order.shipment.shipping_status && <small>Status da entrega: {order.shipment.shipping_status}</small>}
-      {order.shipment.tracking_url && <a className="store-primary-cta" href={order.shipment.tracking_url} target="_blank" rel="noreferrer">Acompanhar entrega <ArrowRight size={16}/></a>}
-    </div>}
-    {![ "PAID", "APPROVED" ].includes(String(order.payment_status || "").toUpperCase()) && order.status !== "CANCELLED" && order.status !== "REFUNDED" && <button className="checkout-submit" onClick={onPay} disabled={paymentLoading}>{paymentLoading ? "Gerando pagamento..." : "Continuar para pagamento"}</button>}
-    <p className="order-refresh-hint">Você pode atualizar o status sempre que quiser para conferir as novidades do pedido.</p>
-    <button className="store-primary-cta" onClick={onStore}>Voltar para a loja <ArrowRight size={16}/></button>
+    <div className="order-current-status"><span>Status do pedido</span><strong>{statusLabels[order.status||""]||order.status||"Recebido"}</strong><small>{paymentLabels[order.payment_status||""]||"Pagamento em processamento"}</small></div>
+    {!terminal&&<div className="order-timeline">{steps.map(([status,label],index)=><div className={index<=statusIndex?"timeline-step done":"timeline-step"} key={status}><span>{index<statusIndex?"✓":index+1}</span><div><strong>{label}</strong><small>{index===statusIndex?"Status atual":index<statusIndex?"Concluído":"Aguardando"}</small></div></div>)}</div>}
+    {order.shipment?.tracking_code&&<div className="shipping-tracking-card"><p className="store-kicker">RASTREAMENTO</p><h2>{order.status==="DELIVERED"?"Pedido entregue":"Seu pedido está a caminho"}</h2><p><strong>{order.shipment.carrier||"Transportadora"}</strong>{order.shipment.service?` · ${order.shipment.service}`:""}</p><div className="tracking-code"><span>Código de rastreio</span><strong>{order.shipment.tracking_code}</strong></div><button type="button" className="shipping-quote-button" onClick={async()=>{try{await navigator.clipboard.writeText(order.shipment?.tracking_code||"");toast.success("Código de rastreio copiado");}catch{toast.error("Não foi possível copiar");}}}>Copiar rastreio</button>{order.shipment.shipping_status&&<small>Status da entrega: {order.shipment.shipping_status}</small>}{order.shipment.tracking_url&&<a className="store-primary-cta" href={order.shipment.tracking_url} target="_blank" rel="noreferrer">Acompanhar entrega <ArrowRight size={16}/></a>}</div>}
+    {order.status==="DELIVERED"&&order.items?.length&&<section className="order-review-section"><p className="store-kicker">COMPRA VERIFICADA</p><h2>Conte como foi sua experiência</h2><p>Você pode avaliar cada peça deste pedido. A avaliação só fica disponível depois da entrega.</p>{order.items.map(item=>{const existing=order.reviews?.find(review=>review.order_item_id===item.id);const draft=reviewDrafts[item.id]||{rating:0,comment:"",busy:false};return <article className="order-review-card" key={item.id}><strong>{item.product_name}</strong><span>{item.quantity} unidade{item.quantity===1?"":"s"}</span>{existing?<div className="review-submitted"><Check size={17}/>{existing.status==="PUBLISHED"?"Avaliação publicada.":"Avaliação enviada para aprovação."}</div>:<><div className="review-rating-picker">{[1,2,3,4,5].map(star=><button type="button" key={star} aria-label={`${star} estrela${star===1?"":"s"}`} onClick={()=>setReviewDrafts(v=>({...v,[item.id]:{...draft,rating:star}}))} disabled={draft.busy}><Star size={24} fill={star<=draft.rating?"currentColor":"none"}/></button>)}</div><textarea value={draft.comment} maxLength={1200} onChange={e=>setReviewDrafts(v=>({...v,[item.id]:{...draft,comment:e.target.value}}))} placeholder="Conte o que você achou da peça (opcional)" disabled={draft.busy}/><div className="review-form-footer"><small>{draft.comment.length}/1200</small><button type="button" className="store-primary-cta" onClick={()=>submit(item.id)} disabled={draft.busy}>{draft.busy?"Enviando...":"Enviar avaliação"}</button></div></>}</article>})}</section>}
+    {!["PAID","APPROVED"].includes(String(order.payment_status||"").toUpperCase())&&order.status!=="CANCELLED"&&order.status!=="REFUNDED"&&<button className="checkout-submit" onClick={onPay} disabled={paymentLoading}>{paymentLoading?"Gerando pagamento...":"Continuar para pagamento"}</button>}
+    <p className="order-refresh-hint">Você pode atualizar o status sempre que quiser para conferir as novidades do pedido.</p><button className="store-primary-cta" onClick={onStore}>Voltar para a loja <ArrowRight size={16}/></button>
   </main></div>;
 }
