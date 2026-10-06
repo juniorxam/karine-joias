@@ -613,7 +613,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   ] : [{id:"outside-palmas",company:"Violetta",service:"Frete a combinar",price:0,delivery_time:0}]) : [];
   const shippingOption: ShippingOption | null = shippingOptions.find(option => String(option.id) === String(shipping.shipping_option?.id)) || shippingOptions[0] || null;
   const shippingPrice=shippingOption?.price||0;
-  const beyondDeliveryRadius=isPalmas&&distanceKmValue!==null&&distanceKmValue>=20;
+  const beyondDeliveryRadius=isPalmas&&distanceKmValue!==null&&distanceKmValue>20;
   const orderTotal=Math.max(0,subtotal-couponDiscount+shippingPrice);
   const pickupSelected = shippingOption?.service === "Retirada no local";
   const applyCoupon = async () => {
