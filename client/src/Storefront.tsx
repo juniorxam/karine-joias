@@ -375,7 +375,7 @@ export default function Storefront() {
   }
 
   if (view === "success" && order) {
-    return <OrderSuccess order={order} onStore={backToStore onTrack={async () => {
+    return <OrderSuccess order={order} onStore={backToStore} onTrack={async () => {
       if (!supabase || !order.order_number) return;
       const token = localStorage.getItem("kj-last-order-token") || "";
       if (!token) return toast.error("Token de acompanhamento não encontrado", { description: "Este pedido só pode ser consultado pelo link recebido após a compra." });
@@ -656,7 +656,8 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     } catch (e) { setCouponDiscount(0); setCouponApplied(false); setCouponGiftDescription(""); setCouponError(e instanceof Error ? e.message : "Cupom inválido"); toast.error("Cupom não aplicado", { description: e instanceof Error ? e.message : "Verifique o código" }); }
     finally { setCouponBusy(false); }
   };
-  useEffect(() => { if (couponCode) void applyCoupon(); }, [shippingPrice]);\n  const submit = async (event: React.FormEvent) => {
+  useEffect(() => { if (couponCode) void applyCoupon(); }, [shippingPrice]);
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!cart.length) return toast.error("Seu carrinho está vazio");
     if (!customer.name.trim()) return toast.error("Informe seu nome completo");
