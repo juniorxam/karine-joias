@@ -81,6 +81,8 @@ function readCheckoutDraft(): { customer: Customer; shipping: Shipping; couponCo
   } catch { return empty; }
 }
 
+
+function FirstPurchasePopup(){const [open,setOpen]=useState(false);const[name,setName]=useState("");const[phone,setPhone]=useState("");const[done,setDone]=useState(false);useEffect(()=>{if(localStorage.getItem("violetta-first-purchase-popup"))return;const t=window.setTimeout(()=>setOpen(true),4500);return()=>window.clearTimeout(t)},[]);if(!open)return null;const validName=name.trim().length>=2;const validPhone=normalizePhone(phone).length>=10;const close=()=>{localStorage.setItem("violetta-first-purchase-popup","closed");setOpen(false)};const unlock=()=>{if(!validName||!validPhone){toast.error("Preencha seu nome e WhatsApp para desbloquear o presente.");return}localStorage.setItem("violetta-first-purchase-popup","unlocked");localStorage.setItem("violetta-first-purchase-lead",JSON.stringify({name:name.trim(),phone:normalizePhone(phone),created_at:new Date().toISOString()}));setDone(true)};return <div className="first-purchase-overlay" role="dialog" aria-modal="true"><div className="first-purchase-popup"><button className="first-purchase-close" type="button" onClick={close} aria-label="Fechar"><X size={18}/></button><div className="first-purchase-icon">🎁</div>{!done?<><p className="first-purchase-kicker">UM MIMO ESPECIAL PARA VOCÊ</p><h2>Ganhe um presente exclusivo na sua primeira compra</h2><p className="first-purchase-subtitle">Cadastre seu contato para desbloquear seu presente.</p><label>Digite seu nome*<input value={name} onChange={e=>setName(e.target.value)} placeholder="Seu nome" autoComplete="name"/>{name&&!validName&&<small>Digite seu nome válido.</small>}</label><label>Agora, seu WhatsApp*<input value={formatPhone(phone)} onChange={e=>setPhone(e.target.value)} placeholder="(63) 99999-9999" inputMode="tel" autoComplete="tel"/>{phone&&!validPhone&&<small>Digite um WhatsApp válido.</small>}</label><button className="first-purchase-submit" type="button" onClick={unlock}>DESBLOQUEAR PRESENTE <ArrowRight size={16}/></button><small className="first-purchase-privacy">Seus dados serão usados para contato sobre seu presente e novidades da Violetta.</small></>:<><p className="first-purchase-kicker">PRESENTE DESBLOQUEADO ✨</p><h2>Seu mimo está reservado!</h2><p className="first-purchase-subtitle">Obrigada, {name.trim().split(/\s+/)[0]||"querida"}. Em breve você poderá usar seu presente na sua primeira compra.</p><button className="first-purchase-submit" type="button" onClick={close}>CONTINUAR COMPRANDO <ArrowRight size={16}/></button></>}</div></div>}
 export default function Storefront() {
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [query, setQuery] = useState("");
@@ -401,7 +403,7 @@ export default function Storefront() {
     }} onReview={submitReview} paymentLoading={paymentLoading} trackingLoading={trackingLoading} />;
   }
 
-  return <div className="storefront">
+  return <div className="storefront"><FirstPurchasePopup/>
     <header className="store-header">
       <a className="store-logo" href="/loja" onClick={(e) => { e.preventDefault(); backToStore(); }}>
         <img className="store-logo-image" src={logoSrc} alt="Violetta Prata 925 e Semijoias" />
