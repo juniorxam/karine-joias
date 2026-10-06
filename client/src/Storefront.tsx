@@ -593,13 +593,13 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   const [couponCode, setCouponCode] = useState(draft.couponCode || (() => { try { return localStorage.getItem("kj-first-purchase-coupon") || ""; } catch { return ""; } })());
   const [couponBusy, setCouponBusy] = useState(false);
   const [couponError, setCouponError] = useState("");
-  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [couponDiscount, setCouponDiscount] = useState(0); const [couponApplied, setCouponApplied] = useState(false); const [couponGiftDescription, setCouponGiftDescription] = useState("");
   const [distanceKmValue, setDistanceKmValue] = useState<number|null>(null);
   const [distanceLoading, setDistanceLoading] = useState(false);
   const [distanceError, setDistanceError] = useState("");
   useEffect(() => { onDraftChange(v => ({ ...v, customer, shipping, couponCode })); }, [customer, shipping, couponCode, onDraftChange]);
   const cartSignature = cart.map(item => item.id + ":" + item.quantity).sort().join("|");
-  useEffect(() => { setCouponDiscount(0); setCouponError(""); }, [cartSignature]);
+  useEffect(() => { setCouponDiscount(0); setCouponError(""); setCouponApplied(false); setCouponGiftDescription(""); }, [cartSignature]);
   const updateCustomer = (field: keyof Customer, value: string) => setCustomer(v => ({ ...v, [field]: value }));
   const updateShipping = (field: keyof Shipping, value: string) => setShipping(v => ({ ...v, [field]: value }));
   const fetchZip = async (value: string) => {
@@ -651,9 +651,9 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     try {
       const { data, error } = await supabase.functions.invoke("validate-coupon", { body: { code, items: cart.map(item => ({ product_id: Number(item.id), quantity: item.quantity })), shipping_amount: shippingPrice } });
       if (error || !data?.valid) throw new Error(data?.error || error?.message || "Cupom inválido");
-      setCouponDiscount(Number(data.discount_amount) || 0); setCouponCode(data.code || code);
-      toast.success("Cupom aplicado", { description: "Desconto de " + formatMoney(Number(data.discount_amount) || 0) });
-    } catch (e) { setCouponDiscount(0); setCouponError(e instanceof Error ? e.message : "Cupom inválido"); toast.error("Cupom não aplicado", { description: e instanceof Error ? e.message : "Verifique o código" }); }
+      setCouponDiscount(Number(data.discount_amount) || 0); setCouponCode(data.code || code); setCouponApplied(true); setCouponGiftDescription(data.gift_description || "");
+      toast.success("Cupom aplicado", { description: data.discount_type === "GIFT" ? (data.gift_description || "Brinde de primeira compra") : data.discount_type === "FREIGHT" ? "Frete grátis" : "Desconto de " + formatMoney(Number(data.discount_amount) || 0) });
+    } catch (e) { setCouponDiscount(0); setCouponApplied(false); setCouponGiftDescription(""); setCouponError(e instanceof Error ? e.message : "Cupom inválido"); toast.error("Cupom não aplicado", { description: e instanceof Error ? e.message : "Verifique o código" }); }
     finally { setCouponBusy(false); }
   };
   useEffect(() => { if (couponCode) void applyCoupon(); }, [shippingPrice]);\n  const submit = async (event: React.FormEvent) => {
@@ -670,7 +670,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     if (!shipping.city.trim() || shipping.state.trim().length !== 2) return toast.error("Confira cidade e UF");
     if (!shippingOption) return toast.error("Informe sua cidade para definir a modalidade de entrega");
     setBusy(true);
-    try { await onFinish({ ...customer, name: customer.name.trim(), email: customer.email.trim().toLowerCase(), phone }, { ...shipping, postal_code: postalCode, state: shipping.state.trim().toUpperCase(), shipping_option: shippingOption }, couponDiscount > 0 ? couponCode : ""); }
+    try { await onFinish({ ...customer, name: customer.name.trim(), email: customer.email.trim().toLowerCase(), phone }, { ...shipping, postal_code: postalCode, state: shipping.state.trim().toUpperCase(), shipping_option: shippingOption }, couponApplied ? couponCode : ""); }
     finally { setBusy(false); }
   };
   return <div className="storefront checkout-page">
@@ -682,7 +682,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
         {isPalmas&&distanceLoading&&<div className="checkout-final-note"><Truck size={16}/><span>Calculando a distância para definir o frete…</span></div>}{isPalmas&&distanceError&&<div className="checkout-final-note"><Truck size={16}/><span>{distanceError}. Confira o CEP ou tente novamente.</span></div>}{beyondDeliveryRadius&&<div className="checkout-final-note"><Truck size={16}/><span>Este endereço está a {distanceKmValue.toFixed(1)} km da loja. No momento, entregamos em Palmas somente até 20 km. A retirada no local continua disponível.</span></div>}{shippingOptions.length>0&&<div className="shipping-options">{shippingOptions.map(option=><label className={"shipping-option "+(shippingOption?.id===option.id?"selected":"")} key={String(option.id)}><input type="radio" name="shipping-option" checked={shippingOption?.id===option.id} onChange={()=>setShipping(v=>({...v,shipping_option:option}))}/><span><strong>{option.company} · {option.service}</strong><small>{option.service === "Retirada no local" ? "Retire seu pedido no endereço da Violetta, sem cobrança de frete." : isPalmas && option.service !== "Frete a combinar" ? "Frete calculado pela distância entre o CEP da loja e o seu endereço." : "Para este endereço, o frete será negociado separadamente com a loja."}</small></span><b>{option.service === "Frete a combinar" ? "À parte" : option.price > 0 ? formatMoney(option.price) : "Grátis"}</b></label>)}</div>}
         {!shippingOption&&!isPalmas&&<div className="checkout-final-note"><Truck size={16}/><span>Informe cidade e UF para visualizar como o frete será tratado.</span></div>}
       </section>
-      <section className="checkout-section"><h2><Tag size={17}/> Cupom de desconto</h2><div className="checkout-grid"><label className="wide">Código do cupom<input value={couponCode} onChange={e=>{setCouponCode(e.target.value.toUpperCase());setCouponDiscount(0);setCouponError("")}} placeholder="EX.: BEMVINDO10"/></label><button type="button" className="shipping-quote-button" onClick={applyCoupon} disabled={couponBusy}>{couponBusy?"Validando...":"Aplicar cupom"}</button></div>{couponError&&<small>{couponError}</small>}{couponDiscount>0&&<small>Cupom aplicado: desconto de {formatMoney(couponDiscount)}</small>}</section>
+      <section className="checkout-section"><h2><Tag size={17}/> Cupom de desconto</h2><div className="checkout-grid"><label className="wide">Código do cupom<input value={couponCode} onChange={e=>{setCouponCode(e.target.value.toUpperCase());setCouponDiscount(0);setCouponError("")}} placeholder="EX.: BEMVINDO10"/></label><button type="button" className="shipping-quote-button" onClick={applyCoupon} disabled={couponBusy}>{couponBusy?"Validando...":"Aplicar cupom"}</button></div>{couponError&&<small>{couponError}</small>}{couponApplied&&<small>Cupom aplicado: {couponGiftDescription || (couponDiscount>0 ? "desconto de "+formatMoney(couponDiscount) : "benefício de primeira compra")}</small>}</section>
       <section className="checkout-section"><h2><ShieldCheck size={17}/> Pagamento</h2><div className="payment-placeholder"><ShoppingBag size={18}/><div><strong>Pagamento seguro pelo Mercado Pago</strong><p>Ao confirmar o pedido, você será direcionada ao Mercado Pago. O frete negociado separadamente não entra neste pagamento.</p><div className="payment-methods"><span>PIX</span><span>Cartão</span><span>Ambiente seguro</span></div></div></div></section>
       <div className="checkout-final-note"><ShieldCheck size={16}/><span>{shippingOption?.service === "Retirada no local" ? "Retirada no local sem cobrança de frete." : isPalmas&&shippingOption ? "Frete de "+formatMoney(shippingPrice)+" calculado automaticamente pela distância." : "Para entregas fora de Palmas, o frete será acertado separadamente com a loja."}</span></div>
       <button className="checkout-submit" disabled={busy||!cart.length||!shippingOption}>{busy?"Criando pedido...":"Confirmar pedido e pagar"}</button>
