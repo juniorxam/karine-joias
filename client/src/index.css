@@ -399,3 +399,25 @@
  .order-review-section h2{font-size:23px}
  .review-admin-comment{min-width:180px}
 }
+
+
+/* Violetta - identidade rosa predominante */
+.storefront{--store-ink:#3a2830;--store-muted:#7d6d75;--store-line:#f1d9e2;--store-cream:#fff8fb;--store-gold:#FFC1D5;--store-rose:#ffdce8;--store-rose-dark:#b85f7f}
+.store-header{background:rgba(255,248,251,.97);border-color:#f1d9e2}
+.store-logo-mark{background:#FFC1D5;color:#fff}.store-logo small,.footer-brand small,.store-kicker,.store-hero h1 em,.store-section-heading>a{color:#b85f7f}
+.store-nav a:after{background:#FFC1D5}.store-nav a:hover,.store-admin-link:hover{color:#b85f7f}
+.store-header-search,.store-menu-button,.store-cart-button{background:#fff8fb;border-color:#f1d9e2}.store-header-search:hover,.store-menu-button:hover,.store-cart-button:hover{border-color:#FFC1D5}
+.store-hero{background:#fff8fb}.store-hero-art{background:radial-gradient(circle at 52% 42%,#fff 0 15%,transparent 16%),linear-gradient(145deg,#fff0f5 0%,#ffdce8 52%,#FFC1D5 100%)}
+.store-primary-cta{background:#b85f7f}.store-primary-cta:hover{background:#a94f70}.store-text-link{border-color:#FFC1D5}
+.store-category-strip,.store-latest,.store-catalog,.store-gifts{border-color:#f1d9e2}.category-cards button:hover{border-color:#FFC1D5;box-shadow:0 14px 30px rgba(184,95,127,.12)}.category-cards span{color:#b85f7f}
+.store-values div{border-color:#FFC1D5}.store-values span{color:#b85f7f}
+.store-editorial{background:#fff0f5}.store-editorial-art{background:radial-gradient(circle at 50% 42%,#fff 0 8%,#ffe6ef 38%,#ffc1d5 100%)}.store-editorial-art:before,.store-editorial-art:after{border-color:rgba(184,95,127,.20)}.editorial-ring{border-color:rgba(184,95,127,.42);color:#b85f7f;background:rgba(255,255,255,.35)}.store-editorial-art>span{color:#8f6373}
+.catalog-search:focus-within{border-color:#FFC1D5;box-shadow:0 0 0 3px rgba(255,193,213,.22)}.category-list button:hover,.category-list button.selected{border-color:#FFC1D5}.category-list button.selected{box-shadow:0 0 0 1px #FFC1D5 inset;background:#fff0f5}
+.product-detail-whatsapp:hover:not(:disabled){border-color:#FFC1D5}.product-detail-benefits span{background:#fff7fa;border-color:#f1d9e2}.product-detail-benefits svg,.payment-placeholder>svg,.checkout-final-note svg{color:#b85f7f}.product-stock-note{color:#9b6077}
+.payment-methods span{border-color:#f1d9e2;background:#fff8fb}.checkout-summary,.checkout-section{border-color:#f1d9e2}.checkout-item-thumb,.store-cart-thumb{background-color:#fff0f5;color:#b85f7f}
+.store-cart-drawer-head,.store-cart-summary{border-color:#f1d9e2}.store-cart-empty svg{color:#FFC1D5}
+.product-add-cart{border-color:#FFC1D5;background:#fff0f5;color:#a34f70}.product-add-cart:hover:not(:disabled){background:#ffdce8;border-color:#b85f7f}.product-buy-now:hover:not(:disabled){background:#b85f7f;border-color:#b85f7f}
+.product-interest{color:#a34f70;border-color:#f1d9e2}.product-interest:hover:not(:disabled){border-color:#FFC1D5;background:#fff0f5}
+.product-review-grid .product-review-card{border-color:#f1d9e2;background:#fffafd}.product-review-stars,.review-admin-stars,.review-rating-picker button{color:#d66f98}.order-review-card{border-color:#f1d9e2;background:#fffafd}.order-review-card textarea:focus{border-color:#FFC1D5}
+.review-submitted{background:#fff0f5;color:#7d6470}.review-submitted svg{color:#b85f7f}.status-pill.pending{background:#ffe8f0;color:#a34f70}.small-action:hover{border-color:#FFC1D5;background:#fff0f5}
+.store-footer{background:#3a2830}
