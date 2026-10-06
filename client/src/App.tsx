@@ -124,7 +124,7 @@ function StoreSettings({ownerId}:{ownerId?:string}){
  <label>CEP de origem<input inputMode="numeric" maxLength={8} value={settings.shipping_origin_postal_code} onChange={e=>u("shipping_origin_postal_code",e.target.value.replace(/\D/g,""))}/><small>É usado como ponto de partida para calcular a distância.</small></label>
  <label className="settings-toggle"><input type="checkbox" checked={settings.shipping_palmas_pickup_enabled} onChange={e=>u("shipping_palmas_pickup_enabled",e.target.checked)}/> Permitir retirada no local</label>
  </div>
- <div style={{marginTop:20}}><div className="panel-title"><div><p className="eyebrow">FAIXAS DE DISTÂNCIA</p><h3>Valores do frete</h3><p>Exemplo: de 0 a 5 km = R$ 7, de 5 a 10 km = R$ 10. A última faixa pode ficar sem limite máximo.</p></div><button className="secondary" type="button" onClick={addRule}><Plus size={16}/> Adicionar faixa</button></div>
+ <div style={{marginTop:20}}><div className="panel-title"><div><p className="eyebrow">FAIXAS DE DISTÂNCIA</p><h3>Valores do frete</h3><p>Exemplo: de 0 a 5 km = R$ 7, de 5 a 10 km = R$ 10. A última faixa deve terminar em 20 km. Não é permitida entrega acima desse limite.</p></div><button className="secondary" type="button" onClick={addRule}><Plus size={16}/> Adicionar faixa</button></div>
  <div style={{display:"grid",gap:10}}>
  {rules.map((r:any,i:number)=><div key={i} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr auto",gap:10,alignItems:"end",padding:12,border:"1px solid rgba(0,0,0,.08)",borderRadius:12}}>
  <label>De (km)<input type="number" min="0" step=".1" value={r.min_km} onChange={e=>updateRule(i,"min_km",e.target.value)}/></label>
