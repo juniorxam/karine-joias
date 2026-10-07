@@ -65,7 +65,7 @@ function Dashboard({sales,clients,products,cash,promos,inTotal,outTotal,go,owner
    });
    return()=>{cancelled=true;};
  },[ownerId]);
- const today=new Date(); const month=String(today.getMonth()+1).padStart(2,"0"); const monthName=today.toLocaleDateString("pt-BR",{month:"long"}); const monthStart=new Date(today.getFullYear(),today.getMonth(),1).toISOString(); const max=Math.max(...Array.from({length:7},(_,i)=>sales.filter((s:Sale)=>s.date===ago(i)).reduce((a:number,s:Sale)=>a+s.amount,0)+onlineOrders.filter((o:any)=>String(o.created_at||"").slice(0,10)===ago(i)).reduce((a:number,o:any)=>a+Number(o.total_amount||0),0)),1);
+ const today=new Date(); const month=String(today.getMonth()+1).padStart(2,"0"); const monthName=today.toLocaleDateString("pt-BR",{month:"long"}); const max=Math.max(...Array.from({length:7},(_,i)=>sales.filter((s:Sale)=>s.date===ago(i)).reduce((a:number,s:Sale)=>a+s.amount,0)+onlineOrders.filter((o:any)=>String(o.created_at||"").slice(0,10)===ago(i)).reduce((a:number,o:any)=>a+Number(o.total_amount||0),0)),1);
  const onlineRevenue=onlineOrders.reduce((a:number,o:any)=>a+Number(o.total_amount||0),0);
  const monthPrefix=`${today.getFullYear()}-${month}`;
  const manualMonth=sales.filter((s:Sale)=>s.date.slice(0,7)===monthPrefix).reduce((a:number,s:Sale)=>a+s.amount,0);
