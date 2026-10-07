@@ -7,6 +7,7 @@ type ProductReview = { id:string; product_id:number; rating:number; comment:stri
 type StorefrontSettings = { hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string; shipping_palmas_enabled:boolean; shipping_palmas_pickup_enabled:boolean; shipping_origin_postal_code:string; shipping_palmas_distance_rules:ShippingDistanceRule[] };
 import { loadPublicCatalog } from "./lib/publicCatalog";
 import { supabase } from "./lib/supabase";
+import CustomerAccount from "./CustomerAccount";
 
 const categories = ["Todas", "Joias", "Semi-joias", "Acessórios"];
 const storeWhatsApp = (import.meta.env.VITE_STORE_WHATSAPP as string | undefined)?.replace(/\D/g, "");
@@ -104,8 +105,8 @@ export default function Storefront() {
   const [checkoutDraft, setCheckoutDraft] = useState(readCheckoutDraft);
   const returnParams = new URLSearchParams(window.location.search);
   const returnedOrder = returnParams.get("order");
-  const [view, setView] = useState<"store" | "checkout" | "success" | "product">(
-    window.location.pathname.includes("/checkout") ? "checkout" : window.location.pathname.includes("/pedido") ? "success" : window.location.pathname.includes("/produto/") ? "product" : "store"
+  const [view, setView] = useState<"store" | "checkout" | "success" | "product" | "account">(
+    window.location.pathname.includes("/checkout") ? "checkout" : window.location.pathname.includes("/pedido") ? "success" : window.location.pathname.includes("/produto/") ? "product" : window.location.pathname.includes("/minha-conta") ? "account" : "store"
   );
   const [order, setOrder] = useState<{ order_number: string; total_amount: number; payment_status?: string; payment_url?: string; status?: string; shipment?: { carrier?: string | null; service?: string | null; tracking_code?: string | null; tracking_url?: string | null; shipping_status?: string | null } | null; items?: Array<{ id:string; product_id:number; product_name:string; quantity:number; unit_price:number; total_price:number }>; reviews?: Array<{ order_item_id:string; status:string }> } | null>(
     returnedOrder ? { order_number: returnedOrder, total_amount: 0, payment_status: returnParams.get("status") || "success" } : null
@@ -123,7 +124,7 @@ export default function Storefront() {
   useEffect(() => {
     const syncViewWithUrl = () => {
       const pathname = window.location.pathname;
-      setView(pathname.includes("/checkout") ? "checkout" : pathname.includes("/pedido") ? "success" : pathname.includes("/produto/") ? "product" : "store");
+      setView(pathname.includes("/checkout") ? "checkout" : pathname.includes("/pedido") ? "success" : pathname.includes("/produto/") ? "product" : pathname.includes("/minha-conta") ? "account" : "store");
       window.scrollTo({ top: 0, behavior: "smooth" });
     };
     window.addEventListener("popstate", syncViewWithUrl);
@@ -344,6 +345,14 @@ export default function Storefront() {
       return;
     }
     setOrder(data);
+    const { data: authData } = await supabase.auth.getSession();
+    if (authData.session?.user?.id && data?.id) {
+      const { error: claimError } = await supabase.from("orders")
+        .update({ customer_user_id: authData.session.user.id })
+        .eq("id", data.id)
+        .is("customer_user_id", null);
+      if (claimError) console.warn("Não foi possível vincular o pedido à conta do cliente", claimError);
+    }
     localStorage.setItem("kj-last-order-email", customer.email.trim().toLowerCase());
     localStorage.setItem("kj-last-order-number", data.order_number);
     if (data.tracking_token) localStorage.setItem("kj-last-order-token", data.tracking_token);
@@ -365,6 +374,10 @@ export default function Storefront() {
     setView("success");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  if (view === "account") {
+    return <CustomerAccount onBack={backToStore} />;
+  }
 
   if (view === "product") {
     if (!selectedProduct) return <div className="storefront success-page"><main className="success-card"><p className="store-kicker">PEÇA NÃO ENCONTRADA</p><h1>Essa peça não está disponível.</h1><button className="store-primary-cta" onClick={backToStore}>Voltar para a loja <ArrowRight size={16}/></button></main></div>;
@@ -421,6 +434,7 @@ export default function Storefront() {
         <a href="#presentes" onClick={() => setMenuOpen(false)}>Presentes</a>
         <a href="#contato" onClick={() => setMenuOpen(false)}>Atendimento</a>
       </nav>      <div className="store-header-actions">
+        <a className="store-admin-link" href="/minha-conta" onClick={(e) => { e.preventDefault(); window.history.pushState({}, "", "/minha-conta"); setView("account"); window.scrollTo({top:0,behavior:"smooth"}); }}>Minha conta</a>
         <a className="store-admin-link" href="/gestao">Acesso da proprietária</a>
         <button className="store-header-search" onClick={() => document.getElementById("colecao")?.scrollIntoView({behavior:"smooth"})} aria-label="Buscar peças"><Search size={17}/></button>
         <button className="store-cart-button" onClick={openCart} aria-label={cartCount ? `Abrir carrinho com ${cartCount} ${cartCount === 1 ? "item" : "itens"}` : "Abrir carrinho"}><ShoppingBag size={18}/>{cartCount > 0 && <b>{cartCount > 99 ? "99+" : cartCount}</b>}</button>
