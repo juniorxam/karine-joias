@@ -5,7 +5,7 @@ Aplicação de gestão e loja virtual da Violetta Joias e Semijoias.
 ## Arquitetura
 
 - **Frontend:** React + TypeScript + Vite.
-- **Administração:** `/gestao`, com autenticação Supabase e dados sincronizados no PostgreSQL. A raiz `/` continua apontando para o painel por compatibilidade.
+- **Administração:** `/gestao`, com autenticação Supabase e dados sincronizados no PostgreSQL. A loja pública permanece em `/loja`; o painel não é divulgado na vitrine.
 - **Loja pública:** `/loja`, catálogo publicado, carrinho, checkout, cupons e acompanhamento do pedido.
 - **Pagamentos:** Mercado Pago Checkout Pro + webhook assinado.
 - **Frete:** cálculo próprio da Violetta para Palmas-TO e frete a combinar para demais localidades. Melhor Envio não faz parte do checkout atual.
