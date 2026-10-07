@@ -307,7 +307,9 @@ function Reports({sales,clients,products,ownerId}:any){
      ["Vendas presenciais",manualRevenue],
      ["Vendas online",onlineRevenue],
      ["Transações",transactionCount],
-     ["Ticket médio",ticket],\n     ["Lucro bruto estimado",grossProfit],\n     ["Margem bruta estimada",grossMargin+"%"],
+     ["Ticket médio",ticket],
+     ["Lucro bruto estimado",grossProfit],
+     ["Margem bruta estimada",grossMargin+"%"],
      [],
      ["Produto","Faturamento","Quantidade"],
      ...topProducts.map(x=>[x.name,x.value,x.qty])
@@ -335,7 +337,8 @@ function Reports({sales,clients,products,ownerId}:any){
   <div className="stat-grid">
    <Stat icon={<TrendingUp/>} label="Faturamento total" value={money(revenue)} note={transactionCount+" transações no período"} accent/>
    <Stat icon={<CircleDollarSign/>} label="Ticket médio" value={money(ticket)} note="presencial + online"/>
-   <Stat icon={<ShoppingBag/>} label="Vendas online" value={money(onlineRevenue)} note={orderCount+" pedidos pagos"}/>\n   <Stat icon={<TrendingUp/>} label="Lucro bruto estimado" value={money(grossProfit)} note={grossMargin.toFixed(1)+"% de margem"}/>
+   <Stat icon={<ShoppingBag/>} label="Vendas online" value={money(onlineRevenue)} note={orderCount+" pedidos pagos"}/>
+   <Stat icon={<TrendingUp/>} label="Lucro bruto estimado" value={money(grossProfit)} note={grossMargin.toFixed(1)+"% de margem"}/>
    <Stat icon={<Users/>} label="Clientes compradores" value={topClients.length} note={newOnlineCustomers+" compradores online"}/>
   </div>
   <div className="report-grid">
