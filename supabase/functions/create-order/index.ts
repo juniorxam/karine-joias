@@ -73,6 +73,21 @@ Deno.serve(async (req) => {
     const originHash = await sha256(`${key}:${origin}`);
     const rateDb = createClient(url, key);
     const db = rateDb;
+    let customerUserId: string | null = null;
+    const authorization = req.headers.get("authorization") || "";
+    const bearer = authorization.match(/^Bearer\\s+(.+)$/i)?.[1]?.trim();
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (bearer && anonKey) {
+      try {
+        const authClient = createClient(url, anonKey, {
+          global: { headers: { Authorization: `Bearer ${bearer}` } },
+        });
+        const { data: authUser } = await authClient.auth.getUser(bearer);
+        customerUserId = authUser.user?.id || null;
+      } catch {
+        customerUserId = null;
+      }
+    }
     const { data: rateLimit, error: rateLimitError } = await rateDb.rpc("check_order_rate_limit", {
       p_ip_hash: originHash,
     });
@@ -210,6 +225,7 @@ Deno.serve(async (req) => {
       p_coupon_code: couponCode || null,
       p_idempotency_key: idempotencyKey,
       p_tracking_token_hash: trackingTokenHash,
+      p_customer_user_id: customerUserId,
     });
     if (error) throw error;
 
