@@ -17,10 +17,13 @@ Deno.serve(async(req)=>{
   const {data:{user}}=await userClient.auth.getUser();
   if(!user) return json({error:"Não autorizado"},401);
 
-  const {data:membership}=await admin.from("store_memberships").select("owner_id").eq("user_id",user.id).eq("active",true).order("created_at").limit(1).maybeSingle();
-  const ownerId=membership?.owner_id||user.id;
-  const {data:owned}=await admin.from("products").select("id").eq("owner_id",ownerId).limit(1);
-  if(!owned?.length) return json({error:"Usuário sem loja autorizada"},403);
+  const {data:store,error:storeError}=await admin.from("storefront_settings").select("owner_id").eq("store_slug","violetta").maybeSingle();
+  if(storeError||!store?.owner_id) return json({error:"Loja não configurada"},503);
+  const ownerId=String(store.owner_id);
+  if(user.id!==ownerId){
+   const {data:membership}=await admin.from("store_memberships").select("role").eq("owner_id",ownerId).eq("user_id",user.id).eq("active",true).maybeSingle();
+   if(!membership || !["owner","manager"].includes(String(membership.role))) return json({error:"Usuário sem loja autorizada"},403);
+  }
 
   if(req.method==="GET"){
     const {data,error}=await admin.from("coupons").select("*").eq("owner_id",ownerId).order("created_at",{ascending:false});
