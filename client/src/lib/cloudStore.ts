@@ -49,7 +49,7 @@ export function useSyncedCollection<T extends Record<string, any>>(
 ): [T[], Dispatch<SetStateAction<T[]>>, boolean] {
   // In production, the server is the source of truth. Never hydrate an authenticated
   // account from another browser/session's localStorage before the owner's rows load.
-  const [value, setValue] = useState<T[]>(() => (!isSupabaseConfigured || !ownerId ? readLocal(localKey, initial) : []));
+  const [value, setValue] = useState<T[]>(() => (!isSupabaseConfigured ? readLocal(localKey, initial) : []));
   const [ready, setReady] = useState(!isSupabaseConfigured || !ownerId);
   const [serverLoadSucceeded, setServerLoadSucceeded] = useState(!isSupabaseConfigured || !ownerId);
 
@@ -60,9 +60,15 @@ export function useSyncedCollection<T extends Record<string, any>>(
   useEffect(() => {
     let cancelled = false;
     const client = supabase;
-    if (!client || !ownerId) {
+    if (!client) {
       setServerLoadSucceeded(true);
       setReady(true);
+      return;
+    }
+    if (!ownerId) {
+      setServerLoadSucceeded(false);
+      setValue([]);
+      setReady(false);
       return;
     }
     setServerLoadSucceeded(false);
