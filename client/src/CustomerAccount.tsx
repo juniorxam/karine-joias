@@ -36,7 +36,8 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   const [profilePhone,setProfilePhone]=useState("");
   const [profileBusy,setProfileBusy]=useState(false);
   const [confirmationSent,setConfirmationSent]=useState(false);
-  const [loginConfirmationNeeded,setLoginConfirmationNeeded]=useState(false);\n  const [signupAccountExists,setSignupAccountExists]=useState(false);
+  const [loginConfirmationNeeded,setLoginConfirmationNeeded]=useState(false);
+  const [signupAccountExists,setSignupAccountExists]=useState(false);
 
   useEffect(()=>{
     if(!supabase){setLoading(false);return;}
@@ -191,7 +192,8 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       <button type="button" className="customer-text-button" onClick={resendConfirmation} disabled={busy}>{busy?"Enviando…":"Reenviar confirmação"}</button>
     </div>}
     {mode==="login"&&<><button className="customer-text-button" onClick={()=>{setLoginConfirmationNeeded(false);setMode("reset")}}>Esqueci minha senha</button><p className="customer-auth-switch">Ainda não tem conta? <button onClick={()=>{setLoginConfirmationNeeded(false);setSignupAccountExists(false);setMode("signup")}}>Criar conta</button></p></>}
-    {mode==="signup"&&signupAccountExists&&<div className="customer-security-badge" style={{marginTop:14}}><X size={17}/><span><strong>Este e-mail já possui uma conta.</strong> Você já está cadastrado na Violetta. Entre na sua conta ou recupere sua senha se não lembrar dela.</span><div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}><button type="button" className="customer-text-button" onClick={()=>{setSignupAccountExists(false);setMode("login")}}>Entrar</button><button type="button" className="customer-text-button" onClick={()=>{setSignupAccountExists(false);setMode("reset")}}>Recuperar senha</button></div></div>}\n    {mode==="signup"&&confirmationSent&&<div className="customer-security-badge" style={{marginTop:14}}>
+    {mode==="signup"&&signupAccountExists&&<div className="customer-security-badge" style={{marginTop:14}}><X size={17}/><span><strong>Este e-mail já possui uma conta.</strong> Você já está cadastrado na Violetta. Entre na sua conta ou recupere sua senha se não lembrar dela.</span><div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}><button type="button" className="customer-text-button" onClick={()=>{setSignupAccountExists(false);setMode("login")}}>Entrar</button><button type="button" className="customer-text-button" onClick={()=>{setSignupAccountExists(false);setMode("reset")}}>Recuperar senha</button></div></div>}
+    {mode==="signup"&&confirmationSent&&<div className="customer-security-badge" style={{marginTop:14}}>
       <Check size={17}/>
       <span>Enviamos o e-mail de confirmação para <strong>{email}</strong>. Abra o link para ativar sua conta.</span>
       <button type="button" className="customer-text-button" onClick={resendConfirmation} disabled={busy}>{busy?"Enviando…":"Reenviar e-mail"}</button>
