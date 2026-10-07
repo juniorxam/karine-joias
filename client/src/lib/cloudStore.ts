@@ -51,6 +51,7 @@ export function useSyncedCollection<T extends Record<string, any>>(
   // account from another browser/session's localStorage before the owner's rows load.
   const [value, setValue] = useState<T[]>(() => (!isSupabaseConfigured || !ownerId ? readLocal(localKey, initial) : []));
   const [ready, setReady] = useState(!isSupabaseConfigured || !ownerId);
+  const [serverLoadSucceeded, setServerLoadSucceeded] = useState(!isSupabaseConfigured || !ownerId);
 
   useEffect(() => {
     localStorage.setItem(localKey, JSON.stringify(value));
@@ -60,9 +61,11 @@ export function useSyncedCollection<T extends Record<string, any>>(
     let cancelled = false;
     const client = supabase;
     if (!client || !ownerId) {
+      setServerLoadSucceeded(true);
       setReady(true);
       return;
     }
+    setServerLoadSucceeded(false);
     setReady(false);
     (async () => {
       const { data, error } = await client.from(table).select("*").eq("owner_id", ownerId).order("id");
@@ -75,7 +78,10 @@ export function useSyncedCollection<T extends Record<string, any>>(
       } else {
         setValue([]);
       }
-      if (!cancelled) setReady(true);
+      if (!cancelled) {
+        setServerLoadSucceeded(true);
+        setReady(true);
+      }
     })().catch((error) => {
       console.error(`Falha ao carregar ${table} no Supabase`, error);
       if (!cancelled) setReady(true);
@@ -87,7 +93,7 @@ export function useSyncedCollection<T extends Record<string, any>>(
 
   useEffect(() => {
     const client = supabase;
-    if (!client || !ownerId || !ready) return;
+    if (!client || !ownerId || !ready || !serverLoadSucceeded) return;
     const sync = async () => {
       const rows = value.map((item) => toDb(table, item, ownerId));
       const { data: existing, error: readError } = await client.from(table).select("id").eq("owner_id", ownerId);
@@ -101,7 +107,7 @@ export function useSyncedCollection<T extends Record<string, any>>(
       }
     };
     void sync();
-  }, [table, ownerId, ready, value]);
+  }, [table, ownerId, ready, serverLoadSucceeded, value]);
 
   return [value, setValue, ready];
 }
