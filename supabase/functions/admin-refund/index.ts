@@ -33,6 +33,9 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Sessão inválida" }), { status: 401, headers: cors });
     }
 
+    const { data: membership } = await admin.from("store_memberships").select("owner_id").eq("user_id", user.id).eq("active", true).order("created_at").limit(1).maybeSingle();
+    const ownerId = membership?.owner_id || user.id;
+
     const body = await req.json();
     const orderId = String(body?.order_id || "");
     if (!orderId) return new Response(JSON.stringify({ error: "Pedido inválido" }), { status: 400, headers: cors });
@@ -41,7 +44,7 @@ Deno.serve(async (req) => {
       .from("orders")
       .select("id,owner_id,status,payment_status,payment_provider,payment_provider_id,total_amount")
       .eq("id", orderId)
-      .eq("owner_id", user.id)
+       .eq("owner_id", ownerId)
       .single();
 
     if (orderError || !order) return new Response(JSON.stringify({ error: "Pedido não encontrado" }), { status: 404, headers: cors });
