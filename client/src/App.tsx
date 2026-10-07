@@ -58,7 +58,7 @@ function Dashboard({sales,clients,products,cash,promos,inTotal,outTotal,go,owner
  useEffect(()=>{
    let cancelled=false;
    if(!supabase||!ownerId){setOnlineOrders([]);return;}
-   const from=monthStart;
+   const now=new Date(); const from=new Date(now.getFullYear(),now.getMonth(),1).toISOString();
    supabase.from("orders").select("id,total_amount,payment_status,status,created_at").eq("owner_id",ownerId).eq("payment_status","PAID").gte("created_at",from).then(({data,error})=>{
      if(error){console.error("Falha ao carregar pedidos online no dashboard",error);return;}
      if(!cancelled)setOnlineOrders((data||[]).filter((o:any)=>!["CANCELLED","REFUNDED"].includes(String(o.status||"").toUpperCase())));
