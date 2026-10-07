@@ -91,7 +91,7 @@ Os avisos do Security Advisor precisam ser tratados conforme o modelo de acesso 
 
 A vitrine define metatags, canonical, Open Graph e dados estruturados de produto/loja em runtime. O arquivo `robots.txt` permite indexação da vitrine e bloqueia checkout e acompanhamento de pedidos.
 
-Quando o domínio definitivo estiver configurado, deve ser adicionado um sitemap absoluto e o domínio usado em `PUBLIC_SITE_URL`.
+O domínio definitivo é `https://violetta.com.br`; `PUBLIC_SITE_URL` deve permanecer apontando para ele.
 
 ## Antes de abrir vendas reais
 
@@ -108,7 +108,7 @@ Quando o domínio definitivo estiver configurado, deve ser adicionado um sitemap
 
 ## Publicação
 - Marca: Violetta Joias e Semijoias
-- Domínio planejado: `violleta.com.br`
-- Ambiente atual: Vercel (homologação/testes)
+- Domínio definitivo: `violetta.com.br`
+- Ambiente: Vercel (produção)
 - Diretório de saída do Vercel: `dist/public`
 - Rotas públicas: `/loja` para clientes e `/gestao` para a proprietária
