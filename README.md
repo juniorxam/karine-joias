@@ -8,7 +8,7 @@ Aplicação de gestão e loja virtual da Violetta Joias e Semijoias.
 - **Administração:** `/gestao`, com autenticação Supabase e dados sincronizados no PostgreSQL. A raiz `/` continua apontando para o painel por compatibilidade.
 - **Loja pública:** `/loja`, catálogo publicado, carrinho, checkout, cupons e acompanhamento do pedido.
 - **Pagamentos:** Mercado Pago Checkout Pro + webhook assinado.
-- **Frete:** Melhor Envio para cotação, criação do envio, etiqueta e rastreamento.
+- **Frete:** cálculo próprio da Violetta para Palmas-TO e frete a combinar para demais localidades. Melhor Envio não faz parte do checkout atual.
 - **Banco:** Supabase Postgres com RLS e funções de serviço para operações sensíveis.
 - **Hospedagem planejada:** Vercel para o frontend e Edge Functions do Supabase para o backend de checkout/integrações.
 
@@ -47,20 +47,7 @@ Segredos de backend devem ficar somente nas Edge Functions/Supabase, nunca no fr
 SUPABASE_SERVICE_ROLE_KEY=
 MP_ACCESS_TOKEN=
 MP_WEBHOOK_KEY=
-PUBLIC_SITE_URL=
-MELHOR_ENVIO_TOKEN=
-MELHOR_ENVIO_USER_AGENT=
-MELHOR_ENVIO_SENDER_NAME=
-MELHOR_ENVIO_SENDER_EMAIL=
-MELHOR_ENVIO_SENDER_PHONE=
-MELHOR_ENVIO_SENDER_DOCUMENT=
-MELHOR_ENVIO_SENDER_ADDRESS=
-MELHOR_ENVIO_SENDER_NUMBER=
-MELHOR_ENVIO_SENDER_COMPLEMENT=
-MELHOR_ENVIO_SENDER_DISTRICT=
-MELHOR_ENVIO_SENDER_CITY=
-MELHOR_ENVIO_SENDER_POSTAL_CODE=
-MELHOR_ENVIO_SENDER_STATE=
+PUBLIC_SITE_URL=https://violetta.com.br
 ```
 
 ## Fluxo da loja
@@ -68,20 +55,18 @@ MELHOR_ENVIO_SENDER_STATE=
 1. Cliente escolhe uma peça em `/loja`.
 2. Produto é adicionado ao carrinho.
 3. Checkout coleta dados do cliente e endereço.
-4. Melhor Envio calcula as opções disponíveis.
+4. A Violetta calcula o frete de Palmas-TO por distância ou apresenta frete a combinar.
 5. O pedido é criado no Supabase com validação de estoque, frete e cupom.
 6. Mercado Pago gera o Checkout Pro.
 7. O webhook assinado reconcilia o pagamento.
 8. A proprietária acompanha o pedido no painel.
-9. O envio pode ser criado no Melhor Envio.
-10. A etiqueta pode ser comprada, gerada e obtida.
-11. O rastreamento pode ser sincronizado até a entrega.
+9. A equipe acompanha o pedido e, quando aplicável, registra o envio/rastreamento pelo painel.
 
 ## Segurança
 
-A aplicação usa RLS, autenticação e funções de banco para operações sensíveis. O frontend nunca deve receber `SUPABASE_SERVICE_ROLE_KEY`, token do Mercado Pago ou token do Melhor Envio.
+A aplicação usa RLS, autenticação e funções de banco para operações sensíveis. O frontend nunca deve receber `SUPABASE_SERVICE_ROLE_KEY` nem o token do Mercado Pago.
 
-O projeto também possui o Edge Function `production-healthcheck`, acessível para usuário autenticado no painel, para verificar configuração de produção e conectividade com Mercado Pago e Melhor Envio.
+O projeto também possui o Edge Function `production-healthcheck`, acessível para usuário autenticado no painel, para verificar a configuração de produção e conectividade com o Mercado Pago.
 
 ### Atenção aos avisos do Supabase
 
@@ -99,10 +84,9 @@ O domínio definitivo é `https://violetta.com.br`; `PUBLIC_SITE_URL` deve perma
 - Configurar `PUBLIC_SITE_URL` com o domínio definitivo.
 - Usar credenciais de produção do Mercado Pago.
 - Configurar e testar o webhook de pagamentos.
-- Configurar credenciais de produção do Melhor Envio.
 - Executar o diagnóstico de produção no painel.
 - Fazer um pedido controlado ponta a ponta.
-- Confirmar estoque, pagamento, frete, etiqueta e rastreamento.
+- Confirmar estoque, pagamento, frete e rastreamento.
 - Definir o procedimento fiscal da operação.
 
 
