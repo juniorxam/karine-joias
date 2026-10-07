@@ -4,6 +4,7 @@ import { fallbackCatalog, type CatalogProduct } from "./catalog";
 
 type PublicRow = {
   id: string;
+  owner_id: string;
   product_id: number;
   name: string;
   category: string;
@@ -43,7 +44,7 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
 
   const { data, error } = await publicClient
     .from("public_products")
-    .select("id,product_id,name,category,material,price,image_url,featured,is_published,slug,description,stock,is_new,is_best_seller,sort_order,sold_quantity")
+    .select("id,owner_id,product_id,name,category,material,price,image_url,featured,is_published,slug,description,stock,is_new,is_best_seller,sort_order,sold_quantity")
     .eq("store_slug", "violetta")
     .eq("is_published", true)
     .order("featured", { ascending: false })
@@ -57,6 +58,7 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
   if (!data?.length) return [];
   return (data as PublicRow[]).map((row) => ({
     id: row.product_id ?? row.id,
+    ownerId: row.owner_id,
     name: row.name,
     category: row.category === "Joia" ? "Joias" : row.category === "Semi-joia" ? "Semi-joias" : row.category === "Acessório" ? "Acessórios" : row.category,
     material: row.material,
