@@ -357,7 +357,7 @@ function Reports({sales,clients,products,ownerId}:any){
    {onlineLoading&&<p style={{margin:"10px 0 0",color:"var(--muted)",fontSize:13}}>Atualizando vendas online…</p>}
   </section>
   <div className="stat-grid">
-   <Stat icon={<TrendingUp/>} label="Faturamento total" value={money(revenue)} note={transactionCount+" transações no período"} accent/><Stat icon={<Store/>} label="Presencial" value={money(visibleManualRevenue)} note={visibleManualCount+" vendas"}/>
+   <Stat icon={<TrendingUp/>} label="Faturamento total" value={money(revenue)} note={transactionCount+" transações no período"} accent/><Stat icon={<ShoppingBag/>} label="Presencial" value={money(visibleManualRevenue)} note={visibleManualCount+" vendas"}/>
    <Stat icon={<CircleDollarSign/>} label="Ticket médio" value={money(ticket)} note="presencial + online"/>
    <Stat icon={<ShoppingBag/>} label="Vendas pelo site" value={money(visibleOnlineRevenue)} note={visibleOrderCount+" pedidos pagos"}/>
    <Stat icon={<TrendingUp/>} label="Lucro bruto estimado" value={money(grossProfit)} note={grossMargin.toFixed(1)+"% de margem"}/>
