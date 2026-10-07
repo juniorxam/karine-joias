@@ -1,7 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type"};
-const OWNER_ID="2e88123d-14f9-4cd3-baf4-0f498d7d6761";
 const digits=(v:unknown)=>String(v??"").replace(/\D/g,"");
 Deno.serve(async(req)=>{
  if(req.method==="OPTIONS") return new Response("ok",{headers:cors});
@@ -12,7 +11,7 @@ Deno.serve(async(req)=>{
   if(name.length<2||name.length>120) throw new Error("Nome inválido");
   if(!/^\d{10,13}$/.test(phone)) throw new Error("WhatsApp inválido");
   const db=createClient(url,key);
-  const {data:settings,error:settingsError}=await db.from("first_purchase_settings").select("*").eq("owner_id",OWNER_ID).maybeSingle(); if(settingsError) throw settingsError; if(settings?.enabled===false) throw new Error("O presente de primeira compra está temporariamente indisponível"); const cfg=settings||{reward_type:"PERCENT",reward_value:10,gift_description:null,validity_days:30,min_order_amount:0}; const existing=await db.from("first_purchase_leads").select("id,coupon_id").eq("owner_id",OWNER_ID).eq("phone",phone).maybeSingle();
+  const {data:settings,error:settingsError}=await db.from("first_purchase_settings").select("*").eq("owner_id",ownerId).maybeSingle(); if(settingsError) throw settingsError; if(settings?.enabled===false) throw new Error("O presente de primeira compra está temporariamente indisponível"); const cfg=settings||{reward_type:"PERCENT",reward_value:10,gift_description:null,validity_days:30,min_order_amount:0}; const existing=await db.from("first_purchase_leads").select("id,coupon_id").eq("owner_id",OWNER_ID).eq("phone",phone).maybeSingle();
   if(existing.error) throw existing.error;
   if(existing.data?.coupon_id){
     const coupon=await db.from("coupons").select("code,discount_type,discount_value,expires_at,min_order_amount,gift_description").eq("id",existing.data.coupon_id).maybeSingle();
@@ -22,7 +21,7 @@ Deno.serve(async(req)=>{
   const suffix=crypto.randomUUID().replace(/-/g,"").slice(0,8).toUpperCase();
   const code="VIOLE10-"+suffix;
   const expires=new Date(Date.now()+Number(cfg.validity_days||30)*24*60*60*1000).toISOString();
-  const {data:coupon,error:couponError}=await db.from("coupons").insert({owner_id:OWNER_ID,code,discount_type:cfg.reward_type,discount_value:Number(cfg.reward_value)||0,min_order_amount:Number(cfg.min_order_amount)||0,gift_description:cfg.gift_description||null,starts_at:new Date().toISOString(),expires_at:expires,max_uses:1,used_count:0,active:true}).select("id,code,discount_type,discount_value,expires_at,min_order_amount").single();
+  const {data:coupon,error:couponError}=await db.from("coupons").insert({owner_id:ownerId,code,discount_type:cfg.reward_type,discount_value:Number(cfg.reward_value)||0,min_order_amount:Number(cfg.min_order_amount)||0,gift_description:cfg.gift_description||null,starts_at:new Date().toISOString(),expires_at:expires,max_uses:1,used_count:0,active:true}).select("id,code,discount_type,discount_value,expires_at,min_order_amount").single();
   if(couponError) throw couponError;
   const {error:leadError}=await db.from("first_purchase_leads").insert({owner_id:OWNER_ID,name,phone,coupon_id:coupon.id});
   if(leadError){await db.from("coupons").delete().eq("id",coupon.id);throw leadError;}
