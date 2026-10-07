@@ -36,6 +36,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   const [profilePhone,setProfilePhone]=useState("");
   const [profileBusy,setProfileBusy]=useState(false);
   const [confirmationSent,setConfirmationSent]=useState(false);
+  const [loginConfirmationNeeded,setLoginConfirmationNeeded]=useState(false);
 
   useEffect(()=>{
     if(!supabase){setLoading(false);return;}
@@ -118,7 +119,15 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
         }
       }else{
         const {error}=await supabase.auth.signInWithPassword({email:email.trim().toLowerCase(),password});
-        if(error)throw error;
+        if(error){
+          const message=error.message.toLowerCase();
+          if(message.includes("email not confirmed")||message.includes("email not verified")||message.includes("email confirmation")){
+            setLoginConfirmationNeeded(true);
+            return;
+          }
+          throw error;
+        }
+        setLoginConfirmationNeeded(false);
         toast.success("Login realizado");
       }
     }catch(error){toast.error("Não foi possível continuar",{description:error instanceof Error?error.message:"Verifique seus dados."});}
@@ -168,7 +177,12 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       {mode==="new-password"&&<label>Confirmar nova senha<input type="password" autoComplete="new-password" minLength={6} required value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} /></label>}
       <button className="store-primary-cta" disabled={busy}>{busy?"Aguarde…":mode==="login"?"Entrar":mode==="signup"?"Criar conta":mode==="reset"?"Enviar link":"Salvar nova senha"}</button>
     </form>
-    {mode==="login"&&<><button className="customer-text-button" onClick={()=>setMode("reset")}>Esqueci minha senha</button><p className="customer-auth-switch">Ainda não tem conta? <button onClick={()=>setMode("signup")}>Criar conta</button></p></>}
+    {mode==="login"&&loginConfirmationNeeded&&<div className="customer-security-badge" style={{marginTop:14}}>
+      <X size={17}/>
+      <span><strong>Este e-mail ainda não foi confirmado.</strong> Confirme seu cadastro para entrar na sua conta.</span>
+      <button type="button" className="customer-text-button" onClick={resendConfirmation} disabled={busy}>{busy?"Enviando…":"Reenviar confirmação"}</button>
+    </div>}
+    {mode==="login"&&<><button className="customer-text-button" onClick={()=>{setLoginConfirmationNeeded(false);setMode("reset")}}>Esqueci minha senha</button><p className="customer-auth-switch">Ainda não tem conta? <button onClick={()=>{setLoginConfirmationNeeded(false);setMode("signup")}}>Criar conta</button></p></>}
     {mode==="signup"&&confirmationSent&&<div className="customer-security-badge" style={{marginTop:14}}>
       <Check size={17}/>
       <span>Enviamos o e-mail de confirmação para <strong>{email}</strong>. Abra o link para ativar sua conta.</span>
