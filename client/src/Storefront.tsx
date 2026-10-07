@@ -91,10 +91,15 @@ export default function Storefront() {
   const [cartOpen, setCartOpen] = useState(false);
   const [storefrontSettings, setStorefrontSettings] = useState<StorefrontSettings | null>(null);
   useEffect(() => {
-    if (!supabase) return;
-    supabase.from("storefront_settings").select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled,collection_enabled,collection_title,collection_subtitle,collection_image_url,collection_cta,shipping_palmas_enabled,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_palmas_distance_rules").eq("store_slug","violetta").limit(1).maybeSingle()
+    if (!supabase || !products[0]?.ownerId) return;
+    supabase.from("storefront_settings")
+      .select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled,collection_enabled,collection_title,collection_subtitle,collection_image_url,collection_cta,shipping_palmas_enabled,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_palmas_distance_rules")
+      .eq("store_slug","violetta")
+      .eq("owner_id", products[0].ownerId)
+      .limit(1)
+      .maybeSingle()
       .then(({ data }) => { if (data) setStorefrontSettings(data as StorefrontSettings); });
-  }, []);
+  }, [products[0]?.ownerId]);
   const [cart, setCart] = useState<CartItem[]>(readCart);
   const [checkoutDraft, setCheckoutDraft] = useState(readCheckoutDraft);
   const returnParams = new URLSearchParams(window.location.search);
