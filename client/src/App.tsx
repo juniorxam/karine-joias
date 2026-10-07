@@ -188,5 +188,143 @@ function StoreSettings({ownerId,accessRole}:{ownerId?:string;accessRole?:"owner"
  <div className="integration-note"><strong>Importante</strong><span>O cálculo de distância é usado somente para entregas em Palmas. Para outros municípios, o frete continua sendo combinado diretamente com a loja.</span></div></section>
  </>;
 }
-function Reports({sales,clients,products}:any){const [from,setFrom]=useState(ago(29));const [to,setTo]=useState(ago(0));const filtered=sales.filter((s:Sale)=>s.date>=from&&s.date<=to);const revenue=filtered.reduce((a:number,s:Sale)=>a+s.amount,0);const ticket=filtered.length?revenue/filtered.length:0;const pay=["PIX","Crédito","Débito","Dinheiro"].map(payment=>({payment,value:filtered.filter((s:Sale)=>s.payment===payment).reduce((a:number,s:Sale)=>a+s.amount,0)}));const topProducts=[...products].map((p:Product)=>({p,value:filtered.filter((s:Sale)=>s.productId===p.id).reduce((a:number,s:Sale)=>a+s.amount,0),qty:filtered.filter((s:Sale)=>s.productId===p.id).length})).filter(x=>x.value>0).sort((a,b)=>b.value-a.value);const topClients=[...clients].map((c:Client)=>({c,value:filtered.filter((s:Sale)=>s.clientId===c.id).reduce((a:number,s:Sale)=>a+s.amount,0)})).filter(x=>x.value>0).sort((a,b)=>b.value-a.value);const esc=(v:any)=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");const exportExcel=()=>{const rows=[["Violetta Joias - Relatório de vendas"],["Período",from,to],[],["Data","Cliente","Produto","Pagamento","Valor"],...filtered.map((s:Sale)=>[s.date,clients.find((c:Client)=>c.id===s.clientId)?.name||"",products.find((p:Product)=>p.id===s.productId)?.name||"",s.payment,s.amount])];const html="<table>"+rows.map(r=>"<tr>"+r.map((v:any)=>"<td>"+esc(v)+"</td>").join("")+"</tr>").join("")+"</table>";const blob=new Blob([html],{type:"application/vnd.ms-excel"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download="relatorio-violetta-"+from+"-a-"+to+".xls";link.click();URL.revokeObjectURL(url);toast.success("Relatório Excel gerado");};const exportPdf=()=>{const w=window.open("","_blank","width=1100,height=800");if(!w){toast.error("Permita pop-ups para gerar o PDF");return;}const rows=filtered.map((s:Sale)=>"<tr><td>"+esc(br(s.date))+"</td><td>"+esc(clients.find((c:Client)=>c.id===s.clientId)?.name||"")+"</td><td>"+esc(products.find((p:Product)=>p.id===s.productId)?.name||"")+"</td><td>"+esc(s.payment)+"</td><td>"+money(s.amount)+"</td></tr>").join("");w.document.write("<!doctype html><html><head><title>Relatório Violetta</title><style>body{font-family:Arial;padding:32px;color:#222}table{width:100%;border-collapse:collapse;margin-top:24px}th,td{padding:9px;border-bottom:1px solid #ddd;text-align:left}th{background:#f3f3f3}.summary{display:flex;gap:30px;margin-top:20px}.summary b{display:block;font-size:20px}</style></head><body><h1>Violetta Joias</h1><p>Relatório de vendas · "+from+" a "+to+"</p><div class=summary><div>Faturamento<b>"+money(revenue)+"</b></div><div>Vendas<b>"+filtered.length+"</b></div><div>Ticket médio<b>"+money(ticket)+"</b></div></div><table><thead><tr><th>Data</th><th>Cliente</th><th>Produto</th><th>Pagamento</th><th>Valor</th></tr></thead><tbody>"+rows+"</tbody></table><script>window.onload=function(){setTimeout(function(){window.print()},300)}</script></body></html>");w.document.close();};return <><Head k="INTELIGÊNCIA" title="Relatórios" d="Analise vendas, produtos e clientes e exporte os dados."/><section className="panel" style={{marginBottom:18}}><div className="form-grid"><label>De<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>Até<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label><div style={{display:"flex",alignItems:"end",gap:8}}><button className="primary" onClick={exportExcel}>Excel (.xls)</button><button className="secondary" onClick={exportPdf}>Gerar PDF</button></div></div></section><div className="stat-grid"><Stat icon={<TrendingUp/>} label="Faturamento" value={money(revenue)} note={filtered.length+" vendas no período"} accent/><Stat icon={<CircleDollarSign/>} label="Ticket médio" value={money(ticket)} note="por venda"/><Stat icon={<Package/>} label="Produtos vendidos" value={topProducts.reduce((a,x)=>a+x.qty,0)} note={topProducts.length+" produtos"}/><Stat icon={<Users/>} label="Clientes compradores" value={topClients.length} note="no período"/></div><div className="report-grid"><section className="panel"><p className="eyebrow">VENDAS</p><h3>Por forma de pagamento</h3>{pay.map(x=><div className="report-bar" key={x.payment}><div><span>{x.payment}</span><b>{money(x.value)}</b></div><div className="track"><i style={{width:(Math.max(5,x.value/Math.max(...pay.map((v:any)=>v.value),1)*100))+"%"}}/></div></div>)}</section><section className="panel"><p className="eyebrow">PRODUTOS</p><h3>Mais vendidos</h3>{topProducts.slice(0,8).map(x=><div className="ranking" key={x.p.id}><div className="avatar small">{initials(x.p.name)}</div><span>{x.p.name}</span><strong>{money(x.value)}</strong></div>)}</section></div><section className="panel"><p className="eyebrow">CLIENTES</p><h3>Top clientes</h3>{topClients.slice(0,10).map(x=><div className="ranking" key={x.c.id}><div className="avatar small">{initials(x.c.name)}</div><span>{x.c.name}</span><strong>{money(x.value)}</strong></div>)}</section></>}
+function Reports({sales,clients,products,ownerId}:any){
+ const [from,setFrom]=useState(ago(29));
+ const [to,setTo]=useState(ago(0));
+ const [onlineOrders,setOnlineOrders]=useState<any[]>([]);
+ const [onlineItems,setOnlineItems]=useState<any[]>([]);
+ const [onlineLoading,setOnlineLoading]=useState(false);
+
+ useEffect(()=>{
+   let cancelled=false;
+   if(!supabase||!ownerId){setOnlineOrders([]);setOnlineItems([]);return;}
+   setOnlineLoading(true);
+   (async()=>{
+     const {data:orders,error:ordersError}=await supabase
+       .from("orders")
+       .select("id,order_number,customer_name,customer_email,customer_phone,total_amount,payment_status,status,created_at")
+       .eq("owner_id",ownerId)
+       .gte("created_at",from+"T00:00:00")
+       .lte("created_at",to+"T23:59:59.999")
+       .order("created_at",{ascending:false});
+     if(ordersError) throw ordersError;
+     const valid=(orders||[]).filter((o:any)=>String(o.payment_status||"").toUpperCase()==="PAID"&&!["CANCELLED","REFUNDED"].includes(String(o.status||"").toUpperCase()));
+     const ids=valid.map((o:any)=>o.id);
+     let items:any[]=[];
+     if(ids.length){
+       const {data:itemData,error:itemError}=await supabase
+         .from("order_items")
+         .select("order_id,product_name,quantity,unit_price,total_price")
+         .in("order_id",ids);
+       if(itemError) throw itemError;
+       items=itemData||[];
+     }
+     if(cancelled)return;
+     setOnlineOrders(valid);
+     setOnlineItems(items);
+   })().catch(error=>{
+     console.error("Falha ao carregar vendas online para os relatórios",error);
+     if(!cancelled){setOnlineOrders([]);setOnlineItems([]);}
+   }).finally(()=>{if(!cancelled)setOnlineLoading(false);});
+   return()=>{cancelled=true;};
+ },[ownerId,from,to]);
+
+ const onlineRevenue=onlineOrders.reduce((sum:number,o:any)=>sum+Number(o.total_amount||0),0);
+ const manualRevenue=sales.filter((s:Sale)=>s.date>=from&&s.date<=to).reduce((sum:number,s:Sale)=>sum+Number(s.amount||0),0);
+ const revenue=manualRevenue+onlineRevenue;
+ const manualCount=sales.filter((s:Sale)=>s.date>=from&&s.date<=to).length;
+ const orderCount=onlineOrders.length;
+ const transactionCount=manualCount+orderCount;
+ const ticket=transactionCount?revenue/transactionCount:0;
+
+ const paymentMap=new Map<string,number>();
+ sales.filter((s:Sale)=>s.date>=from&&s.date<=to).forEach((s:Sale)=>paymentMap.set(s.payment,(paymentMap.get(s.payment)||0)+Number(s.amount||0)));
+ onlineOrders.forEach((o:any)=>{
+   const method=String(o.payment_method||"Mercado Pago");
+   paymentMap.set(method,(paymentMap.get(method)||0)+Number(o.total_amount||0));
+ });
+ const pay=[...paymentMap.entries()].map(([payment,value])=>({payment,value})).sort((a,b)=>b.value-a.value);
+
+ const productMap=new Map<string,{name:string,value:number,qty:number}>();
+ sales.filter((s:Sale)=>s.date>=from&&s.date<=to).forEach((s:Sale)=>{
+   const name=products.find((p:Product)=>p.id===s.productId)?.name||"Produto removido";
+   const current=productMap.get(name)||{name,value:0,qty:0};
+   current.value+=Number(s.amount||0);
+   current.qty+=1;
+   productMap.set(name,current);
+ });
+ onlineItems.forEach((item:any)=>{
+   const name=String(item.product_name||"Produto online");
+   const current=productMap.get(name)||{name,value:0,qty:0};
+   current.value+=Number(item.total_price||Number(item.unit_price||0)*Number(item.quantity||0));
+   current.qty+=Number(item.quantity||0);
+   productMap.set(name,current);
+ });
+ const topProducts=[...productMap.values()].sort((a,b)=>b.value-a.value);
+
+ const clientMap=new Map<string,{name:string,value:number,count:number}>();
+ sales.filter((s:Sale)=>s.date>=from&&s.date<=to).forEach((s:Sale)=>{
+   const c=clients.find((x:Client)=>x.id===s.clientId);
+   if(!c)return;
+   const key="client:"+c.id;
+   const current=clientMap.get(key)||{name:c.name,value:0,count:0};
+   current.value+=Number(s.amount||0);current.count+=1;clientMap.set(key,current);
+ });
+ onlineOrders.forEach((o:any)=>{
+   const key="email:"+String(o.customer_email||o.customer_phone||o.customer_name||o.id).toLowerCase();
+   const current=clientMap.get(key)||{name:String(o.customer_name||"Cliente online"),value:0,count:0};
+   current.value+=Number(o.total_amount||0);current.count+=1;clientMap.set(key,current);
+ });
+ const topClients=[...clientMap.values()].sort((a,b)=>b.value-a.value);
+ const newOnlineCustomers=new Set(onlineOrders.map((o:any)=>String(o.customer_email||o.customer_phone||o.customer_name||o.id).toLowerCase())).size;
+
+ const esc=(v:any)=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+ const exportExcel=()=>{
+   const rows=[
+     ["Violetta Joias - Relatório gerencial"],
+     ["Período",from,to],
+     [],
+     ["Indicador","Valor"],
+     ["Faturamento total",revenue],
+     ["Vendas presenciais",manualRevenue],
+     ["Vendas online",onlineRevenue],
+     ["Transações",transactionCount],
+     ["Ticket médio",ticket],
+     [],
+     ["Produto","Faturamento","Quantidade"],
+     ...topProducts.map(x=>[x.name,x.value,x.qty])
+   ];
+   const html="<table>"+rows.map(r=>"<tr>"+r.map((v:any)=>"<td>"+esc(v)+"</td>").join("")+"</tr>").join("")+"</table>";
+   const blob=new Blob([html],{type:"application/vnd.ms-excel"});
+   const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download="relatorio-gerencial-violetta-"+from+"-a-"+to+".xls";link.click();URL.revokeObjectURL(url);toast.success("Relatório Excel gerado");
+ };
+ const exportPdf=()=>{
+   const w=window.open("","_blank","width=1100,height=800");if(!w){toast.error("Permita pop-ups para gerar o PDF");return;}
+   const rows=topProducts.map(x=>"<tr><td>"+esc(x.name)+"</td><td>"+x.qty+"</td><td>"+money(x.value)+"</td></tr>").join("");
+   w.document.write("<!doctype html><html><head><title>Relatório gerencial Violetta</title><style>body{font-family:Arial;padding:32px;color:#222}table{width:100%;border-collapse:collapse;margin-top:24px}th,td{padding:9px;border-bottom:1px solid #ddd;text-align:left}.summary{display:flex;gap:30px;flex-wrap:wrap;margin-top:20px}.summary b{display:block;font-size:20px}</style></head><body><h1>Violetta Joias</h1><p>Relatório gerencial · "+from+" a "+to+"</p><div class=summary><div>Faturamento<b>"+money(revenue)+"</b></div><div>Presencial<b>"+money(manualRevenue)+"</b></div><div>Online<b>"+money(onlineRevenue)+"</b></div><div>Ticket médio<b>"+money(ticket)+"</b></div></div><h2>Produtos</h2><table><thead><tr><th>Produto</th><th>Qtd.</th><th>Faturamento</th></tr></thead><tbody>"+rows+"</tbody></table><script>window.onload=function(){setTimeout(function(){window.print()},300)}</script></body></html>");
+   w.document.close();
+ };
+ return <>
+  <Head k="INTELIGÊNCIA" title="Relatórios gerenciais" d="Uma visão única das vendas presenciais e online."/>
+  <section className="panel" style={{marginBottom:18}}>
+   <div className="form-grid">
+    <label>De<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label>
+    <label>Até<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label>
+    <div style={{display:"flex",alignItems:"end",gap:8}}><button className="primary" onClick={exportExcel}>Excel (.xls)</button><button className="secondary" onClick={exportPdf}>Gerar PDF</button></div>
+   </div>
+   {onlineLoading&&<p style={{margin:"10px 0 0",color:"var(--muted)",fontSize:13}}>Atualizando vendas online…</p>}
+  </section>
+  <div className="stat-grid">
+   <Stat icon={<TrendingUp/>} label="Faturamento total" value={money(revenue)} note={transactionCount+" transações no período"} accent/>
+   <Stat icon={<CircleDollarSign/>} label="Ticket médio" value={money(ticket)} note="presencial + online"/>
+   <Stat icon={<ShoppingBag/>} label="Vendas online" value={money(onlineRevenue)} note={orderCount+" pedidos pagos"}/>
+   <Stat icon={<Users/>} label="Clientes compradores" value={topClients.length} note={newOnlineCustomers+" compradores online"}/>
+  </div>
+  <div className="report-grid">
+   <section className="panel"><p className="eyebrow">VENDAS</p><h3>Por forma de pagamento</h3>{pay.length?pay.map(x=><div className="report-bar" key={x.payment}><div><span>{x.payment}</span><b>{money(x.value)}</b></div><div className="track"><i style={{width:(Math.max(5,x.value/Math.max(...pay.map((v:any)=>v.value),1)*100))+"%"}}/></div></div>):<p style={{color:"var(--muted)"}}>Nenhuma venda no período.</p>}</section>
+   <section className="panel"><p className="eyebrow">PRODUTOS</p><h3>Mais vendidos</h3>{topProducts.length?topProducts.slice(0,8).map(x=><div className="ranking" key={x.name}><div className="avatar small">{initials(x.name)}</div><span>{x.name}<small style={{display:"block",color:"var(--muted)"}}>{x.qty} unidade(s)</small></span><strong>{money(x.value)}</strong></div>):<p style={{color:"var(--muted)"}}>Nenhuma venda no período.</p>}</section>
+  </div>
+  <section className="panel"><p className="eyebrow">CLIENTES</p><h3>Top clientes</h3>{topClients.length?topClients.slice(0,10).map(x=><div className="ranking" key={x.name+"-"+x.value}><div className="avatar small">{initials(x.name)}</div><span>{x.name}<small style={{display:"block",color:"var(--muted)"}}>{x.count} compra(s)</small></span><strong>{money(x.value)}</strong></div>):<p style={{color:"var(--muted)"}}>Nenhum comprador no período.</p>}</section>
+ </>;
+}
 function Modal({type,products,clients,onClose,onSale,save}:any){const [f,setF]=useState<any>({date:new Date().toISOString().slice(0,10),payment:'PIX',type:'Saída',category:'Despesas fixas',active:true});const u=(k:string,v:any)=>setF((x:any)=>({...x,[k]:v}));const submit=(e:any)=>{e.preventDefault();if(type==='sale')onSale({...f,productId:+f.productId,clientId:+f.clientId,amount:+f.amount,discount:+(f.discount||0)});else save({...f,id:undefined,value:+f.value,amount:+f.amount,cost:+f.cost,price:+f.price,stock:+f.stock,code:f.code||`VIOLETTA${Math.floor(Math.random()*90+10)}`,uses:0})};const titles:any={sale:'Registrar venda',product:'Novo produto',client:'Novo cliente',cash:'Nova movimentação',promo:'Nova promoção'};const title=titles[type];return <div className="modal-backdrop" onMouseDown={onClose}><div className="modal" onMouseDown={e=>e.stopPropagation()}><div className="modal-head"><div><p className="eyebrow">VIOLETTA JOIAS</p><h2>{title}</h2></div><button className="close" onClick={onClose}><X size={18}/></button></div><form onSubmit={submit}><div className="form-grid">{type==='sale'&&<><label>Produto<select required value={f.productId||''} onChange={e=>u('productId',e.target.value)}><option value="">Selecione</option>{products.map((p:Product)=><option key={p.id} value={p.id}>{p.name} · {money(p.price)}</option>)}</select></label><label>Cliente<select required value={f.clientId||''} onChange={e=>u('clientId',e.target.value)}><option value="">Selecione</option>{clients.map((c:Client)=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label>Valor final<input required type="number" min="0" step=".01" value={f.amount||''} onChange={e=>u('amount',e.target.value)}/></label><label>Pagamento<select value={f.payment} onChange={e=>u('payment',e.target.value)}><option>PIX</option><option>Dinheiro</option><option>Débito</option><option>Crédito</option></select></label><label>Data<input type="date" value={f.date} onChange={e=>u('date',e.target.value)}/></label></>}{type==='product'&&<><label>Nome<input required value={f.name||''} onChange={e=>u('name',e.target.value)}/></label><label>Categoria<select value={f.category||'Joias'} onChange={e=>u('category',e.target.value)}><option>Joias</option><option>Semi-joias</option><option>Acessórios</option></select></label><label>Material<input required value={f.material||''} onChange={e=>u('material',e.target.value)}/></label><label>Custo<input required type="number" min="0" value={f.cost||''} onChange={e=>u('cost',e.target.value)}/></label><label>Venda<input required type="number" min="0" value={f.price||''} onChange={e=>u('price',e.target.value)}/></label><label>Estoque<input required type="number" min="0" value={f.stock||''} onChange={e=>u('stock',e.target.value)}/></label><label className="full">Foto do produto<input type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={e=>u('imageFile',e.target.files?.[0]||undefined)}/><small>JPG, PNG, WebP ou AVIF · até 5 MB</small></label></>}{type==='client'&&<><label>Nome completo<input required value={f.name||''} onChange={e=>u('name',e.target.value)}/></label><label>WhatsApp<input required value={f.phone||''} onChange={e=>u('phone',e.target.value)}/></label><label>E-mail<input type="email" value={f.email||''} onChange={e=>u('email',e.target.value)}/></label><label>Data de nascimento<input type="date" value={f.birthday||''} onChange={e=>u('birthday',e.target.value)}/></label><label>Preferências<input value={f.preferences||''} onChange={e=>u('preferences',e.target.value)}/></label></>}{type==='cash'&&<><label>Tipo<select value={f.type} onChange={e=>u('type',e.target.value)}><option>Saída</option><option>Entrada</option></select></label><label>Categoria<select value={f.category} onChange={e=>u('category',e.target.value)}><option>Despesas fixas</option><option>Compra de estoque</option><option>Marketing</option><option>Retirada</option><option>Outros</option></select></label><label>Descrição<input required value={f.description||''} onChange={e=>u('description',e.target.value)}/></label><label>Valor<input required type="number" min="0" step=".01" value={f.amount||''} onChange={e=>u('amount',e.target.value)}/></label></>}{type==='promo'&&<><label>Nome<input required value={f.name||''} onChange={e=>u('name',e.target.value)}/></label><label>Tipo<select value={f.type||'Percentual'} onChange={e=>u('type',e.target.value)}><option>Percentual</option><option>Valor fixo</option></select></label><label>Desconto<input required type="number" min="0" value={f.value||''} onChange={e=>u('value',e.target.value)}/></label><label>Código<input value={f.code||''} onChange={e=>u('code',e.target.value.toUpperCase())}/></label><label>Válida até<input required type="date" value={f.ends||''} onChange={e=>u('ends',e.target.value)}/></label></>}</div><div className="modal-actions"><button type="button" className="secondary" onClick={onClose}>Cancelar</button><button className="primary">Salvar registro</button></div></form></div></div>}
