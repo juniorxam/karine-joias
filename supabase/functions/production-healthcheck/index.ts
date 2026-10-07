@@ -34,25 +34,12 @@ Deno.serve(async(req)=>{
       add("Mercado Pago · API",r.ok,`HTTP ${r.status}`,true);
     }else add("Mercado Pago · API",false,"Não testado",true);
 
-    const meToken=Deno.env.get("MELHOR_ENVIO_TOKEN")||"";
-    const ua=Deno.env.get("MELHOR_ENVIO_USER_AGENT")||"";
-    add("Melhor Envio · token",!!meToken,meToken?"Configurado":"Ausente",true);
-    add("Melhor Envio · User-Agent",!!ua&&ua.includes("@"),ua?"Configurado":"Ausente ou sem e-mail",true);
-
-    const senderKeys=["NAME","EMAIL","PHONE","DOCUMENT","ADDRESS","NUMBER","DISTRICT","CITY","POSTAL_CODE","STATE"];
-    const missing=senderKeys.filter(k=>!Deno.env.get(`MELHOR_ENVIO_SENDER_${k}`));
-    add("Melhor Envio · remetente",missing.length===0,missing.length?`Campos ausentes: ${missing.join(", ")}`:"Todos os campos essenciais configurados",true);
-
-    if(meToken){
-      const r=await fetch("https://melhorenvio.com.br/api/v2/me/companies",{headers:{Authorization:`Bearer ${meToken}`,Accept:"application/json","User-Agent":ua}});
-      let detail=`HTTP ${r.status}`;
-      if(r.ok){const data=await r.json();detail=`API autenticada · ${Array.isArray(data)?data.length:0} loja(s) retornada(s)`;}
-      add("Melhor Envio · API",r.ok,detail,true);
-    }else add("Melhor Envio · API",false,"Não testado",true);
-
+    const {data:storeSettings,error:storeSettingsError}=await admin.from("storefront_settings").select("store_slug,shipping_palmas_enabled,shipping_palmas_pickup_enabled").eq("store_slug","violetta").maybeSingle();
+    add("Configuração da loja",!storeSettingsError&&!!storeSettings,storeSettingsError?"Não foi possível ler a configuração da Violetta":storeSettings?"Configuração Violetta encontrada":"Configuração da loja ausente",true);
+    add("Frete",!storeSettingsError&&!!storeSettings,storeSettings?.shipping_palmas_enabled?"Cálculo por distância em Palmas habilitado":"Frete a combinar/retirada conforme configuração");
     const {count:products}=await admin.from("products").select("id",{count:"exact",head:true});
     const {count:orders}=await admin.from("orders").select("id",{count:"exact",head:true});
-    add("Catálogo",Number(products||0)>0,`${Number(products||0)} produto(s) cadastrado(s)`,true);
+    add("Catálogo",true,`${Number(products||0)} produto(s) cadastrado(s); publique produtos antes de abrir vendas`,false);
     add("Pedidos",true,`${Number(orders||0)} pedido(s) no banco; o teste real pode ser feito sem afetar pedidos existentes`);
 
     const critical=checks.filter(x=>x.critical&&!x.ok);
