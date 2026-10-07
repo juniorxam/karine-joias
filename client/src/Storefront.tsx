@@ -327,7 +327,40 @@ export default function Storefront() {
     toast.success("Produto adicionado ao carrinho", { description: product.name });
   };
 
-  const buyNow = (product: CatalogProduct) => {
+  const addToCartQuantity = (product: CatalogProduct, quantity: number) => {
+    const available = Number(product.stock ?? 0);
+    const requested = Math.max(1, Math.min(available, Math.floor(quantity || 1)));
+    if (available <= 0) return toast.error("Produto indisponível", { description: product.name });
+    setCart(items => {
+      const current = items.find(item => String(item.id) === String(product.id));
+      const nextQuantity = Math.min(available, (current?.quantity || 0) + requested);
+      if (current && nextQuantity === current.quantity) {
+        toast.error("Limite de estoque atingido", { description: `Há ${available} unidade(s) disponível(is).` });
+        return items;
+      }
+      return current
+        ? items.map(item => String(item.id) === String(product.id) ? { ...item, quantity: nextQuantity } : item)
+        : [...items, { ...product, quantity: requested }];
+    });
+    toast.success(requested > 1 ? `${requested} unidades adicionadas ao carrinho` : "Produto adicionado ao carrinho", { description: product.name });
+  };
+
+  const buyNowQuantity = (product: CatalogProduct, quantity: number) => {
+    const available = Number(product.stock ?? 0);
+    const requested = Math.max(1, Math.min(available, Math.floor(quantity || 1)));
+    if (available <= 0) return toast.error("Produto indisponível", { description: product.name });
+    setCart(items => {
+      const current = items.find(item => String(item.id) === String(product.id));
+      return current
+        ? items.map(item => String(item.id) === String(product.id) ? { ...item, quantity: requested } : item)
+        : [...items, { ...product, quantity: requested }];
+    });
+    window.history.pushState({}, "", "/loja/checkout");
+    setView("checkout");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+
     const available = Number(product.stock ?? 0);
     if (available <= 0) return toast.error("Produto indisponível", { description: product.name });
     setCart(items => {
@@ -441,7 +474,7 @@ export default function Storefront() {
 
   if (view === "product") {
     if (!selectedProduct) return <div className="storefront success-page"><main className="success-card"><p className="store-kicker">PEÇA NÃO ENCONTRADA</p><h1>Essa peça não está disponível.</h1><button className="store-primary-cta" onClick={backToStore}>Voltar para a loja <ArrowRight size={16}/></button></main></div>;
-    return <ProductDetail product={selectedProduct} relatedProducts={products.filter(product => String(product.id) !== String(selectedProduct.id) && product.category === selectedProduct.category).slice(0, 4)} onBack={backToStore} onAdd={() => addToCart(selectedProduct)} onBuyNow={() => buyNow(selectedProduct)} onCheckout={goCheckout} onCart={openCart} onRelatedOpen={openProduct} onRelatedAdd={addToCart} onRelatedBuyNow={buyNow} onRelatedAsk={askAbout} />;
+    return <ProductDetail product={selectedProduct} relatedProducts={products.filter(product => String(product.id) !== String(selectedProduct.id) && product.category === selectedProduct.category).slice(0, 4)} onBack={backToStore} onAdd={(quantity) => addToCartQuantity(selectedProduct, quantity)} onBuyNow={(quantity) => buyNowQuantity(selectedProduct, quantity)} onCheckout={goCheckout} onCart={openCart} onRelatedOpen={openProduct} onRelatedAdd={addToCart} onRelatedBuyNow={buyNow} onRelatedAsk={askAbout} />;
   }
 
   if (view === "checkout" && !cart.length) {
@@ -611,7 +644,7 @@ function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false
   </article>;
 }
 
-function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNow, onCheckout, onCart, onRelatedOpen, onRelatedAdd, onRelatedBuyNow, onRelatedAsk }: { product: CatalogProduct; relatedProducts: CatalogProduct[]; onBack: () => void; onAdd: () => void; onBuyNow: () => void; onCheckout: () => void; onCart: () => void; onRelatedOpen: (product: CatalogProduct) => void; onRelatedAdd: (product: CatalogProduct) => void; onRelatedBuyNow: (product: CatalogProduct) => void; onRelatedAsk: (product: CatalogProduct) => void }) {
+function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNow, onCheckout, onCart, onRelatedOpen, onRelatedAdd, onRelatedBuyNow, onRelatedAsk }: { product: CatalogProduct; relatedProducts: CatalogProduct[]; onBack: () => void; onAdd: (quantity: number) => void; onBuyNow: (quantity: number) => void; onCheckout: () => void; onCart: () => void; onRelatedOpen: (product: CatalogProduct) => void; onRelatedAdd: (product: CatalogProduct) => void; onRelatedBuyNow: (product: CatalogProduct) => void; onRelatedAsk: (product: CatalogProduct) => void }) {
   const available = Number(product.stock ?? 0) > 0;
   const maxQuantity = Math.max(1, Number(product.stock ?? 0));
   const [quantity, setQuantity] = useState(1);
@@ -640,7 +673,7 @@ function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNow, onCh
             <button type="button" onClick={() => adjustQuantity(1)} disabled={!available || quantity >= maxQuantity} aria-label="Aumentar quantidade">+</button>
           </div>
         </div>
-        <div className="product-detail-actions"><div className="product-detail-buy-actions"><button className="product-detail-add" onClick={onAdd} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Adicionar ao carrinho" : "Produto esgotado"}</button><button className="product-detail-buy-now" onClick={onBuyNow} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Comprar agora" : "Indisponível"}</button></div><button className="product-detail-whatsapp" onClick={() => { if (!storeWhatsApp) return; const text = encodeURIComponent(`Olá! Tenho interesse em ${product.name} (${formatMoney(product.price)}).`); window.open(`https://wa.me/${storeWhatsApp}?text=${text}`, "_blank", "noopener,noreferrer"); }} disabled={!storeWhatsApp}>Tenho interesse <ArrowRight size={15}/></button></div>
+        <div className="product-detail-actions"><div className="product-detail-buy-actions"><button className="product-detail-add" onClick={() => onAdd(quantity)} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Adicionar ao carrinho" : "Produto esgotado"}</button><button className="product-detail-buy-now" onClick={() => onBuyNow(quantity)} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Comprar agora" : "Indisponível"}</button></div><button className="product-detail-whatsapp" onClick={() => { if (!storeWhatsApp) return; const text = encodeURIComponent(`Olá! Tenho interesse em ${product.name} (${formatMoney(product.price)}).`); window.open(`https://wa.me/${storeWhatsApp}?text=${text}`, "_blank", "noopener,noreferrer"); }} disabled={!storeWhatsApp}>Tenho interesse <ArrowRight size={15}/></button></div>
         <div className="product-detail-benefits"><span><ShieldCheck size={15}/> Compra segura</span><span><Truck size={15}/> Envio calculado no checkout</span></div><button className="store-primary-cta" onClick={onCart}>Ver carrinho <ArrowRight size={16}/></button>
         <p className="product-detail-note">Pagamento online processado pelo Mercado Pago. Consulte as opções de entrega no checkout.</p>
       </div>
