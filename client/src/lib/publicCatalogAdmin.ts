@@ -23,14 +23,15 @@ function readLocal(): ManagedPublicProduct[] {
 }
 
 export function usePublicProductManager(ownerId?: string): [ManagedPublicProduct[], Dispatch<SetStateAction<ManagedPublicProduct[]>>, boolean] {
-  const [items, setItems] = useState<ManagedPublicProduct[]>(readLocal);
+  const [items, setItems] = useState<ManagedPublicProduct[]>(() => (!isSupabaseConfigured ? readLocal() : []));
   const [ready, setReady] = useState(!isSupabaseConfigured || !ownerId);
 
   useEffect(() => { localStorage.setItem(localKey, JSON.stringify(items)); }, [items]);
 
   useEffect(() => {
     let cancelled = false;
-    if (!supabase || !ownerId) { setReady(true); return; }
+    if (!supabase) { setItems(readLocal()); setReady(true); return; }
+    if (!ownerId) { setItems([]); setReady(false); return; }
     setReady(false);
     void (async () => {
       const { data, error } = await supabase.from("public_products").select("id,product_id,name,category,material,price,image_url,featured,is_published,slug,description,stock,is_new,is_best_seller,sort_order,sold_quantity").eq("owner_id", ownerId).order("created_at");
