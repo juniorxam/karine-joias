@@ -33,8 +33,13 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Sessão inválida" }), { status: 401, headers: cors });
     }
 
-    const { data: membership } = await admin.from("store_memberships").select("owner_id").eq("user_id", user.id).eq("active", true).order("created_at").limit(1).maybeSingle();
-    const ownerId = membership?.owner_id || user.id;
+    const { data: store, error: storeError } = await admin.from("storefront_settings").select("owner_id").eq("store_slug", "violetta").maybeSingle();
+    if (storeError || !store?.owner_id) return new Response(JSON.stringify({ error: "Loja não configurada" }), { status: 503, headers: cors });
+    const ownerId = String(store.owner_id);
+    if (user.id !== ownerId) {
+      const { data: membership } = await admin.from("store_memberships").select("role").eq("owner_id", ownerId).eq("user_id", user.id).eq("active", true).maybeSingle();
+      if (!membership || !["owner", "manager"].includes(String(membership.role))) return new Response(JSON.stringify({ error: "Sem acesso à gestão" }), { status: 403, headers: cors });
+    }
 
     const body = await req.json();
     const orderId = String(body?.order_id || "");
