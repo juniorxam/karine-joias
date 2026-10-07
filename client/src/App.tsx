@@ -216,7 +216,7 @@ function Reports({sales,clients,products,ownerId}:any){
    (async()=>{
      const {data:orders,error:ordersError}=await supabase
        .from("orders")
-       .select("id,order_number,customer_name,customer_email,customer_phone,total_amount,payment_status,status,created_at")
+       .select("id,order_number,customer_name,customer_email,customer_phone,total_amount,payment_method,payment_status,status,created_at")
        .eq("owner_id",ownerId)
        .gte("created_at",from+"T00:00:00")
        .lte("created_at",to+"T23:59:59.999")
