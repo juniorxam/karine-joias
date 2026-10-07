@@ -5,7 +5,7 @@ import App from "./App";
 import "./index.css";
 
 type Props = { children: ReactNode };
-type State = { hasError: boolean };
+type State = { hasError: boolean; message?: string };
 
 class AppErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false };
@@ -16,6 +16,7 @@ class AppErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("Violetta: erro não tratado na interface", error, info);
+    this.setState({ hasError: true, message: error.message });
   }
 
   render() {
@@ -32,6 +33,7 @@ class AppErrorBoundary extends Component<Props, State> {
           <p className="auth-description">
             A página encontrou um erro inesperado. Tente recarregar; seus dados salvos no servidor permanecem protegidos.
           </p>
+          {this.state.message && <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, color: "#8b3a3a" }}>{this.state.message}</pre>}
           <button className="primary auth-submit" onClick={() => window.location.reload()}>
             Recarregar página
           </button>
