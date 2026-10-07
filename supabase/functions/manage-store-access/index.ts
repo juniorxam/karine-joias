@@ -21,27 +21,28 @@ Deno.serve(async(req)=>{
     const anonKey=Deno.env.get("SUPABASE_ANON_KEY")||"";
     if(!url||!serviceKey) return json({error:"Servidor não configurado"},503);
 
-    const admin=createClient(url,serviceKey);
+    const admin=createClient(url,serviceKey,{auth:{autoRefreshToken:false,persistSession:false}});
     const userClient=createClient(url,anonKey||serviceKey,{global:{headers:{Authorization:auth}}});
-    const {data:{user},error:userError}=await userClient.auth.getUser();
+    const {data:{user},error:userError}=await userClient.auth.getUser(auth.replace(/^Bearer\\s+/,""));
     if(userError||!user) return json({error:"Sessão inválida"},401);
 
-    const {data:store}=await admin.from("storefront_settings").select("owner_id").eq("owner_id",user.id).eq("store_slug","violetta").maybeSingle();
-    if(!store) return json({error:"Somente a proprietária pode gerenciar acessos."},403);
+    const isOwner=user.id===OWNER_ID;
+    const {data:membership}=await admin.from("store_memberships").select("role").eq("owner_id",OWNER_ID).eq("user_id",user.id).eq("active",true).maybeSingle();
+    if(!isOwner && membership?.role!=="owner") return json({error:"Somente a proprietária pode gerenciar acessos."},403);
 
     const body=await req.json().catch(()=>({}));
     const email=String(body?.email||"").trim().toLowerCase();
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({error:"Informe um e-mail válido."},400);
 
     const {data:list,error:listError}=await admin.auth.admin.listUsers({page:1,perPage:1000});
-    if(listError) throw listError;
+    if(listError) return json({error:"Não foi possível consultar os usuários: "+listError.message},500);
     const existing=list?.users?.find((item:any)=>String(item.email||"").toLowerCase()===email);
 
     let memberId=existing?.id;
     let invited=false;
     if(!memberId){
       const invite=await admin.auth.admin.inviteUserByEmail(email);
-      if(invite.error) throw invite.error;
+      if(invite.error) return json({error:"O Supabase não conseguiu enviar o convite: "+invite.error.message},400);
       memberId=invite.data.user?.id;
       invited=true;
     }
@@ -51,7 +52,7 @@ Deno.serve(async(req)=>{
       {owner_id:user.id,user_id:memberId,role:"manager",active:true},
       {onConflict:"owner_id,user_id"}
     );
-    if(membershipError) throw membershipError;
+    if(membershipError) return json({error:"Não foi possível vincular o usuário à loja: "+membershipError.message},500);
 
     return json({ok:true,email,invited,message:invited?"Convite enviado e acesso concedido.":"Acesso concedido à conta existente."});
   }catch(error){
