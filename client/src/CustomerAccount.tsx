@@ -35,6 +35,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   const [profileName,setProfileName]=useState("");
   const [profilePhone,setProfilePhone]=useState("");
   const [profileBusy,setProfileBusy]=useState(false);
+  const [confirmationSent,setConfirmationSent]=useState(false);
 
   useEffect(()=>{
     if(!supabase){setLoading(false);return;}
@@ -102,10 +103,19 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       }
       if(mode==="signup"){
         if(password.length<6)throw new Error("A senha deve ter pelo menos 6 caracteres.");
-        const {data,error}=await supabase.auth.signUp({email:email.trim().toLowerCase(),password});
+        const {data,error}=await supabase.auth.signUp({
+          email:email.trim().toLowerCase(),
+          password,
+          options:{emailRedirectTo:window.location.origin+"/minha-conta"}
+        });
         if(error)throw error;
-        if(data.session)toast.success("Conta criada com sucesso");
-        else toast.success("Conta criada",{description:"Confira seu e-mail para confirmar o cadastro."});
+        if(data.session){
+          setConfirmationSent(false);
+          toast.success("Conta criada com sucesso");
+        }else{
+          setConfirmationSent(true);
+          toast.success("Conta criada",{description:"Confira seu e-mail para confirmar o cadastro."});
+        }
       }else{
         const {error}=await supabase.auth.signInWithPassword({email:email.trim().toLowerCase(),password});
         if(error)throw error;
@@ -113,6 +123,22 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       }
     }catch(error){toast.error("Não foi possível continuar",{description:error instanceof Error?error.message:"Verifique seus dados."});}
     finally{setBusy(false);}
+  };
+
+  const resendConfirmation=async()=>{
+    if(!supabase||!email.trim())return;
+    setBusy(true);
+    try{
+      const {error}=await supabase.auth.resend({
+        type:"signup",
+        email:email.trim().toLowerCase(),
+        options:{emailRedirectTo:window.location.origin+"/minha-conta"}
+      });
+      if(error)throw error;
+      toast.success("E-mail de confirmação reenviado",{description:"Confira também a pasta de spam ou promoções."});
+    }catch(error){
+      toast.error("Não foi possível reenviar o e-mail",{description:error instanceof Error?error.message:"Tente novamente em alguns instantes."});
+    }finally{setBusy(false);}
   };
 
   const saveProfile=async()=>{
@@ -143,6 +169,11 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       <button className="store-primary-cta" disabled={busy}>{busy?"Aguarde…":mode==="login"?"Entrar":mode==="signup"?"Criar conta":mode==="reset"?"Enviar link":"Salvar nova senha"}</button>
     </form>
     {mode==="login"&&<><button className="customer-text-button" onClick={()=>setMode("reset")}>Esqueci minha senha</button><p className="customer-auth-switch">Ainda não tem conta? <button onClick={()=>setMode("signup")}>Criar conta</button></p></>}
+    {mode==="signup"&&confirmationSent&&<div className="customer-security-badge" style={{marginTop:14}}>
+      <Check size={17}/>
+      <span>Enviamos o e-mail de confirmação para <strong>{email}</strong>. Abra o link para ativar sua conta.</span>
+      <button type="button" className="customer-text-button" onClick={resendConfirmation} disabled={busy}>{busy?"Enviando…":"Reenviar e-mail"}</button>
+    </div>}
     {mode==="signup"&&<p className="customer-auth-switch">Já tem conta? <button onClick={()=>setMode("login")}>Entrar</button></p>}
     {mode==="reset"&&<p className="customer-auth-switch"><button onClick={()=>setMode("login")}>Voltar para o login</button></p>}
   </section></main>;
