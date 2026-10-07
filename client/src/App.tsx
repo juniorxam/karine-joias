@@ -228,7 +228,7 @@ function Reports({sales,clients,products,ownerId}:any){
      if(ids.length){
        const {data:itemData,error:itemError}=await supabase
          .from("order_items")
-         .select("order_id,product_name,quantity,unit_price,total_price")
+         .select("order_id,product_id,product_name,quantity,unit_price,total_price")
          .in("order_id",ids);
        if(itemError) throw itemError;
        items=itemData||[];
@@ -250,6 +250,10 @@ function Reports({sales,clients,products,ownerId}:any){
  const orderCount=onlineOrders.length;
  const transactionCount=manualCount+orderCount;
  const ticket=transactionCount?revenue/transactionCount:0;
+ const manualCost=sales.filter((s:Sale)=>s.date>=from&&s.date<=to).reduce((sum:number,s:Sale)=>sum+Number(products.find((p:Product)=>p.id===s.productId)?.cost||0),0);
+ const onlineCost=onlineItems.reduce((sum:number,item:any)=>sum+Number(products.find((p:Product)=>p.id===Number(item.product_id))?.cost||0)*Number(item.quantity||0),0);
+ const grossProfit=revenue-manualCost-onlineCost;
+ const grossMargin=revenue>0?(grossProfit/revenue)*100:0;
 
  const paymentMap=new Map<string,number>();
  sales.filter((s:Sale)=>s.date>=from&&s.date<=to).forEach((s:Sale)=>paymentMap.set(s.payment,(paymentMap.get(s.payment)||0)+Number(s.amount||0)));
@@ -303,7 +307,7 @@ function Reports({sales,clients,products,ownerId}:any){
      ["Vendas presenciais",manualRevenue],
      ["Vendas online",onlineRevenue],
      ["Transações",transactionCount],
-     ["Ticket médio",ticket],
+     ["Ticket médio",ticket],\n     ["Lucro bruto estimado",grossProfit],\n     ["Margem bruta estimada",grossMargin+"%"],
      [],
      ["Produto","Faturamento","Quantidade"],
      ...topProducts.map(x=>[x.name,x.value,x.qty])
@@ -331,7 +335,7 @@ function Reports({sales,clients,products,ownerId}:any){
   <div className="stat-grid">
    <Stat icon={<TrendingUp/>} label="Faturamento total" value={money(revenue)} note={transactionCount+" transações no período"} accent/>
    <Stat icon={<CircleDollarSign/>} label="Ticket médio" value={money(ticket)} note="presencial + online"/>
-   <Stat icon={<ShoppingBag/>} label="Vendas online" value={money(onlineRevenue)} note={orderCount+" pedidos pagos"}/>
+   <Stat icon={<ShoppingBag/>} label="Vendas online" value={money(onlineRevenue)} note={orderCount+" pedidos pagos"}/>\n   <Stat icon={<TrendingUp/>} label="Lucro bruto estimado" value={money(grossProfit)} note={grossMargin.toFixed(1)+"% de margem"}/>
    <Stat icon={<Users/>} label="Clientes compradores" value={topClients.length} note={newOnlineCustomers+" compradores online"}/>
   </div>
   <div className="report-grid">
