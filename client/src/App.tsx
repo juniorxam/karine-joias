@@ -283,7 +283,7 @@ function Reports({sales,clients,products,ownerId}:any){
    const method=String(o.payment_method||"Mercado Pago");
    paymentMap.set(method,(paymentMap.get(method)||0)+Number(o.total_amount||0));
  });
- const pay=[...paymentMap.entries()].map(([payment,value])=>({payment,value})).sort((a,b)=>b.value-a.value);
+ const pay=Array.from(paymentMap.entries()).map(([payment,value])=>({payment,value})).sort((a,b)=>b.value-a.value);
 
  const productMap=new Map<string,{name:string,value:number,qty:number}>();
  sales.filter((s:Sale)=>s.date>=from&&s.date<=to).forEach((s:Sale)=>{
@@ -300,7 +300,7 @@ function Reports({sales,clients,products,ownerId}:any){
    current.qty+=Number(item.quantity||0);
    productMap.set(name,current);
  });
- const topProducts=[...productMap.values()].sort((a,b)=>b.value-a.value);
+ const topProducts=Array.from(productMap.values()).sort((a,b)=>b.value-a.value);
 
  const clientMap=new Map<string,{name:string,value:number,count:number}>();
  sales.filter((s:Sale)=>s.date>=from&&s.date<=to).forEach((s:Sale)=>{
@@ -315,7 +315,7 @@ function Reports({sales,clients,products,ownerId}:any){
    const current=clientMap.get(key)||{name:String(o.customer_name||"Cliente online"),value:0,count:0};
    current.value+=Number(o.total_amount||0);current.count+=1;clientMap.set(key,current);
  });
- const topClients=[...clientMap.values()].sort((a,b)=>b.value-a.value);
+ const topClients=Array.from(clientMap.values()).sort((a,b)=>b.value-a.value);
  const newOnlineCustomers=new Set(onlineOrders.map((o:any)=>String(o.customer_email||o.customer_phone||o.customer_name||o.id).toLowerCase())).size;
 
  const esc=(v:any)=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
