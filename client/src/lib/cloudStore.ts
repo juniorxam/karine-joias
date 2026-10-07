@@ -134,7 +134,7 @@ export async function createManualSale(input: {
     p_client_id: input.clientId,
     p_amount: input.amount,
     p_payment: input.payment,
-    p_discount: input.discount ?? 0,
+    p_discount: input.discount ?? 0,\n    p_quantity: input.quantity ?? 1,
   });
   if (error) throw error;
   return {
