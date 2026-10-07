@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Check, LogIn, Package, Truck, UserRound, X } from "lucide-react";
+import { ArrowLeft, Check, Clock3, CreditCard, Eye, LogIn, Package, ShieldCheck, Truck, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "./lib/supabase";
 
@@ -48,6 +48,9 @@ export default function CustomerAccount({ onBack }:{onBack:()=>void}) {
   const [busy,setBusy]=useState(false);
   const [orders,setOrders]=useState<Order[]>([]);
   const [selected,setSelected]=useState<Order|null>(null);
+  const [activeTab,setActiveTab]=useState<"overview"|"orders">("overview");
+  const [search,setSearch]=useState("");
+  const [orderFilter,setOrderFilter]=useState("ALL");
 
   useEffect(()=>{
     if(!supabase){setLoading(false);return;}
@@ -70,6 +73,15 @@ export default function CustomerAccount({ onBack }:{onBack:()=>void}) {
     })();
     return()=>{cancelled=true;};
   },[session?.user?.id]);
+
+  const filteredOrders=orders.filter(order => {
+    const matchesSearch=!search.trim() || order.order_number.toLowerCase().includes(search.trim().toLowerCase());
+    const matchesStatus=orderFilter==="ALL" || order.status===orderFilter;
+    return matchesSearch && matchesStatus;
+  });
+  const latestOrder=orders[0];
+  const activeOrders=orders.filter(o=>!["DELIVERED","CANCELLED","REFUNDED"].includes(o.status));
+  const totalSpent=orders.reduce((sum,o)=>sum+Number(o.total_amount||0),0);
 
   const submit=async(e:React.FormEvent)=>{
     e.preventDefault();
@@ -106,32 +118,55 @@ export default function CustomerAccount({ onBack }:{onBack:()=>void}) {
     <p>{mode==="login"?"Acompanhe seus pedidos, pagamentos e entregas em um só lugar.":mode==="signup"?"Crie sua conta para acompanhar automaticamente suas compras.":"Informe seu e-mail e enviaremos um link para redefinir sua senha."}</p>
     <form onSubmit={submit} className="customer-form">
       <label>E-mail<input type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)} /></label>
-      {mode!=="reset"&&<label>Senha<input type="password" autoComplete={mode==="login"?"current-password":"new-password"} minLength={6} required value={password} onChange={e=>setPassword(e.target.value)} /></label>}
-      <button className="checkout-submit" disabled={busy}>{busy?"Aguarde...":mode==="login"?"Entrar":mode==="signup"?"Criar conta":"Enviar recuperação"}</button>
-    </form>
-    <div className="customer-links">
-      {mode==="login"&&<><button onClick={()=>setMode("signup")}>Ainda não tenho conta</button><button onClick={()=>setMode("reset")}>Esqueci minha senha</button></>}
-      {mode!=="login"&&<button onClick={()=>setMode("login")}><LogIn size={15}/> Já tenho uma conta</button>}
-    </div>
-  </section></main>;
-
-  return <main className="customer-account-page"><section className="customer-card customer-account-shell">
-    <div className="customer-account-head">
-      <button className="customer-back" onClick={onBack}><ArrowLeft size={16}/> Loja</button>
-      <div><p className="store-kicker">MINHA CONTA</p><h1>Olá, {session.user.email?.split("@")[0] || "cliente"} ✨</h1><p>Seus pedidos ficam reunidos aqui.</p></div>
+      {mode!=="reset"&&<label>Senha<i  return <main className="customer-account-page"><section className="customer-card customer-account-shell">
+    <div className="customer-account-topbar">
+      <button className="customer-back" onClick={onBack}><ArrowLeft size={16}/> Voltar à loja</button>
       <button className="customer-logout" onClick={async()=>{await supabase?.auth.signOut();setSelected(null);}}>Sair</button>
     </div>
+    <div className="customer-profile-hero">
+      <div className="customer-avatar"><UserRound size={26}/></div>
+      <div className="customer-profile-copy"><p className="store-kicker">MINHA CONTA</p><h1>Olá, {session.user.email?.split("@")[0] || "cliente"} ✨</h1><span>{session.user.email}</span></div>
+      <div className="customer-trust"><ShieldCheck size={18}/><span>Conta protegida</span></div>
+    </div>
+
+    {!selected && <div className="customer-tabs">
+      <button className={activeTab==="overview"?"active":""} onClick={()=>setActiveTab("overview")}>Visão geral</button>
+      <button className={activeTab==="orders"?"active":""} onClick={()=>setActiveTab("orders")}>Meus pedidos <b>{orders.length}</b></button>
+    </div>}
+
     {selected?<div className="customer-order-detail">
       <button className="customer-back" onClick={()=>setSelected(null)}><ArrowLeft size={16}/> Voltar aos pedidos</button>
-      <div className="customer-order-title"><div><p className="store-kicker">PEDIDO</p><h2>{selected.order_number}</h2><small>{new Date(selected.created_at).toLocaleString("pt-BR")}</small></div><strong>{money(selected.total_amount)}</strong></div>
+      <div className="customer-order-title"><div><p className="store-kicker">DETALHES DO PEDIDO</p><h2>{selected.order_number}</h2><small>{new Date(selected.created_at).toLocaleString("pt-BR")}</small></div><strong>{money(selected.total_amount)}</strong></div>
+      <div className="customer-timeline">
+        {[
+          ["PENDING_PAYMENT","Pedido recebido",Package],
+          ["PAID","Pagamento confirmado",CreditCard],
+          ["PROCESSING","Em preparação",Clock3],
+          ["SHIPPED","Enviado",Truck],
+          ["DELIVERED","Entregue",Check],
+        ].map(([key,label,Icon],i)=>{
+          const orderSteps=["PENDING_PAYMENT","PAID","PROCESSING","READY_TO_SHIP","SHIPPED","DELIVERED"];
+          const current=Math.max(orderSteps.indexOf(selected.status),selected.payment_status==="APPROVED"||selected.payment_status==="PAID"?1:0);
+          const step=orderSteps.indexOf(key as string);
+          const done=current>=step;
+          return <div className={`customer-step ${done?"done":""}`} key={String(key)}><span className="customer-step-dot"><Icon size={15}/></span><div><strong>{label}</strong><small>{done?"Concluído":"Aguardando"}</small></div>{i<4&&<span className="customer-step-line"/>}</div>
+        })}
+      </div>
       <div className="customer-status-box"><strong>{statusLabels[selected.status]||selected.status}</strong><span>{paymentLabels[selected.payment_status]||selected.payment_status}</span></div>
-      <div className="customer-order-items">{(selected.order_items||[]).map(item=><div key={item.id}><span>{item.quantity}× {item.product_name}</span><strong>{money(Number(item.total_price||item.unit_price*item.quantity))}</strong></div>)}</div>
-      <div className="customer-total"><span>Total</span><strong>{money(selected.total_amount)}</strong></div>
-      {selected.shipments?.[0]?.tracking_code&&<div className="customer-tracking"><Truck size={20}/><div><strong>{selected.shipments[0].carrier||"Rastreamento"}</strong><span>{selected.shipments[0].tracking_code}</span>{selected.shipments[0].tracking_url&&<a href={selected.shipments[0].tracking_url} target="_blank" rel="noreferrer">Acompanhar entrega</a>}</div></div>}
+      <div className="customer-detail-grid">
+        <div className="customer-detail-panel"><h3>Produtos</h3><div className="customer-order-items">{(selected.order_items||[]).map(item=><div key={item.id}><span>{item.quantity}× {item.product_name}</span><strong>{money(Number(item.total_price||item.unit_price*item.quantity))}</strong></div>)}</div></div>
+        <div className="customer-detail-panel"><h3>Resumo</h3><div className="customer-summary-row"><span>Subtotal</span><strong>{money(selected.subtotal_amount)}</strong></div><div className="customer-summary-row"><span>Frete</span><strong>{money(selected.shipping_amount)}</strong></div>{Number(selected.discount_amount)>0&&<div className="customer-summary-row"><span>Desconto</span><strong>- {money(selected.discount_amount)}</strong></div>}<div className="customer-total"><span>Total</span><strong>{money(selected.total_amount)}</strong></div></div>
+      </div>
+      {selected.shipments?.[0]?.tracking_code&&<div className="customer-tracking"><Truck size={20}/><div><strong>{selected.shipments[0].carrier||"Entrega"}</strong><span>{selected.shipments[0].tracking_code}</span>{selected.shipments[0].tracking_url&&<a href={selected.shipments[0].tracking_url} target="_blank" rel="noreferrer">Acompanhar entrega ↗</a>}</div></div>}
       {!["PAID","APPROVED"].includes(String(selected.payment_status||"").toUpperCase())&&selected.payment_url&&<a className="checkout-submit customer-pay" href={selected.payment_url}>Continuar pagamento</a>}
-    </div>:<>
-      <div className="customer-account-head"><div><p className="store-kicker">MEUS PEDIDOS</p><h2>Histórico de compras</h2></div><span className="customer-order-count">{orders.length} pedido{orders.length===1?"":"s"}</span></div>
-      {!orders.length?<div className="customer-empty"><Package size={30}/><h3>Você ainda não tem pedidos nesta conta.</h3><p>Na próxima compra, estando logado, o pedido aparecerá automaticamente aqui.</p><button className="store-primary-cta" onClick={onBack}>Começar a comprar</button></div>:<div className="customer-orders-list">{orders.map(order=><button className="customer-order-row" key={order.id} onClick={()=>setSelected(order)}><span className="customer-order-icon"><Package size={19}/></span><span className="customer-order-main"><strong>{order.order_number}</strong><small>{new Date(order.created_at).toLocaleDateString("pt-BR")} · {statusLabels[order.status]||order.status}</small></span><strong>{money(order.total_amount)}</strong><span className="customer-order-arrow">›</span></button>)}</div>}
+    </div>:activeTab==="overview"?<div>
+      <div className="customer-metrics"><div><Package/><span>Pedidos</span><strong>{orders.length}</strong></div><div><Truck/><span>Em andamento</span><strong>{activeOrders.length}</strong></div><div><CreditCard/><span>Total comprado</span><strong>{money(totalSpent)}</strong></div></div>
+      {latestOrder?<div className="customer-latest"><div className="customer-section-head"><div><p className="store-kicker">COMPRA MAIS RECENTE</p><h2>{latestOrder.order_number}</h2></div><button onClick={()=>setSelected(latestOrder)}>Ver pedido <Eye size={16}/></button></div><div className="customer-latest-meta"><span>{new Date(latestOrder.created_at).toLocaleDateString("pt-BR")}</span><b>{statusLabels[latestOrder.status]||latestOrder.status}</b><strong>{money(latestOrder.total_amount)}</strong></div></div>:<div className="customer-empty"><Package size={30}/><h3>Você ainda não tem pedidos.</h3><p>Faça sua primeira compra e acompanhe tudo por aqui.</p><button className="store-primary-cta" onClick={onBack}>Começar a comprar</button></div>}
+    </div>:<div>
+      <div className="customer-orders-toolbar"><input placeholder="Buscar por número do pedido..." value={search} onChange={e=>setSearch(e.target.value)}/><select value={orderFilter} onChange={e=>setOrderFilter(e.target.value)}><option value="ALL">Todos os status</option>{Object.entries(statusLabels).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></div>
+      {!filteredOrders.length?<div className="customer-empty"><Package size={28}/><h3>Nenhum pedido encontrado.</h3><p>Tente alterar a busca ou o filtro.</p></div>:<div className="customer-orders-list">{filteredOrders.map(order=><button className="customer-order-row" key={order.id} onClick={()=>setSelected(order)}><span className="customer-order-icon"><Package size={19}/></span><span className="customer-order-main"><strong>{order.order_number}</strong><small>{new Date(order.created_at).toLocaleDateString("pt-BR")} · {statusLabels[order.status]||order.status}</small></span><strong>{money(order.total_amount)}</strong><span className="customer-order-arrow">›</span></button>)}</div>}
+    </div>}
+  </section></main>;mpra, estando logado, o pedido aparecerá automaticamente aqui.</p><button className="store-primary-cta" onClick={onBack}>Começar a comprar</button></div>:<div className="customer-orders-list">{orders.map(order=><button className="customer-order-row" key={order.id} onClick={()=>setSelected(order)}><span className="customer-order-icon"><Package size={19}/></span><span className="customer-order-main"><strong>{order.order_number}</strong><small>{new Date(order.created_at).toLocaleDateString("pt-BR")} · {statusLabels[order.status]||order.status}</small></span><strong>{money(order.total_amount)}</strong><span className="customer-order-arrow">›</span></button>)}</div>}
     </>}
   </section></main>;
 }
