@@ -126,6 +126,7 @@ export async function createManualSale(input: {
   amount: number;
   payment: string;
   discount?: number;
+  quantity?: number;
 }) {
   if (!supabase) throw new Error("Supabase indisponível");
   const { data, error } = await supabase.rpc("create_manual_sale", {
@@ -134,7 +135,8 @@ export async function createManualSale(input: {
     p_client_id: input.clientId,
     p_amount: input.amount,
     p_payment: input.payment,
-    p_discount: input.discount ?? 0,\n    p_quantity: input.quantity ?? 1,
+    p_discount: input.discount ?? 0,
+    p_quantity: input.quantity ?? 1,
   });
   if (error) throw error;
   return {
