@@ -16,7 +16,10 @@ export type ManagedPublicProduct = CatalogProduct & {
 const localKey = "kj-public-products";
 
 function readLocal(): ManagedPublicProduct[] {
-  try { return JSON.parse(localStorage.getItem(localKey) || "[]"); } catch { return []; }
+  try {
+    const parsed = JSON.parse(localStorage.getItem(localKey) || "null");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
 }
 
 export function usePublicProductManager(ownerId?: string): [ManagedPublicProduct[], Dispatch<SetStateAction<ManagedPublicProduct[]>>, boolean] {

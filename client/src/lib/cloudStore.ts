@@ -34,7 +34,8 @@ const fromDb = (table: string, row: Record<string, any>) => {
 
 function readLocal<T>(key: string, initial: T) {
   try {
-    return JSON.parse(localStorage.getItem(key) || "") || initial;
+    const parsed = JSON.parse(localStorage.getItem(key) || "null");
+    return Array.isArray(parsed) ? parsed as T : initial;
   } catch {
     return initial;
   }
