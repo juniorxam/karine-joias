@@ -11,6 +11,10 @@ Deno.serve(async(req)=>{
   if(name.length<2||name.length>120) throw new Error("Nome inválido");
   if(!/^\d{10,13}$/.test(phone)) throw new Error("WhatsApp inválido");
   const db=createClient(url,key);
+  const {data:store,error:storeError}=await db.from("storefront_settings").select("owner_id").eq("store_slug","violetta").maybeSingle();
+  if(storeError) throw storeError;
+  const ownerId=store?.owner_id;
+  if(!ownerId) throw new Error("Loja Violetta não está configurada");
   const {data:settings,error:settingsError}=await db.from("first_purchase_settings").select("*").eq("owner_id",ownerId).maybeSingle(); if(settingsError) throw settingsError; if(settings?.enabled===false) throw new Error("O presente de primeira compra está temporariamente indisponível"); const cfg=settings||{reward_type:"PERCENT",reward_value:10,gift_description:null,validity_days:30,min_order_amount:0}; const existing=await db.from("first_purchase_leads").select("id,coupon_id").eq("owner_id",ownerId).eq("phone",phone).maybeSingle();
   if(existing.error) throw existing.error;
   if(existing.data?.coupon_id){
