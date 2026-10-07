@@ -14,6 +14,7 @@ export type CatalogProduct = {
   isBestSeller?: boolean;
   sortOrder?: number;
   soldQuantity?: number;
+  ownerId?: string;
 };
 
 export const fallbackCatalog: CatalogProduct[] = [
