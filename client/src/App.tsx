@@ -229,7 +229,8 @@ function Reports({sales,clients,products,ownerId}:any){
  const [to,setTo]=useState(ago(0));
  const [onlineOrders,setOnlineOrders]=useState<any[]>([]);
  const [onlineItems,setOnlineItems]=useState<any[]>([]);
- const [onlineLoading,setOnlineLoading]=useState(false);\n const [channel,setChannel]=useState<"ALL"|"SITE"|"PRESENCIAL">("ALL");
+ const [onlineLoading,setOnlineLoading]=useState(false);
+ const [channel,setChannel]=useState<"ALL"|"SITE"|"PRESENCIAL">("ALL");
 
  useEffect(()=>{
    let cancelled=false;
@@ -267,19 +268,26 @@ function Reports({sales,clients,products,ownerId}:any){
 
  const onlineRevenue=onlineOrders.reduce((sum:number,o:any)=>sum+Number(o.total_amount||0),0);
  const manualRevenue=sales.filter((s:Sale)=>s.date>=from&&s.date<=to).reduce((sum:number,s:Sale)=>sum+Number(s.amount||0),0);
- const visibleManualRevenue=channel==="SITE"?0:manualRevenue;\n const visibleOnlineRevenue=channel==="PRESENCIAL"?0:onlineRevenue;\n const revenue=visibleManualRevenue+visibleOnlineRevenue;
+ const visibleManualRevenue=channel==="SITE"?0:manualRevenue;
+ const visibleOnlineRevenue=channel==="PRESENCIAL"?0:onlineRevenue;
+ const revenue=visibleManualRevenue+visibleOnlineRevenue;
  const manualCount=sales.filter((s:Sale)=>s.date>=from&&s.date<=to).length;
  const orderCount=onlineOrders.length;
+ const visibleManualCount=channel==="SITE"?0:manualCount;
+ const visibleOrderCount=channel==="PRESENCIAL"?0:orderCount;
  const transactionCount=visibleManualCount+visibleOrderCount;
  const ticket=transactionCount?revenue/transactionCount:0;
  const manualCost=sales.filter((s:Sale)=>s.date>=from&&s.date<=to).reduce((sum:number,s:Sale)=>sum+Number(products.find((p:Product)=>p.id===s.productId)?.cost||0),0);
  const onlineCost=onlineItems.reduce((sum:number,item:any)=>sum+Number(products.find((p:Product)=>p.id===Number(item.product_id))?.cost||0)*Number(item.quantity||0),0);
- const visibleManualCost=channel==="SITE"?0:manualCost;\n const visibleOnlineCost=channel==="PRESENCIAL"?0:onlineCost;\n const grossProfit=revenue-visibleManualCost-visibleOnlineCost;
+ const visibleManualCost=channel==="SITE"?0:manualCost;
+ const visibleOnlineCost=channel==="PRESENCIAL"?0:onlineCost;
+ const grossProfit=revenue-visibleManualCost-visibleOnlineCost;
  const grossMargin=revenue>0?(grossProfit/revenue)*100:0;
 
  const paymentMap=new Map<string,number>();
- sales.filter((s:Sale)=>s.date>=from&&s.date<=to).forEach((s:Sale)=>paymentMap.set(s.payment,(paymentMap.get(s.payment)||0)+Number(s.amount||0)));
+ sales.filter((s:Sale)=>s.date>=from&&s.date<=to).forEach((s:Sale)=>{ if(channel==="SITE")return; paymentMap.set(s.payment,(paymentMap.get(s.payment)||0)+Number(s.amount||0))); });
  onlineOrders.forEach((o:any)=>{
+   if(channel==="PRESENCIAL")return;
    const method=String(o.payment_method||"Mercado Pago");
    paymentMap.set(method,(paymentMap.get(method)||0)+Number(o.total_amount||0));
  });
@@ -287,6 +295,7 @@ function Reports({sales,clients,products,ownerId}:any){
 
  const productMap=new Map<string,{name:string,value:number,qty:number}>();
  sales.filter((s:Sale)=>s.date>=from&&s.date<=to).forEach((s:Sale)=>{
+   if(channel==="SITE")return;
    const name=products.find((p:Product)=>p.id===s.productId)?.name||"Produto removido";
    const current=productMap.get(name)||{name,value:0,qty:0};
    current.value+=Number(s.amount||0);
@@ -294,6 +303,7 @@ function Reports({sales,clients,products,ownerId}:any){
    productMap.set(name,current);
  });
  onlineItems.forEach((item:any)=>{
+   if(channel==="PRESENCIAL")return;
    const name=String(item.product_name||"Produto online");
    const current=productMap.get(name)||{name,value:0,qty:0};
    current.value+=Number(item.total_price||Number(item.unit_price||0)*Number(item.quantity||0));
@@ -304,6 +314,7 @@ function Reports({sales,clients,products,ownerId}:any){
 
  const clientMap=new Map<string,{name:string,value:number,count:number}>();
  sales.filter((s:Sale)=>s.date>=from&&s.date<=to).forEach((s:Sale)=>{
+   if(channel==="SITE")return;
    const c=clients.find((x:Client)=>x.id===s.clientId);
    if(!c)return;
    const key="client:"+c.id;
@@ -311,6 +322,7 @@ function Reports({sales,clients,products,ownerId}:any){
    current.value+=Number(s.amount||0);current.count+=1;clientMap.set(key,current);
  });
  onlineOrders.forEach((o:any)=>{
+   if(channel==="PRESENCIAL")return;
    const key="email:"+String(o.customer_email||o.customer_phone||o.customer_name||o.id).toLowerCase();
    const current=clientMap.get(key)||{name:String(o.customer_name||"Cliente online"),value:0,count:0};
    current.value+=Number(o.total_amount||0);current.count+=1;clientMap.set(key,current);
