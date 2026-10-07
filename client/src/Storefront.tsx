@@ -91,15 +91,83 @@ export default function Storefront() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [storefrontSettings, setStorefrontSettings] = useState<StorefrontSettings | null>(null);
-  useEffect(() => {
-    if (!supabase || !products[0]?.ownerId) return;
-    supabase.from("storefront_settings")
+  const refreshPublicCatalog = async () => {
+    try {
+      const latest = await loadPublicCatalog();
+      setProducts(latest);
+    } catch (error) {
+      console.error("Falha ao sincronizar catálogo público", error);
+    }
+  };
+
+  const refreshStorefrontSettings = async (ownerId?: string) => {
+    if (!supabase || !ownerId) return;
+    const { data, error } = await supabase.from("storefront_settings")
       .select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled,collection_enabled,collection_title,collection_subtitle,collection_image_url,collection_cta,shipping_palmas_enabled,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_palmas_distance_rules")
       .eq("store_slug","violetta")
-      .eq("owner_id", products[0].ownerId)
+      .eq("owner_id", ownerId)
       .limit(1)
-      .maybeSingle()
-      .then(({ data }) => { if (data) setStorefrontSettings(data as StorefrontSettings); });
+      .maybeSingle();
+    if (error) {
+      console.error("Falha ao sincronizar configurações da vitrine", error);
+      return;
+    }
+    if (data) setStorefrontSettings(data as StorefrontSettings);
+  };
+
+  useEffect(() => {
+    const ownerId = products[0]?.ownerId;
+    if (!ownerId) return;
+    void refreshStorefrontSettings(ownerId);
+  }, [products[0]?.ownerId]);
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    // Sincronização em tempo real: qualquer alteração feita no painel em
+    // public_products ou storefront_settings atualiza a vitrine aberta.
+    const catalogChannel = supabase
+      .channel("violetta-public-catalog")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "public_products", filter: "store_slug=eq.violetta" },
+        () => { void refreshPublicCatalog(); },
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") console.info("[Violetta] Catálogo em tempo real conectado.");
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.warn("[Violetta] Realtime do catálogo indisponível; o fallback periódico continuará ativo.");
+      });
+
+    const settingsChannel = supabase
+      .channel("violetta-storefront-settings")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "storefront_settings", filter: "store_slug=eq.violetta" },
+        (payload) => {
+          const ownerId = products[0]?.ownerId;
+          if (ownerId && (payload.eventType === "INSERT" || payload.eventType === "UPDATE" || payload.eventType === "DELETE")) {
+            void refreshStorefrontSettings(ownerId);
+          }
+        },
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") console.info("[Violetta] Configurações em tempo real conectadas.");
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.warn("[Violetta] Realtime das configurações indisponível; o fallback periódico continuará ativo.");
+      });
+
+    // Fallback: se uma conexão WebSocket cair, a loja ainda se sincroniza
+    // automaticamente sem depender de o cliente apertar F5.
+    const fallbackTimer = window.setInterval(() => {
+      void refreshPublicCatalog();
+      const ownerId = products[0]?.ownerId;
+      if (ownerId) void refreshStorefrontSettings(ownerId);
+    }, 120000);
+
+    return () => {
+      window.clearInterval(fallbackTimer);
+      void supabase.removeChannel(catalogChannel);
+      void supabase.removeChannel(settingsChannel);
+    };
   }, [products[0]?.ownerId]);
   const [cart, setCart] = useState<CartItem[]>(readCart);
   const [checkoutDraft, setCheckoutDraft] = useState(readCheckoutDraft);
@@ -118,7 +186,7 @@ export default function Storefront() {
   const selectedProduct = view === "product" ? products.find(product => (product.slug || String(product.id)) === productSlug || String(product.id) === productSlug) : null;
 
   useEffect(() => {
-    loadPublicCatalog().then(setProducts);
+    void refreshPublicCatalog();
   }, []);
 
   useEffect(() => {
