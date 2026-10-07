@@ -345,14 +345,6 @@ export default function Storefront() {
       return;
     }
     setOrder(data);
-    const { data: authData } = await supabase.auth.getSession();
-    if (authData.session?.user?.id && data?.id) {
-      const { error: claimError } = await supabase.from("orders")
-        .update({ customer_user_id: authData.session.user.id })
-        .eq("id", data.id)
-        .is("customer_user_id", null);
-      if (claimError) console.warn("Não foi possível vincular o pedido à conta do cliente", claimError);
-    }
     localStorage.setItem("kj-last-order-email", customer.email.trim().toLowerCase());
     localStorage.setItem("kj-last-order-number", data.order_number);
     if (data.tracking_token) localStorage.setItem("kj-last-order-token", data.tracking_token);
@@ -613,6 +605,19 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   const [couponBusy, setCouponBusy] = useState(false);
   const [couponError, setCouponError] = useState("");
   const [couponDiscount, setCouponDiscount] = useState(0); const [couponApplied, setCouponApplied] = useState(false); const [couponGiftDescription, setCouponGiftDescription] = useState("");
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data }) => {
+      const user = data.session?.user;
+      if (!user) return;
+      setCustomer(current => ({
+        ...current,
+        email: current.email || user.email || "",
+        name: current.name || String(user.user_metadata?.full_name || ""),
+        phone: current.phone || String(user.user_metadata?.phone || ""),
+      }));
+    });
+  }, []);
   const [distanceKmValue, setDistanceKmValue] = useState<number|null>(null);
   const [distanceLoading, setDistanceLoading] = useState(false);
   const [distanceError, setDistanceError] = useState("");
