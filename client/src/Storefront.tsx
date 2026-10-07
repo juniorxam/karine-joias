@@ -122,11 +122,12 @@ export default function Storefront() {
   }, [products[0]?.ownerId]);
 
   useEffect(() => {
-    if (!supabase) return;
+    const client = supabase;
+    if (!client) return;
 
     // Sincronização em tempo real: qualquer alteração feita no painel em
     // public_products ou storefront_settings atualiza a vitrine aberta.
-    const catalogChannel = supabase
+    const catalogChannel = client
       .channel("violetta-public-catalog")
       .on(
         "postgres_changes",
@@ -138,7 +139,7 @@ export default function Storefront() {
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.warn("[Violetta] Realtime do catálogo indisponível; o fallback periódico continuará ativo.");
       });
 
-    const settingsChannel = supabase
+    const settingsChannel = client
       .channel("violetta-storefront-settings")
       .on(
         "postgres_changes",
@@ -165,8 +166,8 @@ export default function Storefront() {
 
     return () => {
       window.clearInterval(fallbackTimer);
-      void supabase.removeChannel(catalogChannel);
-      void supabase.removeChannel(settingsChannel);
+      void client.removeChannel(catalogChannel);
+      void client.removeChannel(settingsChannel);
     };
   }, [products[0]?.ownerId]);
   const [cart, setCart] = useState<CartItem[]>(readCart);
@@ -359,6 +360,8 @@ export default function Storefront() {
     setView("checkout");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  const buyNow = (product: CatalogProduct) => buyNowQuantity(product, 1);
 
   const changeQty = (id: CatalogProduct["id"], delta: number) => {
     setCart(items => items.flatMap(item => {
