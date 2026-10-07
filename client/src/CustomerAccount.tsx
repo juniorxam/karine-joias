@@ -130,7 +130,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
 
   if(loading)return <main className="customer-account-page"><section className="customer-card"><p>Carregando sua conta...</p></section></main>;
 
-  if(!session)return <main className="customer-account-page"><section className="customer-card customer-auth-card">
+  if(!session || mode==="new-password")return <main className="customer-account-page"><section className="customer-card customer-auth-card">
     <button className="customer-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button>
     <div className="customer-icon">{mode==="new-password"?<LockKeyhole size={25}/>:<UserRound size={25}/>}</div>
     <p className="store-kicker">MINHA CONTA</p>
