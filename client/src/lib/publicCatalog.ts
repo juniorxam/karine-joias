@@ -1,4 +1,5 @@
-import { isSupabaseConfigured, supabase } from "./supabase";
+import { createClient } from "@supabase/supabase-js";
+import { isSupabaseConfigured } from "./supabase";
 import { fallbackCatalog, type CatalogProduct } from "./catalog";
 
 type PublicRow = {
@@ -21,7 +22,7 @@ type PublicRow = {
 };
 
 export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured) {
     try {
       const local = JSON.parse(localStorage.getItem("kj-public-products") || "[]") as CatalogProduct[];
       const published = local.filter((item: any) => item.isPublished);
@@ -31,7 +32,16 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
     }
   }
 
-  const { data, error } = await supabase
+  // A vitrine pública não deve reutilizar a sessão persistida da área da proprietária.
+  // Uma sessão autenticada antiga pode mudar o JWT enviado ao Supabase e fazer o
+  // catálogo parecer vazio, mesmo quando a leitura anônima está funcionando.
+  const publicClient = createClient(
+    import.meta.env.VITE_SUPABASE_URL as string,
+    import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+    { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } },
+  );
+
+  const { data, error } = await publicClient
     .from("public_products")
     .select("id,product_id,name,category,material,price,image_url,featured,is_published,slug,description,stock,is_new,is_best_seller,sort_order,sold_quantity")
     .eq("store_slug", "violetta")
