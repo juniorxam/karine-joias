@@ -138,6 +138,13 @@ Deno.serve(async (req) => {
     if (pickupSelected && (!city || !/^[A-Z]{2}$/.test(state))) throw new Error("Localidade inválida");
 
     const requestedService = String(shipping.shipping_option?.service || "").trim();
+    const pricingItems = items.map((item: any) => ({ product_id: Number(item.product_id), quantity: Number(item.quantity) }));
+    if (pricingItems.some((item: any) => !Number.isSafeInteger(item.product_id) || item.product_id < 1 || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 20)) throw new Error("Item inválido");
+    const { data: pricingProducts, error: pricingError } = await db.from("products").select("id,price,active,owner_id").in("id", pricingItems.map((item: any) => item.product_id));
+    if (pricingError || !pricingProducts || pricingProducts.length !== pricingItems.length || pricingProducts.some((product: any) => product.active === false)) throw new Error("Produto não encontrado");
+    const pricingOwners = [...new Set(pricingProducts.map((product: any) => String(product.owner_id || "")))];
+    if (pricingOwners.length !== 1 || !pricingOwners[0]) throw new Error("Produtos de lojas diferentes não podem ser combinados");
+    const subtotal = pricingProducts.reduce((sum: number, product: any) => sum + (Number(product.price) || 0) * (pricingItems.find((item: any) => item.product_id === Number(product.id))?.quantity || 0), 0);
     const normalizedCity = city.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
     const isPalmas = normalizedCity === "PALMAS" && state === "TO";
     let shippingAmount = 0;
@@ -146,7 +153,7 @@ Deno.serve(async (req) => {
     if (isPalmas) {
       const { data: storeSettings, error: settingsError } = await db
         .from("storefront_settings")
-        .select("shipping_palmas_enabled,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_palmas_distance_rules")
+        .select("shipping_palmas_enabled,shipping_palmas_free_above,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_palmas_distance_rules")
         .eq("store_slug", "violetta")
         .maybeSingle();
       if (settingsError) throw settingsError;
@@ -170,7 +177,8 @@ Deno.serve(async (req) => {
             return Number.isFinite(min) && distance >= min && max !== null && Number.isFinite(max) && (isLast ? distance <= max : distance < max);
           });
           if (!rule) throw new Error("Não há uma faixa de frete configurada para esta distância");
-          shippingAmount = Math.max(0, Number(rule.price) || 0);
+          const freeShippingThreshold = Number(storeSettings?.shipping_palmas_free_above || 0);
+          shippingAmount = freeShippingThreshold > 0 && subtotal >= freeShippingThreshold ? 0 : Math.max(0, Number(rule.price) || 0);
           normalizedShippingOption = { id: "palmas-distance-" + Number(rule.min_km) + "-" + (rule.max_km ?? "plus"), company: "Violetta", service: "Entrega em Palmas · " + distance.toFixed(1) + " km", price: shippingAmount, delivery_time: 0 };
         }
       else {
