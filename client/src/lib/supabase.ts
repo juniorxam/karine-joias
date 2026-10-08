@@ -4,12 +4,10 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
 /**
- * URL canônica de produção da Violetta.
+ * URL canônica e fixa de produção da Violetta.
  *
- * O fluxo da gestão NÃO deve depender de window.location.origin nem de
- * URLs de desenvolvimento. Mesmo que uma variável Vite seja configurada
- * incorretamente com localhost, a recuperação da gestão continua apontando
- * para o domínio oficial.
+ * Os redirects da área de gestão usam exclusivamente o domínio oficial,
+ * evitando dependência de origem dinâmica ou ambiente local.
  */
 export const PRODUCTION_SITE_URL = "https://violetta.com.br";
 export const MANAGEMENT_LOGIN_URL = `${PRODUCTION_SITE_URL}/gestao/login`;
