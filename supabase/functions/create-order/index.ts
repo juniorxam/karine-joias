@@ -44,20 +44,19 @@ function getClientOrigin(req: Request) {
 async function geocodePostalCode(postalCode: string) {
   const cep = postalCode.replace(/\D/g, "");
   if (cep.length !== 8) throw new Error("CEP inválido");
-  const queries = ["postalcode=" + cep + "&country=Brazil", "q=" + encodeURIComponent(cep + ", Brazil")];
-  for (const query of queries) {
-    try {
-      const response = await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&" + query + "&limit=1", {
-        headers: { "Accept": "application/json", "User-Agent": "Violetta-Store/1.0" },
-      });
-      if (!response.ok) continue;
+
+  try {
+    const response = await fetch("https://brasilapi.com.br/api/cep/v2/" + cep, {
+      headers: { "Accept": "application/json" },
+    });
+    if (response.ok) {
       const data = await response.json();
-      if (Array.isArray(data) && data[0]) {
-        const lat = Number(data[0].lat), lon = Number(data[0].lon);
-        if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
-      }
-    } catch {}
-  }
+      const lat = Number(data?.location?.coordinates?.latitude);
+      const lon = Number(data?.location?.coordinates?.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+    }
+  } catch {}
+
   throw new Error("Não foi possível localizar o CEP para calcular a distância");
 }
 
