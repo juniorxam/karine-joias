@@ -11,7 +11,7 @@ import CustomerAccount from "./CustomerAccount";
 
 const categories = ["Todas", "Joias", "Semi-joias", "Acessórios"];
 const storeWhatsApp = (import.meta.env.VITE_STORE_WHATSAPP as string | undefined)?.replace(/\D/g, "");
-const storeInstagram = (import.meta.env.VITE_STORE_INSTAGRAM as string | undefined)?.trim();
+const storeInstagram = (import.meta.env.VITE_STORE_INSTAGRAM as string | undefined)?.trim() || "https://www.instagram.com/violettapratasesemijoias/";
 const logoSrc = "/logo-violetta.jpeg";
 
 async function getFunctionErrorMessage(error: unknown, data?: unknown, fallback = "Não foi possível concluir a operação.") {
