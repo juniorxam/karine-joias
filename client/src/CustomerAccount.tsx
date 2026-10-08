@@ -165,7 +165,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
     }finally{setBusy(false);}
   };
 
-  const saveProfile=async()=>{
+const sendWelcomeEmail=async(user:any,name:string)=>{\n    if(!user?.email||user.user_metadata?.welcome_email_sent)return;\n    try{\n      const {data:{session:currentSession}}=await supabase.auth.getSession();\n      if(!currentSession?.access_token)return;\n      const response=await fetch("/api/welcome-email",{method:"POST",headers:{"Content-Type":"application/json",Authorization:\`Bearer \${currentSession.access_token}\`},body:JSON.stringify({name})});\n      if(!response.ok)return;\n      await supabase.auth.updateUser({data:{welcome_email_sent:true}});\n    }catch{}\n  };\n\n  const saveProfile=async()=>{
     if(!supabase||!session?.user)return;
     if(profileName.trim().length<2)return toast.error("Informe seu nome completo.");
     setProfileBusy(true);
