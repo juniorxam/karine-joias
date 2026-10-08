@@ -2,7 +2,7 @@ import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { isSupabaseConfigured, supabase } from "./supabase";
 
 const tableFields: Record<string, string[]> = {
-  products: ["id", "name", "category", "material", "cost", "price", "stock", "imageUrl"],
+  products: ["id", "name", "category", "material", "cost", "price", "stock", "imageUrl", "imageUrls"],
   clients: ["id", "name", "phone", "email", "birthday", "preferences"],
   sales: ["id", "date", "productId", "clientId", "amount", "payment", "discount", "channel", "quantity"],
   cash_entries: ["id", "date", "type", "category", "description", "amount"],
