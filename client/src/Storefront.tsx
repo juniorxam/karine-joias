@@ -4,7 +4,7 @@ import { ArrowRight, ArrowLeft, Check, Gem, Heart, Instagram, Menu, Search, Shop
 import { formatMoney, type CatalogProduct } from "./lib/catalog";
 type ShippingDistanceRule = { min_km:number; max_km:number|null; price:number };
 type ProductReview = { id:string; product_id:number; rating:number; comment:string; display_name:string; created_at:string };
-type StorefrontSettings = { hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string; shipping_palmas_enabled:boolean; shipping_palmas_pickup_enabled:boolean; shipping_origin_postal_code:string; shipping_palmas_distance_rules:ShippingDistanceRule[] };
+type StorefrontSettings = { hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string; shipping_palmas_enabled:boolean; shipping_palmas_min_subtotal:number; shipping_palmas_free_above:number; shipping_palmas_pickup_enabled:boolean; shipping_origin_postal_code:string; shipping_palmas_distance_rules:ShippingDistanceRule[]; top_banner_enabled:boolean; top_banner_text:string; top_banner_message:string; top_banner_cta:string; top_banner_cta_url:string };
 import { loadPublicCatalog } from "./lib/publicCatalog";
 import { supabase } from "./lib/supabase";
 import CustomerAccount from "./CustomerAccount";
@@ -103,7 +103,7 @@ export default function Storefront() {
   const refreshStorefrontSettings = async () => {
     if (!supabase) return;
     const { data, error } = await supabase.from("storefront_settings")
-      .select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled,collection_enabled,collection_title,collection_subtitle,collection_image_url,collection_cta,shipping_palmas_enabled,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_palmas_distance_rules")
+      .select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled,collection_enabled,collection_title,collection_subtitle,collection_image_url,collection_cta,shipping_palmas_enabled,shipping_palmas_min_subtotal,shipping_palmas_free_above,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_palmas_distance_rules,top_banner_enabled,top_banner_text,top_banner_message,top_banner_cta,top_banner_cta_url")
       .eq("store_slug","violetta")
       .limit(1)
       .maybeSingle();
@@ -157,7 +157,7 @@ export default function Storefront() {
     const fallbackTimer = window.setInterval(() => {
       void refreshPublicCatalog();
       const ownerId = products[0]?.ownerId;
-      if (ownerId) void refreshStorefrontSettings(ownerId);
+      if (ownerId) void refreshStorefrontSettings();
     }, 120000);
 
     return () => {
@@ -530,7 +530,7 @@ export default function Storefront() {
       </> : <div className="store-cart-empty"><ShoppingBag size={30}/><h3>Seu carrinho está vazio.</h3><p>Escolha uma peça especial para começar.</p><button className="store-primary-cta" onClick={() => setCartOpen(false)}>Ver coleção <ArrowRight size={15}/></button></div>}
     </aside></div>}
     <main>
-      <div className="store-promo-bar"><span><Truck size={14}/> FRETE GRÁTIS</span><b>Nas compras acima de R$ 149,00 · somente Palmas-TO</b><a href="#novidades">Comprar agora <ArrowRight size={12}/></a></div>
+      {storefrontSettings?.top_banner_enabled && <div className="store-promo-bar"><span><Truck size={14}/> {storefrontSettings.top_banner_text}</span><b>{storefrontSettings.top_banner_message}</b>{storefrontSettings.top_banner_cta && <a href={storefrontSettings.top_banner_cta_url || "#novidades"}>{storefrontSettings.top_banner_cta} <ArrowRight size={12}/></a>}</div>}
 
       <section className="store-hero">
         <div className="store-hero-copy">
@@ -742,8 +742,10 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     return()=>{cancelled=true;};
   },[isPalmas,shipping.postal_code,storefrontSettings?.shipping_palmas_enabled,storefrontSettings?.shipping_origin_postal_code]);
   const matchingRule=distanceKmValue===null?null:(storefrontSettings?.shipping_palmas_distance_rules||[]).find((rule,index,rules)=>{const max=rule.max_km===null?null:Number(rule.max_km);const isLast=index===rules.length-1;return distanceKmValue>=Number(rule.min_km)&&(max!==null&&(isLast?distanceKmValue<=max:distanceKmValue<max));});
+  const freeShippingThreshold = Number(storefrontSettings?.shipping_palmas_free_above || 0);
+  const hasFreePalmasShipping = isPalmas && freeShippingThreshold > 0 && subtotal >= freeShippingThreshold;
   const shippingOptions: ShippingOption[] = shipping.city.trim() ? (isPalmas ? [
-    ...(storefrontSettings?.shipping_palmas_enabled&&matchingRule ? [{id:"palmas-distance-"+matchingRule.min_km+"-"+(matchingRule.max_km??"plus"),company:"Violetta",service:"Entrega em Palmas · "+distanceKmValue!.toFixed(1)+" km",price:Number(matchingRule.price),delivery_time:0}] : []),
+    ...(storefrontSettings?.shipping_palmas_enabled&&matchingRule ? [{id:"palmas-distance-"+matchingRule.min_km+"-"+(matchingRule.max_km??"plus"),company:"Violetta",service:hasFreePalmasShipping ? "Entrega em Palmas · frete grátis" : "Entrega em Palmas · "+distanceKmValue!.toFixed(1)+" km",price:hasFreePalmasShipping ? 0 : Number(matchingRule.price),delivery_time:0}] : []),
     ...(storefrontSettings?.shipping_palmas_pickup_enabled ? [{id:"violetta-pickup",company:"Violetta",service:"Retirada no local",price:0,delivery_time:0}] : []),
     ...(!storefrontSettings?.shipping_palmas_enabled ? [{id:"palmas-combine",company:"Violetta",service:"Frete a combinar",price:0,delivery_time:0}] : []),
   ] : [{id:"outside-palmas",company:"Violetta",service:"Frete a combinar",price:0,delivery_time:0}]) : [];
