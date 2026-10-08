@@ -33,7 +33,7 @@
 
 /* Violetta storefront refinements */
 .store-promo-bar{min-height:38px;padding:0 28px;background:#332e2a;color:#fff;display:flex;align-items:center;justify-content:center;gap:22px;font-size:9px;letter-spacing:.7px;text-transform:uppercase}
-.store-promo-bar span{color:#d5b879;font-weight:700;letter-spacing:1.4px}
+.store-promo-bar span{color:#d5b879;font-weight:700;letter-spacing:1.4px;display:inline-flex;align-items:center;gap:6px}
 .store-promo-bar b{font-weight:500;color:#eee6de;text-transform:none;letter-spacing:.1px}
 .store-promo-bar a{display:inline-flex;align-items:center;gap:5px;color:#fff;text-decoration:none;border-bottom:1px solid #FFC1D5;padding-bottom:2px}
 .category-cards button{min-height:250px;position:relative;overflow:hidden;background-size:cover;background-position:center;justify-content:flex-end;color:#fff}
