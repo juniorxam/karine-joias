@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import { supabase } from "./lib/supabase";
 
 type OrderItem = { id: string; product_name: string; quantity: number; unit_price: number; total_price: number };
-type Shipment = { carrier: string | null; service: string | null; tracking_code: string | null; tracking_url: string | null; shipping_status: string; melhor_envio_order_id: string | null; label_url: string | null; melhor_envio_tracking_status: string | null; melhor_envio_label_status: string | null };
 type History = { id: string; status: string; note: string | null; created_at: string };
 type PaymentEvent = { id: string; provider: string | null; provider_event_id: string | null; event_type: string | null; payload: Record<string, any> | null; created_at: string };
 type PaymentDetails = {
@@ -42,6 +41,7 @@ type Order = {
   created_at: string;
   shipping_address: any;
   shipping_amount: number;
+  tracking_code: string | null;
 };
 
 const statusOptions = ["PENDING_PAYMENT", "PAID", "PROCESSING", "READY_TO_SHIP", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED"];
@@ -79,7 +79,6 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
   const [sort,setSort]=useState("RECENTES");
   const [selected,setSelected]=useState<Order|null>(null);
   const [items,setItems]=useState<OrderItem[]>([]);
-  const [shipment,setShipment]=useState<Shipment|null>(null);
   const [history,setHistory]=useState<History[]>([]);
   const [payment,setPayment]=useState<PaymentDetails|null>(null);
   const [tracking,setTracking]=useState("");
@@ -89,7 +88,7 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
   const load=async()=>{
     if(!supabase||!ownerId)return;
     setLoading(true);
-    const {data,error}=await supabase.from("orders").select("id,order_number,customer_name,customer_email,customer_phone,total_amount,shipping_amount,shipping_address,status,payment_status,payment_method,payment_provider,payment_provider_id,payment_url,created_at").eq("owner_id",ownerId).order("created_at",{ascending:false});
+    const {data,error}=await supabase.from("orders").select("id,order_number,customer_name,customer_email,customer_phone,total_amount,shipping_amount,shipping_address,status,payment_status,payment_method,payment_provider,payment_provider_id,payment_url,created_at,tracking_code").eq("owner_id",ownerId).order("created_at",{ascending:false});
     if(error)toast.error("Não foi possível carregar os pedidos",{description:error.message});
     else setOrders((data??[]) as Order[]);
     setLoading(false);
@@ -135,15 +134,14 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
 
   const openOrder=async(order:Order)=>{
     if(!supabase)return;
-    setSelected(order); setTracking("");
-    const [i,s,h,p]=await Promise.all([
+    setSelected(order); setTracking(order.tracking_code||"");
+    const [i,h,p]=await Promise.all([
       supabase.from("order_items").select("id,product_name,quantity,unit_price,total_price").eq("order_id",order.id),
-      supabase.from("shipments").select("carrier,service,tracking_code,tracking_url,shipping_status,melhor_envio_order_id,label_url,melhor_envio_tracking_status,melhor_envio_label_status").eq("order_id",order.id).maybeSingle(),
       supabase.from("order_status_history").select("id,status,note,created_at").eq("order_id",order.id).order("created_at",{ascending:false}),
       supabase.from("payment_events").select("id,provider,provider_event_id,event_type,payload,created_at").eq("order_id",order.id).order("created_at",{ascending:false})
     ]);
-    if(i.error||s.error||h.error||p.error) toast.error("Não foi possível carregar os detalhes do pedido");
-    setItems((i.data||[]) as OrderItem[]); setShipment((s.data||null) as Shipment|null); setHistory((h.data||[]) as History[]);
+    if(i.error||h.error||p.error) toast.error("Não foi possível carregar os detalhes do pedido");
+    setItems((i.data||[]) as OrderItem[]); setHistory((h.data||[]) as History[]);
     const latest=paymentPayload((p.data?.[0]?.payload||null) as Record<string,any>|null);
     setPayment({
       provider: order.payment_provider || latest.provider || null,
@@ -166,22 +164,13 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
     setTracking(s.data?.tracking_code||"");
   };
 
-  const saveShipment=async()=>{
+  const saveTracking=async()=>{
     if(!supabase||!selected)return;
-    const {error}=await supabase.rpc("save_order_shipment_service",{
-      p_order_id: selected.id,
-      p_owner_id: ownerId,
-      p_tracking_code: tracking.trim(),
-      p_carrier: shipment?.carrier||null,
-      p_service: shipment?.service||null,
-      p_tracking_url: shipment?.tracking_url||null,
-      p_melhor_envio_order_id: shipment?.melhor_envio_order_id||null,
-      p_label_url: shipment?.label_url||null
-    });
+    const {error}=await supabase.from("orders").update({tracking_code:tracking.trim()||null}).eq("id",selected.id).eq("owner_id",ownerId);
     if(error){toast.error("Não foi possível salvar o rastreio",{description:error.message});return;}
-    toast.success(tracking.trim() && selected.status==="READY_TO_SHIP" ? "Rastreamento salvo e pedido enviado" : "Rastreamento atualizado");
+    toast.success("Rastreamento atualizado");
     await load();
-    await openOrder({...selected,status:tracking.trim() && selected.status==="READY_TO_SHIP"?"SHIPPED":selected.status});
+    await openOrder({...selected,tracking_code:tracking.trim()||null});
   };
 
   const updateStatus=async(order:Order,status:string)=>{
@@ -350,6 +339,6 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
       {payment?.payment_url&&<p style={{margin:"12px 0 0"}}><a href={payment.payment_url} target="_blank" rel="noreferrer">Abrir pagamento/checkout do Mercado Pago ↗</a></p>}
       <h4 style={{margin:"16px 0 8px"}}>Eventos do pagamento</h4>
       {payment?.events?.length ? payment.events.map(e=><div key={e.id} style={{padding:"8px 0",borderTop:"1px solid rgba(0,0,0,.06)"}}><strong>{e.event_type||"Evento"}</strong><small style={{display:"block"}}>{e.provider||"Mercado Pago"} · {e.provider_event_id||"sem ID"} · {date(e.created_at)}</small></div>) : <small>Nenhum evento registrado para este pedido.</small>}
-    </div><h3>Entrega</h3><p>{selected.shipping_address?.address}, {selected.shipping_address?.number}<br/>{selected.shipping_address?.neighborhood}<br/>{selected.shipping_address?.city} - {selected.shipping_address?.state}<br/>CEP {selected.shipping_address?.postal_code}</p><h3>Entrega e frete</h3><div style={{padding:"12px 14px",border:"1px solid rgba(0,0,0,.08)",borderRadius:12,background:"rgba(0,0,0,.02)",marginBottom:16}}><strong>{String(selected.shipping_address?.shipping_option?.service||"").includes("Retirada no local") ? "Retirada no local" : Number(selected.shipping_amount||0)===0 ? "Frete a combinar" : "Frete calculado"}</strong><p style={{margin:"6px 0 0"}}>{String(selected.shipping_address?.shipping_option?.service||"").includes("Retirada no local") ? "Cliente fará a retirada no local, sem cobrança de frete." : String(selected.shipping_address?.shipping_option?.service||"").includes("Entrega em Palmas") ? "Entrega em Palmas: frete calculado automaticamente pela distância." : "O frete não foi calculado automaticamente e será negociado diretamente com a loja."}</p></div><h3>Rastreamento</h3><div className="tracking-edit"><input placeholder="Código de rastreio (opcional)" value={tracking} onChange={e=>setTracking(e.target.value)}/><button className="primary" onClick={()=>void saveShipment()}>Salvar</button>{tracking&&<button className="secondary" onClick={()=>void copyText(tracking,"Código de rastreio")}>Copiar</button>}</div>{shipment?.carrier&&<p><strong>Transportadora:</strong> {shipment.carrier}{shipment.service ? " — " + shipment.service : ""}</p>}{shipment?.tracking_url&&<a href={shipment.tracking_url} target="_blank" rel="noreferrer">Abrir rastreio</a>}{shipment?.label_url&&<a href={shipment.label_url} target="_blank" rel="noreferrer">Abrir etiqueta</a>}<h3>Linha do tempo</h3>{timeline.length?timeline.map((event,index)=><div className="history-row" key={event.kind+"-"+event.date+"-"+index}><strong>{event.kind==="payment"?"💳 ":""}{event.title}</strong><small>{date(event.date)} · {event.detail}</small></div>):<small>Nenhuma movimentação registrada.</small>}</aside></div>}
+    </div><h3>Entrega</h3><p>{selected.shipping_address?.address}, {selected.shipping_address?.number}<br/>{selected.shipping_address?.neighborhood}<br/>{selected.shipping_address?.city} - {selected.shipping_address?.state}<br/>CEP {selected.shipping_address?.postal_code}</p><h3>Entrega e frete</h3><div style={{padding:"12px 14px",border:"1px solid rgba(0,0,0,.08)",borderRadius:12,background:"rgba(0,0,0,.02)",marginBottom:16}}><strong>{String(selected.shipping_address?.shipping_option?.service||"").includes("Retirada no local") ? "Retirada no local" : Number(selected.shipping_amount||0)===0 ? "Frete a combinar" : "Frete calculado"}</strong><p style={{margin:"6px 0 0"}}>{String(selected.shipping_address?.shipping_option?.service||"").includes("Retirada no local") ? "Cliente fará a retirada no local, sem cobrança de frete." : String(selected.shipping_address?.shipping_option?.service||"").includes("Entrega em Palmas") ? "Entrega em Palmas: frete calculado automaticamente pela distância." : "O frete não foi calculado automaticamente e será negociado diretamente com a loja."}</p></div><h3>Rastreamento</h3><div className="tracking-edit"><input placeholder="Código de rastreio (opcional)" value={tracking} onChange={e=>setTracking(e.target.value)}/><button className="primary" onClick={()=>void saveTracking()}>Salvar</button>{tracking&&<button className="secondary" onClick={()=>void copyText(tracking,"Código de rastreio")}>Copiar</button>}</div><p style={{marginTop:8}}><small>O rastreamento é informado manualmente pela loja. Nenhuma integração automática de transportadora é utilizada.</small></p><h3>Linha do tempo</h3>{timeline.length?timeline.map((event,index)=><div className="history-row" key={event.kind+"-"+event.date+"-"+index}><strong>{event.kind==="payment"?"💳 ":""}{event.title}</strong><small>{date(event.date)} · {event.detail}</small></div>):<small>Nenhuma movimentação registrada.</small>}</aside></div>}
   </>;
 }
