@@ -44,13 +44,21 @@ function getClientOrigin(req: Request) {
 async function geocodePostalCode(postalCode: string) {
   const cep = postalCode.replace(/\D/g, "");
   if (cep.length !== 8) throw new Error("CEP inválido");
-  const response = await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&postalcode=" + cep + "&country=Brazil&limit=1", {
-    headers: { "Accept": "application/json", "User-Agent": "Violetta-Store/1.0" },
-  });
-  if (!response.ok) throw new Error("Não foi possível calcular a distância");
-  const data = await response.json();
-  if (!Array.isArray(data) || !data[0]) throw new Error("Não foi possível localizar o CEP para calcular a distância");
-  return { lat: Number(data[0].lat), lon: Number(data[0].lon) };
+  const queries = ["postalcode=" + cep + "&country=Brazil", "q=" + encodeURIComponent(cep + ", Brazil")];
+  for (const query of queries) {
+    try {
+      const response = await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&" + query + "&limit=1", {
+        headers: { "Accept": "application/json", "User-Agent": "Violetta-Store/1.0" },
+      });
+      if (!response.ok) continue;
+      const data = await response.json();
+      if (Array.isArray(data) && data[0]) {
+        const lat = Number(data[0].lat), lon = Number(data[0].lon);
+        if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+      }
+    } catch {}
+  }
+  throw new Error("Não foi possível localizar o CEP para calcular a distância");
 }
 
 function distanceKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
@@ -174,7 +182,7 @@ Deno.serve(async (req) => {
             const min = Number(item?.min_km);
             const max = item?.max_km === null || item?.max_km === undefined || item?.max_km === "" ? null : Number(item.max_km);
             const isLast = index === rules.length - 1;
-            return Number.isFinite(min) && distance >= min && max !== null && Number.isFinite(max) && (isLast ? distance <= max : distance < max);
+            return Number.isFinite(min) && distance >= min && (max === null || (Number.isFinite(max) && (isLast ? distance <= max : distance < max)));
           });
           if (!rule) throw new Error("Não há uma faixa de frete configurada para esta distância");
           const freeShippingThreshold = Number(storeSettings?.shipping_palmas_free_above || 0);
