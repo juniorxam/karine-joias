@@ -10,7 +10,7 @@ import { supabase } from "./lib/supabase";
 import CustomerAccount from "./CustomerAccount";
 
 const categories = ["Todas", "Joias", "Semi-joias", "Acessórios"];
-const storeWhatsApp = (import.meta.env.VITE_STORE_WHATSAPP as string | undefined)?.replace(/\D/g, "");
+const storeWhatsApp = (import.meta.env.VITE_STORE_WHATSAPP as string | undefined)?.replace(/\D/g, "") || "63999945488";
 const storeInstagram = (import.meta.env.VITE_STORE_INSTAGRAM as string | undefined)?.trim() || "https://www.instagram.com/violettapratasesemijoias/";
 const logoSrc = "/logo-violetta.jpeg";
 
@@ -599,7 +599,7 @@ export default function Storefront() {
       </section>
     </main>
 
-    <footer className="store-footer" id="contato"><div className="footer-brand"><img className="footer-logo-image" src={logoSrc} alt="Violetta Prata 925 e Semijoias" /><div><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></div></div><div><p className="store-kicker">ATENDIMENTO</p><h3>Uma peça especial começa<br />com uma conversa.</h3><p className="footer-note">Compre online ou fale diretamente com a nossa equipe.</p></div><div className="footer-links"><a href="#colecao">Coleção <ArrowRight size={14} /></a>{storeInstagram ? <a href={storeInstagram} target="_blank" rel="noreferrer"><Instagram size={14} /> Instagram</a> : null}</div><div className="footer-bottom"><span>© {new Date().getFullYear()} Violetta Joias</span><span>Feito para brilhar.</span></div></footer>
+    <footer className="store-footer" id="contato"><div className="footer-brand"><img className="footer-logo-image" src={logoSrc} alt="Violetta Prata 925 e Semijoias" /><div><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></div></div><div><p className="store-kicker">ATENDIMENTO</p><h3>Uma peça especial começa<br />com uma conversa.</h3><p className="footer-note">Compre online ou fale diretamente com a nossa equipe.</p></div><div className="footer-links"><a href="#colecao">Coleção <ArrowRight size={14} /></a>{storeWhatsApp ? <a href={`https://wa.me/${storeWhatsApp}`} target="_blank" rel="noreferrer"><MessageCircle size={14} /> WhatsApp</a> : null}{storeInstagram ? <a href={storeInstagram} target="_blank" rel="noreferrer"><Instagram size={14} /> Instagram</a> : null}</div><div className="footer-bottom"><span>© {new Date().getFullYear()} Violetta Joias</span><span>Feito para brilhar.</span></div></footer>
   </div>;
 }
 
