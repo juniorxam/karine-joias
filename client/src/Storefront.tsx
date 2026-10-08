@@ -100,12 +100,11 @@ export default function Storefront() {
     }
   };
 
-  const refreshStorefrontSettings = async (ownerId?: string) => {
-    if (!supabase || !ownerId) return;
+  const refreshStorefrontSettings = async () => {
+    if (!supabase) return;
     const { data, error } = await supabase.from("storefront_settings")
       .select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled,collection_enabled,collection_title,collection_subtitle,collection_image_url,collection_cta,shipping_palmas_enabled,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_palmas_distance_rules")
       .eq("store_slug","violetta")
-      .eq("owner_id", ownerId)
       .limit(1)
       .maybeSingle();
     if (error) {
@@ -116,10 +115,8 @@ export default function Storefront() {
   };
 
   useEffect(() => {
-    const ownerId = products[0]?.ownerId;
-    if (!ownerId) return;
-    void refreshStorefrontSettings(ownerId);
-  }, [products[0]?.ownerId]);
+    void refreshStorefrontSettings();
+  }, []);
 
   useEffect(() => {
     const client = supabase;
@@ -145,9 +142,8 @@ export default function Storefront() {
         "postgres_changes",
         { event: "*", schema: "public", table: "storefront_settings", filter: "store_slug=eq.violetta" },
         (payload) => {
-          const ownerId = products[0]?.ownerId;
-          if (ownerId && (payload.eventType === "INSERT" || payload.eventType === "UPDATE" || payload.eventType === "DELETE")) {
-            void refreshStorefrontSettings(ownerId);
+          if (payload.eventType === "INSERT" || payload.eventType === "UPDATE" || payload.eventType === "DELETE") {
+            void refreshStorefrontSettings();
           }
         },
       )
