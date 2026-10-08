@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
 
     const { data: order, error } = await db
       .from("orders")
-      .select("id,order_number,customer_name,total_amount,shipping_amount,payment_status,status,created_at,shipping_address")
+      .select("id,order_number,customer_name,total_amount,shipping_amount,payment_status,status,created_at,shipping_address,tracking_code")
       .eq("order_number", orderNumber)
       .eq("tracking_token_hash", tokenHash)
       .single();
@@ -59,12 +59,14 @@ Deno.serve(async (req) => {
         }
       : null;
 
-    const [{ data: items }, { data: shipment }, { data: history }, { data: reviews }] = await Promise.all([
+    const [{ data: items }, { data: history }, { data: reviews }] = await Promise.all([
       db.from("order_items").select("id,product_id,product_name,quantity,unit_price,total_price").eq("order_id", order.id),
-      db.from("shipments").select("carrier,service,tracking_code,tracking_url,shipping_status,created_at,updated_at").eq("order_id", order.id).maybeSingle(),
       db.from("order_status_history").select("status,created_at,note").eq("order_id", order.id).order("created_at", { ascending: true }),
       db.from("product_reviews").select("order_item_id,status").eq("order_id", order.id),
     ]);
+    const shipment = order.tracking_code
+      ? { carrier: null, service: "Rastreamento informado manualmente", tracking_code: order.tracking_code, tracking_url: null, shipping_status: null, created_at: order.created_at, updated_at: order.created_at }
+      : null;
 
     return Response.json({
       order: {
