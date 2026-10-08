@@ -88,6 +88,7 @@ export default function Storefront() {
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todas");
+  const [sort, setSort] = useState("relevancia");
   const [menuOpen, setMenuOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [storefrontSettings, setStorefrontSettings] = useState<StorefrontSettings | null>(null);
@@ -285,6 +286,24 @@ export default function Storefront() {
   }, [cart]);
 
   useEffect(() => {
+    if (!products.length) return;
+    setCart(current => {
+      const validIds = new Set(products.map(product => String(product.id)));
+      const next = current
+        .filter(item => validIds.has(String(item.id)))
+        .map(item => {
+          const latest = products.find(product => String(product.id) === String(item.id));
+          if (!latest) return item;
+          const available = Number(latest.stock ?? 0);
+          return { ...item, ...latest, quantity: Math.min(item.quantity, Math.max(0, available)) };
+        })
+        .filter(item => item.quantity > 0);
+      const changed = next.length !== current.length || next.some((item, index) => item.quantity !== current[index]?.quantity || item.price !== current[index]?.price);
+      return changed ? next : current;
+    });
+  }, [products]);
+
+  useEffect(() => {
     localStorage.setItem(checkoutDraftKey, JSON.stringify(checkoutDraft));
   }, [checkoutDraft]);
 
@@ -458,7 +477,7 @@ export default function Storefront() {
 
   if (view === "product") {
     if (!selectedProduct) return <div className="storefront success-page"><main className="success-card"><p className="store-kicker">PEÇA NÃO ENCONTRADA</p><h1>Essa peça não está disponível.</h1><button className="store-primary-cta" onClick={backToStore}>Voltar para a loja <ArrowRight size={16}/></button></main></div>;
-    return <ProductDetail product={selectedProduct} relatedProducts={products.filter(product => String(product.id) !== String(selectedProduct.id) && product.category === selectedProduct.category).slice(0, 4)} onBack={backToStore} onAdd={(quantity) => addToCartQuantity(selectedProduct, quantity)} onBuyNow={(quantity) => buyNowQuantity(selectedProduct, quantity)} onCheckout={goCheckout} onCart={openCart} onRelatedOpen={openProduct} onRelatedAdd={addToCart} onRelatedBuyNow={buyNow} onRelatedAsk={askAbout} />;
+    return <ProductDetail product={selectedProduct} relatedProducts={[...products.filter(product => String(product.id) !== String(selectedProduct.id) && product.category === selectedProduct.category), ...products.filter(product => String(product.id) !== String(selectedProduct.id) && product.category !== selectedProduct.category)].slice(0, 4)} onBack={backToStore} onAdd={(quantity) => addToCartQuantity(selectedProduct, quantity)} onBuyNow={(quantity) => buyNowQuantity(selectedProduct, quantity)} onCheckout={goCheckout} onCart={openCart} onRelatedOpen={openProduct} onRelatedAdd={addToCart} onRelatedBuyNow={buyNow} onRelatedAsk={askAbout} />;
   }
 
   if (view === "checkout" && !cart.length) {
@@ -593,7 +612,7 @@ export default function Storefront() {
         <div className="store-section-heading catalog-heading"><div><p className="store-kicker">A COLEÇÃO</p><h2>Encontre o seu brilho.</h2><p className="catalog-intro">Explore joias, semi-joias e acessórios escolhidos para você.</p></div><span>{filtered.length} peças</span></div>
         <div className="catalog-toolbar">
           <div className="catalog-search"><Search size={17} /><input aria-label="Buscar produtos" placeholder="Buscar uma peça..." value={query} onChange={event => setQuery(event.target.value)} /><button className="catalog-clear" onClick={() => setQuery("")} aria-label="Limpar busca" disabled={!query}><X size={14}/></button></div>
-          {(query || category !== "Todas") && <button className="catalog-clear-filters" onClick={() => { setQuery(""); setCategory("Todas"); }}>Limpar filtros</button>}<div className="catalog-toolbar-row"><div className="category-list">{categories.map(item => <button className={category === item ? "selected" : ""} key={item} onClick={() => setCategory(item)}>{item}</button>)}</div><span className="catalog-result-count">{filtered.length} {filtered.length === 1 ? "peça encontrada" : "peças encontradas"}</span></div>
+          {(query || category !== "Todas") && <button className="catalog-clear-filters" onClick={() => { setQuery(""); setCategory("Todas"); }}>Limpar filtros</button>}<div className="catalog-toolbar-row"><div className="category-list">{categories.map(item => <button className={category === item ? "selected" : ""} key={item} onClick={() => setCategory(item)}>{item}</button>)}</div><div className="catalog-toolbar-actions"><label className="catalog-sort">Ordenar<select value={sort} onChange={event => setSort(event.target.value)}><option value="relevancia">Relevância</option><option value="novidades">Novidades</option><option value="menor-preco">Menor preço</option><option value="maior-preco">Maior preço</option><option value="estoque">Disponibilidade</option></select></label><span className="catalog-result-count">{filtered.length} {filtered.length === 1 ? "peça encontrada" : "peças encontradas"}</span></div></div>
         </div>
         {filtered.length ? <div className="store-product-grid">{filtered.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} />)}</div> : <div className="empty-catalog"><Gem size={28} /><h3>Nenhuma peça encontrada.</h3><p>Tente outro termo ou volte para todas as categorias.</p><button onClick={() => { setQuery(""); setCategory("Todas"); }}>Limpar busca</button></div>}
       </section>
@@ -606,8 +625,8 @@ export default function Storefront() {
 function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false, isTopSeller = false }: { product: CatalogProduct; onAdd: (product: CatalogProduct) => void; onBuyNow: (product: CatalogProduct) => void; onAsk: (product: CatalogProduct) => void; onOpen: (product: CatalogProduct) => void; featured?: boolean; isTopSeller?: boolean }) {
   const badges = product.isBestSeller || isTopSeller ? ["MAIS VENDIDO"] : product.isNew ? ["NOVO"] : product.stock !== undefined && product.stock > 0 && product.stock <= 3 ? ["ÚLTIMAS UNIDADES"] : [];
   return <article className={featured ? "store-product-card featured-card" : "store-product-card"} onClick={() => onOpen(product)}>
-    <button className="store-product-art" onClick={() => onOpen(product)} aria-label={`Ver ${product.name}`} style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}>
-      {!product.imageUrl && <div className="product-art-glow"><Gem size={featured ? 39 : 31} strokeWidth={1.1} /></div>}
+    <button className="store-product-art" onClick={() => onOpen(product)} aria-label={`Ver ${product.name}`} style={(product.imageUrls?.[0] || product.imageUrl) ? { backgroundImage: `url(${product.imageUrls?.[0] || product.imageUrl})` } : undefined}>
+      {!(product.imageUrls?.[0] || product.imageUrl) && <div className="product-art-glow"><Gem size={featured ? 39 : 31} strokeWidth={1.1} /></div>}
       {badges.length > 0 && <span className="product-badge">{badges[0]}</span>}
       <span className="product-category-tag">{featured ? "DESTAQUE" : product.category}</span>
       <span className="product-quick-view"><Search size={14}/> Ver detalhes</span>
