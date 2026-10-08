@@ -92,7 +92,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
     setBusy(true);
     try{
       if(mode==="reset"){
-        const {error}=await supabase.functions.invoke("auth-email",{body:{action:"recovery",email:email.trim().toLowerCase()}});
+        const {error}=await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(),{redirectTo:"https://violetta.com.br/minha-conta"});
         if(error)throw error;
         toast.success("E-mail de recuperação enviado",{description:"Confira sua caixa de entrada e abra o link para criar uma nova senha."});
         setMode("login"); return;
@@ -111,11 +111,27 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
         if(profilePhone.replace(/\D/g,"").length<10)throw new Error("Informe um WhatsApp válido.");
         if(!profileBirthday)throw new Error("Informe sua data de nascimento.");
         if(password.length<6)throw new Error("A senha deve ter pelo menos 6 caracteres.");
-        const {data,error}=await supabase.functions.invoke("auth-email",{body:{action:"signup",email:email.trim().toLowerCase(),password,name:profileName.trim(),phone:profilePhone.replace(/\D/g,""),birthday:profileBirthday}});
-        if(error)throw error;
+        const {data,error}=await supabase.auth.signUp({
+          email:email.trim().toLowerCase(),
+          password,
+          options:{emailRedirectTo:window.location.origin+"/minha-conta",data:{full_name:profileName.trim(),phone:profilePhone.replace(/\D/g,""),birthday:profileBirthday}}
+        });
+        if(error){
+          const message=error.message.toLowerCase();
+          if(message.includes("already registered")||message.includes("already exists")||message.includes("user already")||message.includes("email already")){
+            setSignupAccountExists(true);
+            return;
+          }
+          throw error;
+        }
         setSignupAccountExists(false);
-        setConfirmationSent(true);
-        toast.success("Conta criada com sucesso!",{description:"Enviamos um e-mail de confirmação. Depois de confirmar, você já poderá acessar sua conta."});
+        if(data.session){
+          setConfirmationSent(false);
+          toast.success("Conta criada com sucesso");
+        }else{
+          setConfirmationSent(true);
+          toast.success("Conta criada com sucesso!",{description:"Enviamos um e-mail de confirmação. Depois de confirmar, você já poderá acessar sua conta."});
+        }
       }else{
         const {error}=await supabase.auth.signInWithPassword({email:email.trim().toLowerCase(),password});
         if(error){
@@ -137,7 +153,11 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
     if(!supabase||!email.trim())return;
     setBusy(true);
     try{
-      const {error}=await supabase.functions.invoke("auth-email",{body:{action:"confirmation",email:email.trim().toLowerCase()}});
+      const {error}=await supabase.auth.resend({
+        type:"signup",
+        email:email.trim().toLowerCase(),
+        options:{emailRedirectTo:window.location.origin+"/minha-conta"}
+      });
       if(error)throw error;
       toast.success("E-mail de confirmação reenviado",{description:"Confira também a pasta de spam ou promoções."});
     }catch(error){
