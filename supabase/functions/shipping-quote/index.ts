@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
 
     const { data: settings, error: settingsError } = await db
       .from("storefront_settings")
-      .select("shipping_palmas_enabled,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_palmas_distance_rules")
+      .select("shipping_palmas_enabled,shipping_palmas_free_above,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_palmas_distance_rules")
       .eq("owner_id", ownerId)
       .eq("store_slug", "violetta")
       .maybeSingle();
