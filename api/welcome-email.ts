@@ -6,7 +6,7 @@ const esc = (value: string) =>
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
   }[char] ?? char));
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "Método não permitido." });
 
   try {
