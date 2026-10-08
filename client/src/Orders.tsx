@@ -85,6 +85,28 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
   const [healthLoading,setHealthLoading]=useState(false);
   const [health,setHealth]=useState<{ok:boolean;checked_at:string;checks:Array<{name:string;ok:boolean;detail?:string;status?:number;count?:number;message?:string}>}|null>(null);
 
+  useEffect(()=>{
+    if(!supabase||!ownerId)return;
+    const channel=supabase.channel("orders-management-"+ownerId)
+      .on("postgres_changes",{event:"*",schema:"public",table:"orders",filter:"owner_id=eq."+ownerId},()=>{
+        void load();
+        if(selected) {
+          void (async()=>{
+            const {data}=await supabase.from("orders").select("id,order_number,customer_name,customer_email,customer_phone,total_amount,status,payment_status,payment_method,payment_provider,payment_provider_id,payment_url,created_at,shipping_address,shipping_amount,tracking_code").eq("id",selected.id).eq("owner_id",ownerId).maybeSingle();
+            if(data) await openOrder(data as Order);
+          })();
+        }
+      })
+      .on("postgres_changes",{event:"*",schema:"public",table:"payment_events"},()=>{
+        if(selected) void openOrder(selected);
+      })
+      .on("postgres_changes",{event:"*",schema:"public",table:"order_status_history"},()=>{
+        if(selected) void openOrder(selected);
+      })
+      .subscribe();
+    return()=>{void supabase.removeChannel(channel)};
+  },[ownerId,selected?.id]);
+
   const load=async()=>{
     if(!supabase||!ownerId)return;
     setLoading(true);
