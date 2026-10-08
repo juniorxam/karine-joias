@@ -599,7 +599,7 @@ export default function Storefront() {
       </section>
     </main>
 
-    <footer className="store-footer" id="contato"><div className="footer-brand"><img className="footer-logo-image" src={logoSrc} alt="Violetta Prata 925 e Semijoias" /><div><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></div></div><div><p className="store-kicker">ATENDIMENTO</p><h3>Uma peça especial começa<br />com uma conversa.</h3><p className="footer-note">Compre online ou fale diretamente com a nossa equipe.</p></div><div className="footer-links"><a href="#colecao">Coleção <ArrowRight size={14} /></a><a href="/" >Área da proprietária <ArrowRight size={14} /></a>{storeInstagram ? <a href={storeInstagram} target="_blank" rel="noreferrer"><Instagram size={14} /> Instagram</a> : null}</div><div className="footer-bottom"><span>© {new Date().getFullYear()} Violetta Joias</span><span>Feito para brilhar.</span></div></footer>
+    <footer className="store-footer" id="contato"><div className="footer-brand"><img className="footer-logo-image" src={logoSrc} alt="Violetta Prata 925 e Semijoias" /><div><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></div></div><div><p className="store-kicker">ATENDIMENTO</p><h3>Uma peça especial começa<br />com uma conversa.</h3><p className="footer-note">Compre online ou fale diretamente com a nossa equipe.</p></div><div className="footer-links"><a href="#colecao">Coleção <ArrowRight size={14} /></a>{storeInstagram ? <a href={storeInstagram} target="_blank" rel="noreferrer"><Instagram size={14} /> Instagram</a> : null}</div><div className="footer-bottom"><span>© {new Date().getFullYear()} Violetta Joias</span><span>Feito para brilhar.</span></div></footer>
   </div>;
 }
 
