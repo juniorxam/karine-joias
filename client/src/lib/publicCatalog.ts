@@ -11,6 +11,7 @@ type PublicRow = {
   material: string;
   price: number;
   image_url: string | null;
+  image_urls: string[] | null;
   featured: boolean;
   is_published: boolean;
   slug: string | null;
@@ -44,7 +45,7 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
 
   const { data, error } = await publicClient
     .from("public_products")
-    .select("id,owner_id,product_id,name,category,material,price,image_url,featured,is_published,slug,description,stock,is_new,is_best_seller,sort_order,sold_quantity")
+    .select("id,owner_id,product_id,name,category,material,price,image_url,image_urls,featured,is_published,slug,description,stock,is_new,is_best_seller,sort_order,sold_quantity")
     .eq("store_slug", "violetta")
     .eq("is_published", true)
     .order("featured", { ascending: false })
@@ -64,6 +65,7 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
     material: row.material,
     price: Number(row.price),
     imageUrl: row.image_url ?? undefined,
+    imageUrls: Array.isArray(row.image_urls) ? row.image_urls : (row.image_url ? [row.image_url] : []),
     featured: row.featured,
     isPublished: row.is_published,
     slug: row.slug ?? undefined,
