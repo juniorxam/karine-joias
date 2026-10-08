@@ -49,7 +49,7 @@
 .store-product-card:hover .store-product-art{transform:scale(1.015)}
 @media(max-width:800px){
   .store-promo-bar{padding:9px 18px;gap:9px;flex-wrap:wrap;text-align:center;line-height:1.4}
-  .store-promo-bar span{display:none}
+  .store-promo-bar span{display:inline-flex;font-size:9px}
   .store-promo-bar b{font-size:9px}
   .category-cards button{min-height:210px}
 }
