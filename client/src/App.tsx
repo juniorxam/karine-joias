@@ -9,6 +9,8 @@ import { savePublicProduct, updatePublicProduct, usePublicProductManager, type M
 
 type Product={id:number;name:string;category:string;material:string;cost:number;price:number;stock:number;imageUrl?:string}; type Client={id:number;name:string;phone:string;email:string;birthday:string;preferences:string}; type Sale={id:number;date:string;productId:number;clientId:number;amount:number;payment:string;discount:number;quantity?:number;channel?:string}; type Cash={id:number;date:string;type:"Entrada"|"Saída";category:string;description:string;amount:number}; type Promo={id:number;name:string;type:string;value:number;code:string;ends:string;active:boolean;uses:number};
 const ago=(n:number)=>{const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().slice(0,10)}; const br=(d:string)=>new Date(d+"T12:00:00").toLocaleDateString("pt-BR"); const money=(n:number)=>n.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}); const initials=(n:string)=>n.split(" ").slice(0,2).map(x=>x[0]).join("").toUpperCase(); const uploadProductImage=async(ownerId:string,productId:number,file:File)=>{if(!supabase)throw new Error("Supabase indisponível");if(!["image/jpeg","image/png","image/webp","image/avif"].includes(file.type))throw new Error("Formato de imagem não permitido");if(file.size>5*1024*1024)throw new Error("A imagem deve ter no máximo 5 MB");const ext=file.name.split(".").pop()?.toLowerCase()||"jpg";const objectPath=ownerId+"/"+productId+"-"+Date.now()+"."+ext;const {error}=await supabase.storage.from("product-images").upload(objectPath,file,{contentType:file.type,upsert:false});if(error)throw error;return supabase.storage.from("product-images").getPublicUrl(objectPath).data.publicUrl};
+const MANAGEMENT_SITE_URL="https://violetta.com.br";
+const MANAGEMENT_RECOVERY_URL=`${MANAGEMENT_SITE_URL}/gestao`; 
 const products0:Product[]=[];
 const clients0:Client[]=[];
 const sales0:Sale[]=[];
@@ -26,7 +28,7 @@ function InviteSetup({session}:{session:any}){
  return <div className="auth-shell"><div className="auth-card"><div className="brand auth-brand"><div className="brand-mark"><img src="/logo-violetta.jpeg" alt="Violetta" /></div><div><strong>Violetta</strong><span>JOIAS E SEMIJOIAS</span></div></div><p className="eyebrow">CONVITE DA LOJA</p><h1>Configure seu acesso</h1><p className="auth-description">Seu convite foi aceito. Crie uma senha para entrar na área de gestão da Violetta.</p><form onSubmit={submit}><label>E-mail<input type="email" value={session?.user?.email||""} readOnly /></label><label>Nova senha<input required minLength={6} type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Mínimo de 6 caracteres"/></label><label>Confirmar senha<input required minLength={6} type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="Digite novamente"/></label><button className="primary" disabled={busy} type="submit">{busy?"Salvando…":"Ativar meu acesso"}</button></form></div></div>;
 }
 
-function AppRouter(){const params=new URLSearchParams(window.location.hash.replace(/^#/,""));const inviteType=params.get("type");const recoveryType=inviteType==="recovery"?"recovery":null;if(!window.location.pathname.startsWith("/gestao")&&inviteType!=="invite"&&inviteType!=="recovery")return <Storefront/>;if(recoveryType==="recovery")return <ManagementPasswordRecovery/>;return <ManagementApp inviteType={inviteType}/>;}
+function AppRouter(){const hashParams=new URLSearchParams(window.location.hash.replace(/^#/,""));const searchParams=new URLSearchParams(window.location.search);const inviteType=hashParams.get("type")||searchParams.get("type");const recoveryType=inviteType==="recovery"?"recovery":null;if(!window.location.pathname.startsWith("/gestao")&&inviteType!=="invite"&&inviteType!=="recovery")return <Storefront/>;if(recoveryType==="recovery")return <ManagementPasswordRecovery/>;return <ManagementApp inviteType={inviteType}/>;}
 
 function ManagementPasswordRecovery(){
  const [session,setSession]=useState<any>(null),[loading,setLoading]=useState(true),[password,setPassword]=useState(""),[confirm,setConfirm]=useState(""),[busy,setBusy]=useState(false);
@@ -76,7 +78,7 @@ function Login(){
    if(!supabase||!email.trim())return toast.error("Informe seu e-mail para recuperar a senha");
    setBusy(true);
    try{
-     const {error}=await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(),{redirectTo:window.location.origin+"/gestao"});
+     const {error}=await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(),{redirectTo:MANAGEMENT_RECOVERY_URL});
      if(error)throw error;
      setResetSent(true);toast.success("E-mail de recuperação enviado");
    }catch(error){toast.error("Não foi possível enviar a recuperação",{description:error instanceof Error?error.message:"Erro"});}
