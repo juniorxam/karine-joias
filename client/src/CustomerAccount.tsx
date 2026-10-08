@@ -92,7 +92,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
     setBusy(true);
     try{
       if(mode==="reset"){
-        const {error}=await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(),{redirectTo:window.location.origin+"/minha-conta"});
+        const {error}=await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(),{redirectTo:"https://violetta.com.br/minha-conta"});
         if(error)throw error;
         toast.success("E-mail de recuperação enviado",{description:"Confira sua caixa de entrada e abra o link para criar uma nova senha."});
         setMode("login"); return;
