@@ -73,7 +73,7 @@ export async function updatePublicProduct(ownerId: string, item: ManagedPublicPr
     ...(changes.imageUrls !== undefined ? { image_urls: Array.from(new Set(changes.imageUrls)).filter(Boolean).slice(0,5) } : (changes.imageUrl !== undefined ? { image_urls: changes.imageUrl ? [changes.imageUrl, ...(item.imageUrls || []).filter(url => url !== changes.imageUrl)].slice(0,5) : [] } : {})),
     ...(changes.slug !== undefined ? { slug: changes.slug || toSlug(changes.name || item.name) } : {}),
     ...(changes.description !== undefined ? { description: changes.description || null } : {}),
-  }).eq("id", item.publicId).eq("owner_id", ownerId) .select("id,product_id,name,category,material,price,image_url,featured,is_published,slug,description,stock,is_new,is_best_seller,sort_order,sold_quantity").single();
+  }).eq("id", item.publicId).eq("owner_id", ownerId) .select("id,product_id,name,category,material,price,image_url,image_urls,featured,is_published,slug,description,stock,is_new,is_best_seller,sort_order,sold_quantity").single();
   if (error) throw error;
   return { ...item, publicId: data.id, productId: data.product_id, id: data.product_id, name: data.name, category: data.category, material: data.material, price: Number(data.price), imageUrl: data.image_url ?? undefined, imageUrls: Array.isArray(data.image_urls) ? data.image_urls : (data.image_url ? [data.image_url] : []), featured: data.featured, isPublished: data.is_published, slug: data.slug ?? undefined, description: data.description ?? undefined, isNew: data.is_new, isBestSeller: data.is_best_seller, sortOrder: Number(data.sort_order ?? 0), stock: Number(data.stock ?? 0), soldQuantity: Number(data.sold_quantity ?? 0) };
 }
