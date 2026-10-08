@@ -166,7 +166,7 @@ export default function Storefront() {
       void client.removeChannel(catalogChannel);
       void client.removeChannel(settingsChannel);
     };
-  }, [products[0]?.ownerId]);
+  }, []);
   const [cart, setCart] = useState<CartItem[]>(readCart);
   const [checkoutDraft, setCheckoutDraft] = useState(readCheckoutDraft);
   const returnParams = new URLSearchParams(window.location.search);
@@ -248,7 +248,7 @@ export default function Storefront() {
         description: selectedProduct.description || description,
         category: selectedProduct.category,
         material: selectedProduct.material,
-        image: selectedProduct.imageUrl ? [selectedProduct.imageUrl] : undefined,
+        image: (selectedProduct.imageUrls?.length ? selectedProduct.imageUrls : (selectedProduct.imageUrl ? [selectedProduct.imageUrl] : undefined)),
         offers: { "@type": "Offer", priceCurrency: "BRL", price: selectedProduct.price.toFixed(2), availability: Number(selectedProduct.stock ?? 0) > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock" }
       } : {
         "@context": "https://schema.org",
