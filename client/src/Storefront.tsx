@@ -55,7 +55,7 @@ function formatCPF(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 11);
   return digits.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
 }
-async function geocodePostalCode(postalCode:string){ const cep=postalCode.replace(/\D/g,""); if(cep.length!==8) throw new Error("CEP inválido"); const response=await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&postalcode="+cep+"&country=Brazil&limit=1"); if(!response.ok) throw new Error("Não foi possível calcular a distância"); const data=await response.json(); if(!Array.isArray(data)||!data[0]) throw new Error("Não foi possível localizar o CEP para calcular a distância"); return {lat:Number(data[0].lat),lon:Number(data[0].lon)}; }
+async function geocodePostalCode(postalCode:string){ const cep=postalCode.replace(/\D/g,""); if(cep.length!==8) throw new Error("CEP inválido"); const queries=["postalcode="+cep+"&country=Brazil", "q="+encodeURIComponent(cep+", Brazil")]; for(const query of queries){ const response=await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&"+query+"&limit=1"); if(!response.ok) continue; const data=await response.json(); if(Array.isArray(data)&&data[0]) return {lat:Number(data[0].lat),lon:Number(data[0].lon)}; } throw new Error("Não foi possível localizar o CEP para calcular a distância"); }
 function distanceKm(a:{lat:number;lon:number},b:{lat:number;lon:number}){ const rad=(v:number)=>v*Math.PI/180; const dLat=rad(b.lat-a.lat),dLon=rad(b.lon-a.lon); const h=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLon/2)**2; return 6371*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h)); }
 function formatPhone(value: string) {
   const digits = normalizePhone(value).slice(0, 11);
@@ -762,7 +762,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     calculate();
     return()=>{cancelled=true;};
   },[isPalmas,shipping.postal_code,storefrontSettings?.shipping_palmas_enabled,storefrontSettings?.shipping_origin_postal_code]);
-  const matchingRule=distanceKmValue===null?null:(storefrontSettings?.shipping_palmas_distance_rules||[]).find((rule,index,rules)=>{const max=rule.max_km===null?null:Number(rule.max_km);const isLast=index===rules.length-1;return distanceKmValue>=Number(rule.min_km)&&(max!==null&&(isLast?distanceKmValue<=max:distanceKmValue<max));});
+  const matchingRule=distanceKmValue===null?null:(storefrontSettings?.shipping_palmas_distance_rules||[]).find((rule,index,rules)=>{const min=Number(rule.min_km||0);const max=rule.max_km===null||rule.max_km===undefined?null:Number(rule.max_km);const isLast=index===rules.length-1;return distanceKmValue>=min&&(max===null||(isLast?distanceKmValue<=max:distanceKmValue<max));});
   const freeShippingThreshold = Number(storefrontSettings?.shipping_palmas_free_above || 0);
   const hasFreePalmasShipping = isPalmas && freeShippingThreshold > 0 && subtotal >= freeShippingThreshold;
   const shippingOptions: ShippingOption[] = shipping.city.trim() ? (isPalmas ? [
