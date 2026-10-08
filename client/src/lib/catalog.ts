@@ -5,6 +5,7 @@ export type CatalogProduct = {
   material: string;
   price: number;
   imageUrl?: string;
+  imageUrls?: string[];
   featured?: boolean;
   isPublished?: boolean;
   slug?: string;
