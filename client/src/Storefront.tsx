@@ -444,8 +444,9 @@ export default function Storefront() {
         idempotency_key: idempotencyKey,
       },
     });
-    if (error) {
-      toast.error("Não foi possível criar o pedido", { description: error.message });
+    if (error || data?.error) {
+      const message = await getFunctionErrorMessage(error, data, "Não foi possível criar o pedido.");
+      toast.error("Não foi possível criar o pedido", { description: message });
       return;
     }
     setOrder(data);
