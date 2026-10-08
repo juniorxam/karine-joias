@@ -146,6 +146,17 @@ export async function createManualSale(input: {
   };
 }
 
+export async function adjustProductStock(productId: number, delta: number, reason = "Ajuste manual") {
+  if (!supabase) throw new Error("Supabase indisponível");
+  const { data, error } = await supabase.rpc("adjust_product_stock", {
+    p_product_id: productId,
+    p_delta: delta,
+    p_reason: reason,
+  });
+  if (error) throw error;
+  return fromDb("products", data) as any;
+}
+
 export async function deleteManualSale(saleId: number) {
   if (!supabase) throw new Error("Supabase indisponível");
   const { data, error } = await supabase.rpc("delete_manual_sale", { p_sale_id: saleId });
