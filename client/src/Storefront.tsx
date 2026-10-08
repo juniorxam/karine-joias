@@ -530,7 +530,7 @@ export default function Storefront() {
       </> : <div className="store-cart-empty"><ShoppingBag size={30}/><h3>Seu carrinho está vazio.</h3><p>Escolha uma peça especial para começar.</p><button className="store-primary-cta" onClick={() => setCartOpen(false)}>Ver coleção <ArrowRight size={15}/></button></div>}
     </aside></div>}
     <main>
-      <div className="store-promo-bar"><span>VIOLETTA · PRATA 925 · SEMIJOIAS</span><b>Descubra a coleção e encontre sua próxima peça favorita.</b><a href="#novidades">Comprar agora <ArrowRight size={12}/></a></div>
+      <div className="store-promo-bar"><span><Truck size={14}/> FRETE GRÁTIS</span><b>Nas compras acima de R$ 149,00 · somente Palmas-TO</b><a href="#novidades">Comprar agora <ArrowRight size={12}/></a></div>
 
       <section className="store-hero">
         <div className="store-hero-copy">
