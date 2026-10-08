@@ -70,7 +70,7 @@ export async function updatePublicProduct(ownerId: string, item: ManagedPublicPr
     ...(changes.material !== undefined ? { material: changes.material } : {}),
     ...(changes.price !== undefined ? { price: changes.price } : {}),
     ...(changes.imageUrl !== undefined ? { image_url: changes.imageUrl || null } : {}),
-    ...(changes.imageUrls !== undefined ? { image_urls: changes.imageUrls.slice(0,5) } : (changes.imageUrl !== undefined ? { image_urls: changes.imageUrl ? [changes.imageUrl] : [] } : {})),
+    ...(changes.imageUrls !== undefined ? { image_urls: Array.from(new Set(changes.imageUrls)).filter(Boolean).slice(0,5) } : (changes.imageUrl !== undefined ? { image_urls: changes.imageUrl ? [changes.imageUrl, ...(item.imageUrls || []).filter(url => url !== changes.imageUrl)].slice(0,5) : [] } : {})),
     ...(changes.slug !== undefined ? { slug: changes.slug || toSlug(changes.name || item.name) } : {}),
     ...(changes.description !== undefined ? { description: changes.description || null } : {}),
   }).eq("id", item.publicId).eq("owner_id", ownerId) .select("id,product_id,name,category,material,price,image_url,featured,is_published,slug,description,stock,is_new,is_best_seller,sort_order,sold_quantity").single();
