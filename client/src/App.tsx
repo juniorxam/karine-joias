@@ -363,8 +363,10 @@ function Reports({sales,clients,products,ownerId}:any){
    <div className="form-grid">
     <label>De<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label>
     <label>Até<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label>
-    <div style={{display:"flex",alignItems:"end",gap:8}}><button className="primary" onClick={exportExcel}>Excel (.xls)</button><button className="secondary" onClick={exportPdf}>Gerar PDF</button></div>
+    <label>Canal<select value={channel} onChange={e=>setChannel(e.target.value as "ALL"|"SITE"|"PRESENCIAL")}><option value="ALL">Todos os canais</option><option value="SITE">Somente site</option><option value="PRESENCIAL">Somente presencial</option></select></label>
+    <div style={{display:"flex",alignItems:"end",gap:8}}><button className="primary" onClick={exportExcel} disabled={from>to}>Excel (.xls)</button><button className="secondary" onClick={exportPdf} disabled={from>to}>Gerar PDF</button></div>
    </div>
+   {from>to&&<p style={{margin:"10px 0 0",color:"var(--danger,#b42318)",fontSize:13}}>O período informado é inválido: a data inicial não pode ser posterior à data final.</p>}
    {onlineLoading&&<p style={{margin:"10px 0 0",color:"var(--muted)",fontSize:13}}>Atualizando vendas online…</p>}
   </section>
   <div className="stat-grid">
