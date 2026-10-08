@@ -631,6 +631,8 @@ function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false
 function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNow, onCheckout, onCart, onRelatedOpen, onRelatedAdd, onRelatedBuyNow, onRelatedAsk }: { product: CatalogProduct; relatedProducts: CatalogProduct[]; onBack: () => void; onAdd: (quantity: number) => void; onBuyNow: (quantity: number) => void; onCheckout: () => void; onCart: () => void; onRelatedOpen: (product: CatalogProduct) => void; onRelatedAdd: (product: CatalogProduct) => void; onRelatedBuyNow: (product: CatalogProduct) => void; onRelatedAsk: (product: CatalogProduct) => void }) {
   const available = Number(product.stock ?? 0) > 0;
   const maxQuantity = Math.max(1, Number(product.stock ?? 0));
+  const gallery = Array.from(new Set([...(product.imageUrls || []), ...(product.imageUrl ? [product.imageUrl] : [])])).slice(0, 5);
+  const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const adjustQuantity = (delta: number) => setQuantity(current => Math.min(maxQuantity, Math.max(1, current + delta)));
   return <div className="storefront checkout-page">
@@ -639,7 +641,7 @@ function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNow, onCh
     <main className="product-detail-page">
       <div className="product-detail-image-wrap">
         <button className="product-detail-back" onClick={onBack}><ArrowLeft size={15}/> Voltar para a coleção</button>
-        <div className="product-detail-image" style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}>{!product.imageUrl && <Gem size={80} strokeWidth={1}/>}<span className="product-detail-category">{product.category}</span></div>
+        <div className="product-detail-image" style={gallery[activeImage] ? { backgroundImage: `url(${gallery[activeImage]})` } : undefined}>{!gallery[activeImage] && <Gem size={80} strokeWidth={1}/>}<span className="product-detail-category">{product.category}</span></div>{gallery.length > 1 && <div className="product-detail-thumbnails" aria-label="Fotos do produto">{gallery.map((url,index)=><button type="button" key={url+index} className={activeImage===index ? "active" : ""} onClick={()=>setActiveImage(index)} aria-label={`Ver foto ${index+1}`}><img src={url} alt={`${product.name} - foto ${index+1}`} /></button>)}</div>}
       </div>
       <div className="product-detail-copy">
         <p className="store-kicker">{product.category}</p><p className="product-material">{product.material}</p><h1>{product.name}</h1>
