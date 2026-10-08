@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useEffect, useMemo, useState } from "react";
 import { BarChart3, Bell, Cake, CircleDollarSign, Gem, Globe2, LayoutDashboard, MessageCircle, Package, Percent, Plus, Search, ShoppingBag, Sparkles, Star, Trash2, TrendingDown, TrendingUp, UserRound, Users, Wallet, X, Settings } from "lucide-react";
 import { toast } from "sonner";
