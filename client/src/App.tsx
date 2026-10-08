@@ -207,7 +207,7 @@ function ReceivingAccounts({ownerId}:{ownerId?:string}){
  </section>;
 }
 
-function StoreSettings({ownerId,accessRole}:{ownerId?:string;accessRole?:"owner"|"manager"}){
+function StoreSettings({ownerId,accessRole}:{ownerId?:string;accessRole?:"owner"|"developer"|"seller"}){
  const defaults={
    shipping_palmas_enabled:true,
    shipping_palmas_min_subtotal:50,
