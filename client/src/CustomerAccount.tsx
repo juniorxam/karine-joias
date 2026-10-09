@@ -65,6 +65,12 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   },[]);
 
   useEffect(()=>{
+    const user=session?.user;
+    if(!supabase||!user?.id||!user.user_metadata?.welcome_email_pending||user.user_metadata?.welcome_email_sent)return;
+    void sendWelcomeEmail(user,String(user.user_metadata?.full_name||user.email?.split("@")[0]||"cliente"));
+  },[session?.user?.id,session?.user?.user_metadata?.welcome_email_pending,session?.user?.user_metadata?.welcome_email_sent]);
+
+  useEffect(()=>{
     if(!session?.user?.id||!supabase){setOrders([]);return;}
     let cancelled=false;
     (async()=>{
@@ -114,7 +120,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
         const {data,error}=await supabase.auth.signUp({
           email:email.trim().toLowerCase(),
           password,
-          options:{emailRedirectTo:window.location.origin+"/minha-conta",data:{full_name:profileName.trim(),phone:profilePhone.replace(/\D/g,""),birthday:profileBirthday}}
+          options:{emailRedirectTo:window.location.origin+"/minha-conta",data:{full_name:profileName.trim(),phone:profilePhone.replace(/\D/g,""),birthday:profileBirthday,welcome_email_pending:true}}
         });
         if(error){
           const message=error.message.toLowerCase();
@@ -165,7 +171,19 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
     }finally{setBusy(false);}
   };
 
-const sendWelcomeEmail=async(user:any,name:string)=>{\n    if(!user?.email||user.user_metadata?.welcome_email_sent)return;\n    try{\n      const {data:{session:currentSession}}=await supabase.auth.getSession();\n      if(!currentSession?.access_token)return;\n      const response=await fetch("/api/welcome-email",{method:"POST",headers:{"Content-Type":"application/json",Authorization:\`Bearer \${currentSession.access_token}\`},body:JSON.stringify({name})});\n      if(!response.ok)return;\n      await supabase.auth.updateUser({data:{welcome_email_sent:true}});\n    }catch{}\n  };\n\n  const saveProfile=async()=>{
+  const sendWelcomeEmail=async(user:any,name:string)=>{
+    const client=supabase;
+    if(!client||!user?.email||user.user_metadata?.welcome_email_sent)return;
+    try{
+      const {data:{session:currentSession}}=await client.auth.getSession();
+      if(!currentSession?.access_token)return;
+      const response=await fetch("/api/welcome-email",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${currentSession.access_token}`},body:JSON.stringify({name})});
+      if(!response.ok)return;
+      await client.auth.updateUser({data:{welcome_email_sent:true,welcome_email_pending:false}});
+    }catch{}
+  };
+
+  const saveProfile=async()=>{
     if(!supabase||!session?.user)return;
     if(profileName.trim().length<2)return toast.error("Informe seu nome completo.");
     setProfileBusy(true);

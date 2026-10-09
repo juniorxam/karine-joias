@@ -87,12 +87,13 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
 
   useEffect(()=>{
     if(!supabase||!ownerId)return;
-    const channel=supabase.channel("orders-management-"+ownerId)
+    const client=supabase;
+    const channel=client.channel("orders-management-"+ownerId)
       .on("postgres_changes",{event:"*",schema:"public",table:"orders",filter:"owner_id=eq."+ownerId},()=>{
         void load();
         if(selected) {
           void (async()=>{
-            const {data}=await supabase.from("orders").select("id,order_number,customer_name,customer_email,customer_phone,total_amount,status,payment_status,payment_method,payment_provider,payment_provider_id,payment_url,created_at,shipping_address,shipping_amount,tracking_code").eq("id",selected.id).eq("owner_id",ownerId).maybeSingle();
+            const {data}=await client.from("orders").select("id,order_number,customer_name,customer_email,customer_phone,total_amount,status,payment_status,payment_method,payment_provider,payment_provider_id,payment_url,created_at,shipping_address,shipping_amount,tracking_code").eq("id",selected.id).eq("owner_id",ownerId).maybeSingle();
             if(data) await openOrder(data as Order);
           })();
         }
@@ -104,7 +105,7 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
         if(selected) void openOrder(selected);
       })
       .subscribe();
-    return()=>{void supabase.removeChannel(channel)};
+    return()=>{void client.removeChannel(channel)};
   },[ownerId,selected?.id]);
 
   const load=async()=>{
@@ -183,7 +184,7 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
       expiration_date: latest.date_of_expiration || null,
       events: (p.data||[]) as PaymentEvent[]
     });
-    setTracking(s.data?.tracking_code||"");
+    setTracking(order.tracking_code||"");
   };
 
   const saveTracking=async()=>{
