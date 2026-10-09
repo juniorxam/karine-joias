@@ -11,6 +11,8 @@
   ],
   "rewrites": [
     { "source": "/loja/:path*", "destination": "/index.html" },
+    { "source": "/minha-conta/:path*", "destination": "/index.html" },
+    { "source": "/pedido/:path*", "destination": "/index.html" },
     { "source": "/gestao/:path*", "destination": "/index.html" }
   ]
 }

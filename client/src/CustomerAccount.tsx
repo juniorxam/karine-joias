@@ -40,9 +40,12 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   const [loginConfirmationNeeded,setLoginConfirmationNeeded]=useState(false);
   const [signupAccountExists,setSignupAccountExists]=useState(false);
 
+  const recoveryLink = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("type") === "recovery";
+
   useEffect(()=>{
     if(!supabase){setLoading(false);return;}
     let mounted=true;
+    if(recoveryLink)setMode("new-password");
     supabase.auth.getSession().then(({data})=>{
       if(!mounted)return;
       setSession(data.session);
@@ -59,7 +62,10 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       setProfileName(String(next?.user?.user_metadata?.full_name||""));
       setProfilePhone(String(next?.user?.user_metadata?.phone||""));
       setProfileBirthday(String(next?.user?.user_metadata?.birthday||""));
-      if(event==="PASSWORD_RECOVERY")setMode("new-password");
+      if(event==="PASSWORD_RECOVERY"){
+        setMode("new-password");
+        window.history.replaceState({}, document.title, "/minha-conta");
+      }
     });
     return()=>{mounted=false;subscription.unsubscribe();};
   },[]);
