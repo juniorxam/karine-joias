@@ -521,3 +521,57 @@
 .catalog-sort{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);white-space:nowrap}
 .catalog-sort select{min-width:145px;border:1px solid var(--line);border-radius:9px;background:#fff;padding:9px 28px 9px 10px;color:var(--ink);font-size:12px}
 @media(max-width:700px){.catalog-toolbar-actions{width:100%;justify-content:space-between;gap:8px}.catalog-sort{flex:1}.catalog-sort select{width:100%;min-width:0}.catalog-result-count{white-space:nowrap}}
+
+/* Fix: keep product labels compact and prevent them from covering the product photo */
+.store-product-art {
+  display: block;
+  overflow: hidden;
+  isolation: isolate;
+}
+.store-product-art > .product-badge,
+.store-product-art > .product-category-tag,
+.store-product-art > .product-quick-view {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  height: auto;
+  min-height: 0;
+  box-sizing: border-box;
+  white-space: nowrap;
+  line-height: 1.2;
+  z-index: 3;
+}
+.store-product-art > .product-badge {
+  top: 12px;
+  left: 12px;
+  right: auto;
+  bottom: auto;
+  padding: 7px 9px;
+  background: rgba(255,255,255,.94);
+  border-radius: 999px;
+}
+.store-product-art > .product-category-tag {
+  right: 12px;
+  bottom: 12px;
+  left: auto;
+  top: auto;
+  padding: 7px 10px;
+  background: rgba(255,253,251,.94);
+  color: #6d5840;
+  border-radius: 4px;
+  font-size: 10px;
+  letter-spacing: .5px;
+  pointer-events: none;
+}
+.store-product-art > .product-quick-view {
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.94);
+  color: #332e2a;
+}
