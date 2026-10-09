@@ -165,6 +165,9 @@
 .store-cart-summary>div strong{font:600 21px 'Playfair Display';color:var(--store-ink)}
 .store-cart-summary>small{display:block;color:var(--store-muted);font-size:9px;line-height:1.5;margin:8px 0 15px}
 .store-cart-summary .store-primary-cta{width:100%;justify-content:center;box-sizing:border-box}
+.store-cart-whatsapp,.checkout-whatsapp{width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid #d7c2ca;background:#fffafd;color:#a34f70;border-radius:6px;padding:11px 12px;font-size:10px;font-weight:700;cursor:pointer;margin-top:8px}
+.store-cart-whatsapp:hover,.checkout-whatsapp:hover:not(:disabled){border-color:#FFC1D5;background:#fff0f5}
+.checkout-whatsapp:disabled{opacity:.45;cursor:not-allowed}
 .store-cart-continue{width:100%;border:0;background:none;color:var(--store-muted);padding:12px 0 2px;font-size:10px;cursor:pointer}
 .store-cart-empty{margin:auto;padding:35px;text-align:center;color:var(--store-muted)}
 .store-cart-empty svg{color:var(--store-gold);margin-bottom:10px}

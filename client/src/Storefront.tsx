@@ -408,6 +408,20 @@ export default function Storefront() {
     }
   };
 
+  const askAboutCart = (items: CartItem[], nameOverride?: string) => {
+    const name = String(nameOverride || customerName).trim();
+    const productsText = items.map(item => `${item.quantity}x ${item.name} (${formatMoney(item.price * item.quantity)})`).join(", ");
+    const message = name
+      ? `Olá! Meu nome é ${name} e me interessei por estes produtos: ${productsText}. Gostaria de saber mais detalhes sobre a compra.`
+      : `Olá! Me interessei por estes produtos: ${productsText}. Gostaria de saber mais detalhes sobre a compra.`;
+    if (storeWhatsApp) {
+      window.open(`https://wa.me/${storeWhatsApp}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+    } else {
+      navigator.clipboard?.writeText(message);
+      toast.success("Mensagem preparada");
+    }
+  };
+
   const openProduct = (product: CatalogProduct) => {
     const slug = product.slug || String(product.id);
     window.history.pushState({}, "", `/loja/produto/${encodeURIComponent(slug)}`);
@@ -497,7 +511,7 @@ export default function Storefront() {
   }
 
   if (view === "checkout") {
-    return <Checkout cart={cart} subtotal={subtotal} draft={checkoutDraft} onDraftChange={setCheckoutDraft} onBack={backToStore} onFinish={finishOrder} onChangeQty={changeQty} storefrontSettings={storefrontSettings} />;
+    return <Checkout cart={cart} subtotal={subtotal} draft={checkoutDraft} onDraftChange={setCheckoutDraft} onBack={backToStore} onFinish={finishOrder} onChangeQty={changeQty} onAskWhatsApp={askAboutCart} storefrontSettings={storefrontSettings} />;
   }
 
   if (view === "success" && order) {
@@ -557,7 +571,7 @@ export default function Storefront() {
           <button className="store-cart-thumb" onClick={() => { setCartOpen(false); openProduct(item); }} style={item.imageUrl ? {backgroundImage:`url(${item.imageUrl})`} : undefined}>{!item.imageUrl && <Gem size={24}/>}</button>
           <div className="store-cart-item-copy"><button onClick={() => { setCartOpen(false); openProduct(item); }}><strong>{item.name}</strong></button><small>{item.material}</small><div className="store-cart-item-row"><div className="qty-controls"><button onClick={() => changeQty(item.id,-1)} aria-label="Diminuir">−</button><span>{item.quantity}</span><button onClick={() => changeQty(item.id,1)} aria-label="Aumentar">+</button></div><b>{formatMoney(item.price * item.quantity)}</b></div></div>
         </div>)}</div>
-        <div className="store-cart-summary"><div><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><small>Frete e descontos são calculados no checkout.</small><button className="store-primary-cta" onClick={() => { setCartOpen(false); goCheckout(); }}>Finalizar compra <ArrowRight size={16}/></button><button className="store-cart-continue" onClick={() => setCartOpen(false)}>Continuar comprando</button></div>
+        <div className="store-cart-summary"><div><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><small>Frete e descontos são calculados no checkout.</small><button className="store-primary-cta" onClick={() => { setCartOpen(false); goCheckout(); }}>Finalizar compra <ArrowRight size={16}/></button><button className="store-cart-whatsapp" onClick={() => askAboutCart(cart)}><MessageCircle size={14}/> Falar sobre o pedido</button><button className="store-cart-continue" onClick={() => setCartOpen(false)}>Continuar comprando</button></div>
       </> : <div className="store-cart-empty"><ShoppingBag size={30}/><h3>Seu carrinho está vazio.</h3><p>Escolha uma peça especial para começar.</p><button className="store-primary-cta" onClick={() => setCartOpen(false)}>Ver coleção <ArrowRight size={15}/></button></div>}
     </aside></div>}
     <main>
@@ -714,7 +728,7 @@ function ProductReviews({ productId }: { productId: number }) {
   </section>;
 }
 
-function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onChangeQty, storefrontSettings }: { cart: CartItem[]; subtotal: number; draft: { customer: Customer; shipping: Shipping; couponCode: string }; onDraftChange: Dispatch<SetStateAction<{ customer: Customer; shipping: Shipping; couponCode: string }>>; onBack: () => void; onFinish: (customer: Customer, shipping: Shipping, couponCode?: string) => Promise<void>; onChangeQty: (id: CatalogProduct["id"], delta: number) => void; storefrontSettings: StorefrontSettings | null }) {
+function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onChangeQty, onAskWhatsApp, storefrontSettings }: { cart: CartItem[]; subtotal: number; draft: { customer: Customer; shipping: Shipping; couponCode: string }; onDraftChange: Dispatch<SetStateAction<{ customer: Customer; shipping: Shipping; couponCode: string }>>; onBack: () => void; onFinish: (customer: Customer, shipping: Shipping, couponCode?: string) => Promise<void>; onChangeQty: (id: CatalogProduct["id"], delta: number) => void; onAskWhatsApp: (items: CartItem[], name?: string) => void; storefrontSettings: StorefrontSettings | null }) {
   const [customer, setCustomer] = useState<Customer>(draft.customer);
   const [shipping, setShipping] = useState<Shipping>(draft.shipping);
   const [busy, setBusy] = useState(false);
@@ -831,6 +845,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
       <section className="checkout-section"><h2><ShieldCheck size={17}/> Pagamento</h2><div className="payment-placeholder"><ShoppingBag size={18}/><div><strong>Pagamento seguro pelo Mercado Pago</strong><p>Ao confirmar o pedido, você será direcionada ao Mercado Pago. O frete negociado separadamente não entra neste pagamento.</p><div className="payment-methods"><span>PIX</span><span>Cartão</span><span>Ambiente seguro</span></div></div></div></section>
       <div className="checkout-final-note"><ShieldCheck size={16}/><span>{shippingOption?.service === "Retirada no local" ? "Retirada no local sem cobrança de frete." : isPalmas&&shippingOption ? "Frete de "+formatMoney(shippingPrice)+" calculado automaticamente pela distância." : "Para entregas fora de Palmas, o frete será acertado separadamente com a loja."}</span></div>
       <button className="checkout-submit" disabled={busy||!cart.length||!shippingOption}>{busy?"Criando pedido...":"Confirmar pedido e pagar"}</button>
+      <button type="button" className="checkout-whatsapp" onClick={() => onAskWhatsApp(cart, customer.name)} disabled={!cart.length}><MessageCircle size={15}/> Falar sobre estes produtos no WhatsApp</button>
     </form>
     <aside className="checkout-summary"><div className="checkout-summary-head"><div><p className="store-kicker">RESUMO</p><h2>Seu pedido</h2></div><span>{cart.reduce((sum,item)=>sum+item.quantity,0)} itens</span></div>{cart.map(item=><div className="checkout-item" key={item.id}><div className="checkout-item-thumb" style={item.imageUrl?{backgroundImage:"url("+item.imageUrl+")"}:undefined}>{!item.imageUrl&&<Gem size={18}/>}</div><div className="checkout-item-main"><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span><div className="qty-controls"><button type="button" onClick={()=>onChangeQty(item.id,-1)}>−</button><span>{item.quantity}</span><button type="button" onClick={()=>onChangeQty(item.id,1)}>+</button></div></div><b>{formatMoney(item.price*item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total"><span>Frete</span><strong>{shippingOption?.service === "Retirada no local" || shippingOption?.service === "Frete a combinar" ? "À parte" : shippingOption ? formatMoney(shippingOption.price) : "À parte"}</strong></div>{couponDiscount>0&&<div className="checkout-total"><span>Desconto</span><strong>- {formatMoney(couponDiscount)}</strong></div>}<div className="checkout-total grand"><span>Total no Mercado Pago</span><strong>{formatMoney(orderTotal)}</strong></div><p className="checkout-note">{shippingOption?.service === "Retirada no local" ? "O Mercado Pago cobrará somente os produtos menos o desconto. A retirada não tem custo de frete." : shippingOption?.price ? "O Mercado Pago cobrará os produtos, desconto e frete calculado para Palmas." : "O Mercado Pago cobrará somente os produtos menos o desconto. O frete, quando aplicável, será combinado e pago separadamente."}</p></aside>
     </main></div>;
