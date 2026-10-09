@@ -23,6 +23,13 @@ type PublicRow = {
   sold_quantity: number;
 };
 
+const normalizeStoreCategory = (category: string | null | undefined) => {
+  if (category === "Joia") return "Joias";
+  if (category === "Semi-joia") return "Semi-joias";
+  if (category === "Acessório") return "Acessórios";
+  return ["Joias", "Semi-joias", "Acessórios"].includes(category || "") ? category! : "Acessórios";
+};
+
 export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
   if (!isSupabaseConfigured) {
     try {
@@ -61,7 +68,7 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
     id: row.product_id ?? row.id,
     ownerId: row.owner_id,
     name: row.name,
-    category: row.category === "Joia" ? "Joias" : row.category === "Semi-joia" ? "Semi-joias" : row.category === "Acessório" ? "Acessórios" : row.category,
+    category: normalizeStoreCategory(row.category),
     material: row.material,
     price: Number(row.price),
     imageUrl: row.image_url ?? undefined,

@@ -180,7 +180,7 @@
 /* Violetta storefront merchandising */
 .store-product-card{background:#fff;border:1px solid transparent;border-radius:4px;transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease}
 .store-product-card:hover{transform:translateY(-3px);box-shadow:0 14px 35px rgba(65,48,31,.08);border-color:#eee5da}
-.store-product-art{height:340px!important;background-position:center;background-size:cover;background-repeat:no-repeat;position:relative}
+.store-product-art{height:340px!important;background-position:center;background-size:contain;background-repeat:no-repeat;background-color:#f7f3ef;position:relative}
 .featured-card .store-product-art{height:390px!important}
 .product-badge{z-index:2}
 .product-category-tag{z-index:2}
@@ -200,11 +200,11 @@
 .category-list button.selected{box-shadow:0 0 0 1px #b89a5a inset}
 .empty-catalog{border:1px dashed var(--store-line);border-radius:10px;background:#fff;padding:55px 20px}
 @media(max-width:800px){
- .store-product-art,.featured-card .store-product-art{height:310px!important}
+ .store-product-art,.featured-card .store-product-art{height:250px!important}
  .store-product-info{padding:13px 11px 15px}
 }
 @media(max-width:480px){
- .store-product-art,.featured-card .store-product-art{height:280px!important}
+ .store-product-art,.featured-card .store-product-art{height:220px!important}
  .store-product-info h3{min-height:0}
  .product-buy{padding:9px 12px}
 }
@@ -367,7 +367,7 @@
 .store-logo{min-width:0;}
 .store-logo-image + span{min-width:0;}
 .store-cart-thumb{background-repeat:no-repeat;background-position:center;background-size:cover;overflow:hidden;}
-.product-detail-image{background-repeat:no-repeat;background-size:cover;background-position:center;overflow:hidden;}
+.product-detail-image{background-repeat:no-repeat;background-size:contain;background-position:center;background-color:#f7f3ef;overflow:hidden;}
 @media(max-width:700px){
  .store-logo-image{width:42px;height:42px;flex-basis:42px;}
  .footer-logo-image{width:46px;height:46px;flex-basis:46px;}
