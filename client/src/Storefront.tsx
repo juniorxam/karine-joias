@@ -180,6 +180,7 @@ export default function Storefront() {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [trackingLoading, setTrackingLoading] = useState(false);
   const [customerName, setCustomerName] = useState("");
+  const [customerSignedIn, setCustomerSignedIn] = useState(false);
   const checkoutIdempotencyKey = useRef<string | null>(null);
   const productSlug = decodeURIComponent(window.location.pathname.split("/produto/")[1] || "");
   const selectedProduct = view === "product" ? products.find(product => (product.slug || String(product.id)) === productSlug || String(product.id) === productSlug) : null;
@@ -190,7 +191,10 @@ export default function Storefront() {
 
   useEffect(() => {
     if (!supabase) return;
-    const syncCustomerName = (session: any) => setCustomerName(String(session?.user?.user_metadata?.full_name || "").trim());
+    const syncCustomerName = (session: any) => {
+      setCustomerSignedIn(Boolean(session?.user));
+      setCustomerName(String(session?.user?.user_metadata?.full_name || "").trim());
+    };
     supabase.auth.getSession().then(({ data }) => syncCustomerName(data.session));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => syncCustomerName(session));
     return () => subscription.unsubscribe();
@@ -556,7 +560,7 @@ export default function Storefront() {
         <a href="#presentes" onClick={() => setMenuOpen(false)}>Presentes</a>
         <a href="#contato" onClick={() => setMenuOpen(false)}>Atendimento</a>
       </nav>      <div className="store-header-actions">
-        <a className="store-admin-link" href="/minha-conta" onClick={(e) => { e.preventDefault(); window.history.pushState({}, "", "/minha-conta"); setView("account"); window.scrollTo({top:0,behavior:"smooth"}); }}>Minha conta</a>
+        <a className="store-admin-link" href="/minha-conta" title={customerSignedIn ? "Abrir minha conta" : "Entrar ou criar uma conta"} onClick={(e) => { e.preventDefault(); window.history.pushState({}, "", "/minha-conta"); setView("account"); setMenuOpen(false); window.scrollTo({top:0,behavior:"smooth"}); }}><User size={15}/><span>{customerSignedIn ? (customerName ? `Olá, ${customerName.split(/\s+/)[0]}` : "Minha conta") : "Entrar"}</span></a>
         
         <button className="store-header-search" onClick={() => document.getElementById("colecao")?.scrollIntoView({behavior:"smooth"})} aria-label="Buscar peças"><Search size={17}/></button>
         <button className="store-cart-button" onClick={openCart} aria-label={cartCount ? `Abrir carrinho com ${cartCount} ${cartCount === 1 ? "item" : "itens"}` : "Abrir carrinho"}><ShoppingBag size={18}/>{cartCount > 0 && <b>{cartCount > 99 ? "99+" : cartCount}</b>}</button>
