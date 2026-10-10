@@ -128,6 +128,10 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
           password,
           options:{emailRedirectTo:window.location.origin+"/minha-conta",data:{full_name:profileName.trim(),phone:profilePhone.replace(/\D/g,""),birthday:profileBirthday,welcome_email_pending:true}}
         });
+        if(!error&&data.user&&Array.isArray(data.user.identities)&&data.user.identities.length===0){
+          setSignupAccountExists(true);
+          return;
+        }
         if(error){
           const message=error.message.toLowerCase();
           if(message.includes("already registered")||message.includes("already exists")||message.includes("user already")||message.includes("email already")){
