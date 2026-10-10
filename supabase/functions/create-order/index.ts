@@ -247,8 +247,19 @@ Deno.serve(async (req) => {
     const order = Array.isArray(data) ? data[0] : data;
     if (!order?.id) throw new Error("Pedido não criado");
 
+    // Não devolva CPF, endereço, telefone ou outros campos do registro inteiro
+    // ao navegador. O checkout precisa somente destes campos para acompanhar e
+    // iniciar o pagamento do pedido recém-criado.
+    const publicOrder = {
+      id: order.id,
+      order_number: order.order_number,
+      total_amount: Number(order.total_amount || 0),
+      payment_status: order.payment_status,
+      status: order.status,
+      tracking_token: idempotencyKey,
+    };
 
-    return new Response(JSON.stringify({ ...order, tracking_token: idempotencyKey }), {
+    return new Response(JSON.stringify(publicOrder), {
       headers: { ...cors, "Content-Type": "application/json" },
     });
   } catch (error) {
