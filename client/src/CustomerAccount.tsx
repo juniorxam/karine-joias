@@ -16,6 +16,14 @@ type Order = {
 const statusLabels:Record<string,string>={PENDING_PAYMENT:"Aguardando pagamento",PAID:"Pagamento confirmado",PROCESSING:"Em preparação",READY_TO_SHIP:"Pronto para envio",SHIPPED:"Pedido enviado",DELIVERED:"Entregue",CANCELLED:"Pedido cancelado",REFUNDED:"Pedido reembolsado"};
 const paymentLabels:Record<string,string>={PENDING:"Pagamento pendente",PAID:"Pagamento confirmado",APPROVED:"Pagamento confirmado",IN_PROCESS:"Pagamento em análise",REFUNDED:"Pagamento reembolsado",FAILED:"Pagamento recusado",REJECTED:"Pagamento recusado"};
 const money=(value:number)=>Number(value||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const isValidBirthday=(value:string)=>{
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
+  const date=new Date(value+"T00:00:00");
+  if(Number.isNaN(date.getTime())||date.toISOString().slice(0,10)!==value)return false;
+  const today=new Date();
+  today.setHours(0,0,0,0);
+  return date<=today;
+};
 const displayStatus=(status:string)=>statusLabels[status]||status;
 const orderSteps=["PENDING_PAYMENT","PAID","PROCESSING","READY_TO_SHIP","SHIPPED","DELIVERED"];
 
@@ -125,6 +133,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
         if(profileName.trim().length<2)throw new Error("Informe seu nome completo.");
         if(profilePhone.replace(/\D/g,"").length<10)throw new Error("Informe um WhatsApp válido.");
         if(!profileBirthday)throw new Error("Informe sua data de nascimento.");
+        if(!isValidBirthday(profileBirthday))throw new Error("Informe uma data de nascimento válida, que não seja futura.");
         if(password.length<6)throw new Error("A senha deve ter pelo menos 6 caracteres.");
         const {data,error}=await supabase.auth.signUp({
           email:email.trim().toLowerCase(),
@@ -199,6 +208,8 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   const saveProfile=async()=>{
     if(!supabase||!session?.user)return;
     if(profileName.trim().length<2)return toast.error("Informe seu nome completo.");
+    if(profilePhone.replace(/\D/g,"").length>0&&profilePhone.replace(/\D/g,"").length<10)return toast.error("Informe um WhatsApp válido ou deixe o campo vazio.");
+    if(profileBirthday&&!isValidBirthday(profileBirthday))return toast.error("Informe uma data de nascimento válida, que não seja futura.");
     setProfileBusy(true);
     try{
       const {data,error}=await supabase.auth.updateUser({data:{full_name:profileName.trim(),phone:profilePhone.replace(/\D/g,""),birthday:profileBirthday,marketing_consent:marketingConsent,marketing_consent_updated_at:new Date().toISOString()}});
