@@ -198,27 +198,60 @@ Deno.serve(async (req) => {
       return Response.json({ error: "Mercado Pago recusou a preferência" }, { status: 502, headers: cors });
     }
 
-    const { data: savedOrder, error: saveError } = await admin
-      .from("orders")
-      .update({
-        payment_provider: "mercadopago",
-        payment_provider_id: preference.id,
-        payment_url: preference.init_point,
-        payment_status: "PENDING",
-        payment_creation_token: null,
-        payment_creation_started_at: null,
-      })
-      .eq("id", order.id)
-      .eq("payment_status", "PENDING")
-      .eq("payment_creation_token", claimToken)
-      .select("id")
-      .maybeSingle();
+    // Persist with bounded retries. The preference already exists remotely,
+    // so retry only the database write and never create another preference here.
+    let saved = false;
+    let lastSaveError: unknown = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data: savedOrder, error: saveError } = await admin
+        .from("orders")
+        .update({
+          payment_provider: "mercadopago",
+          payment_provider_id: preference.id,
+          payment_url: preference.init_point,
+          payment_status: "PENDING",
+          payment_creation_token: null,
+          payment_creation_started_at: null,
+        })
+        .eq("id", order.id)
+        .eq("payment_status", "PENDING")
+        .eq("payment_creation_token", claimToken)
+        .select("id")
+        .maybeSingle();
 
-    if (saveError || !savedOrder) {
-      console.error("Não foi possível persistir a preferência criada", saveError);
-      // The preference exists remotely. Preserve the lease so a retry cannot
-      // create a second preference while the original one is being reconciled.
-      return Response.json({ error: "Não foi possível finalizar a preparação do pagamento. Tente novamente." }, { status: 500, headers: cors });
+      if (!saveError && savedOrder) {
+        saved = true;
+        activeClaimToken = null;
+        break;
+      }
+
+      lastSaveError = saveError;
+      // The write may have succeeded even if the response was lost. Confirm
+      // that this exact preference is already stored before attempting again.
+      const { data: currentOrder, error: verifyError } = await admin
+        .from("orders")
+        .select("payment_provider,payment_provider_id,payment_url,payment_status")
+        .eq("id", order.id)
+        .maybeSingle();
+
+      if (!verifyError &&
+          currentOrder?.payment_status === "PENDING" &&
+          currentOrder.payment_provider === "mercadopago" &&
+          String(currentOrder.payment_provider_id) === String(preference.id) &&
+          currentOrder.payment_url === preference.init_point) {
+        saved = true;
+        activeClaimToken = null;
+        break;
+      }
+
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)));
+    }
+
+    if (!saved) {
+      console.error("Não foi possível persistir a preferência criada após novas tentativas", lastSaveError);
+      // Keep the claim: the remote preference exists and must be reconciled
+      // rather than risking a duplicate charge/preference.
+      return Response.json({ error: "O pagamento foi iniciado, mas não conseguimos confirmar o registro. Aguarde e tente novamente." }, { status: 500, headers: cors });
     }
 
     return Response.json({ init_point: preference.init_point, preference_id: preference.id }, { headers: cors });
