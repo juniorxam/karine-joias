@@ -7,6 +7,10 @@ const cors = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  let admin: ReturnType<typeof createClient> | null = null;
+  let claimedOrderId: string | null = null;
+  let activeClaimToken: string | null = null;
+  let preferenceCreationAttempted = false;
   try {
     const { order_number, email } = await req.json();
     if (!order_number || !email) {
@@ -23,7 +27,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: "Pagamento ainda não configurado no servidor" }, { status: 503, headers: cors });
     }
 
-    const admin = createClient(supabaseUrl, serviceKey);
+    admin = createClient(supabaseUrl, serviceKey);
     const { data: order, error: orderError } = await admin
       .from("orders")
       .select("id,order_number,customer_name,customer_email,customer_phone,shipping_address,total_amount,shipping_amount,discount_amount,status,payment_status,payment_provider,payment_provider_id,payment_url")
@@ -43,6 +47,7 @@ Deno.serve(async (req) => {
     // Claim payment-preference creation atomically. This closes the race where
     // two rapid clicks both observe an order without a Mercado Pago preference.
     const claimToken = crypto.randomUUID();
+    activeClaimToken = claimToken;
     const { data: claimedOrder, error: claimError } = await admin
       .from("orders")
       .update({
@@ -62,6 +67,7 @@ Deno.serve(async (req) => {
     }
 
     if (!claimedOrder) {
+      activeClaimToken = null;
       // Another request is currently creating the preference. Give it a few
       // seconds to finish, then return the persisted preference if available.
       for (let attempt = 0; attempt < 5; attempt++) {
@@ -89,18 +95,34 @@ Deno.serve(async (req) => {
       return Response.json({ error: "O pagamento está sendo preparado. Tente novamente em alguns segundos." }, { status: 409, headers: cors });
     }
 
+    claimedOrderId = order.id;
+
+    const releaseClaim = async () => {
+      if (!admin || !claimedOrderId || !activeClaimToken) return;
+      const { error } = await admin.from("orders")
+        .update({ payment_creation_token: null, payment_creation_started_at: null })
+        .eq("id", claimedOrderId)
+        .eq("payment_creation_token", activeClaimToken);
+      if (error) console.error("Falha ao liberar reserva de pagamento", error);
+      else activeClaimToken = null;
+    };
+
     const { data: items, error: itemsError } = await admin
       .from("order_items")
       .select("product_name,quantity,unit_price")
       .eq("order_id", order.id);
 
-    if (itemsError || !items?.length) return Response.json({ error: "Itens do pedido não encontrados" }, { status: 400, headers: cors });
+    if (itemsError || !items?.length) {
+      await releaseClaim();
+      return Response.json({ error: "Itens do pedido não encontrados" }, { status: 400, headers: cors });
+    }
 
     const itemsTotal = items.reduce((sum, item) => sum + Number(item.unit_price) * Number(item.quantity), 0);
     const discountAmount = Math.max(0, Number(order.discount_amount || 0));
     const expectedTotal = itemsTotal - discountAmount + Number(order.shipping_amount || 0);
     if (Math.abs(expectedTotal - Number(order.total_amount)) > 0.01) {
       console.error("Pedido com total inconsistente", { order: order.order_number, expectedTotal, total: order.total_amount });
+      await releaseClaim();
       return Response.json({ error: "Total do pedido inconsistente" }, { status: 409, headers: cors });
     }
 
@@ -127,13 +149,20 @@ Deno.serve(async (req) => {
       }
       remainingDiscountCents -= lineDiscount;
     }
-    if (remainingDiscountCents > 0) return Response.json({ error: "Desconto do pedido excede o valor dos produtos" }, { status: 409, headers: cors });
+    if (remainingDiscountCents > 0) {
+      await releaseClaim();
+      return Response.json({ error: "Desconto do pedido excede o valor dos produtos" }, { status: 409, headers: cors });
+    }
 
     const shippingAddress = order.shipping_address && typeof order.shipping_address === "object" ? order.shipping_address as Record<string, unknown> : {};
     const recipientCpf = String(shippingAddress.recipient_code || "").replace(/\D/g, "");
     const payer: Record<string, unknown> = { name: order.customer_name, email: order.customer_email };
     if (recipientCpf.length === 11) payer.identification = { type: "CPF", number: recipientCpf };
 
+    // Once the network request starts, a timeout may mean Mercado Pago created
+    // the preference even if this function did not receive its response. Keep
+    // the lease in that uncertain case to avoid creating duplicate preferences.
+    preferenceCreationAttempted = true;
     const mpResponse = await fetch("https://api.mercadopago.com/checkout/preferences", {
       method: "POST",
       headers: {
@@ -165,10 +194,7 @@ Deno.serve(async (req) => {
     const preference = await mpResponse.json();
     if (!mpResponse.ok) {
       console.error("Mercado Pago:", preference);
-      await admin.from("orders")
-        .update({ payment_creation_token: null, payment_creation_started_at: null })
-        .eq("id", order.id)
-        .eq("payment_creation_token", claimToken);
+      await releaseClaim();
       return Response.json({ error: "Mercado Pago recusou a preferência" }, { status: 502, headers: cors });
     }
 
@@ -190,12 +216,23 @@ Deno.serve(async (req) => {
 
     if (saveError || !savedOrder) {
       console.error("Não foi possível persistir a preferência criada", saveError);
+      // The preference exists remotely. Preserve the lease so a retry cannot
+      // create a second preference while the original one is being reconciled.
       return Response.json({ error: "Não foi possível finalizar a preparação do pagamento. Tente novamente." }, { status: 500, headers: cors });
     }
 
     return Response.json({ init_point: preference.init_point, preference_id: preference.id }, { headers: cors });
   } catch (error) {
     console.error(error);
+    // Release only if we failed before contacting Mercado Pago. After the POST
+    // starts, the remote result can be ambiguous and the lease prevents duplicates.
+    if (!preferenceCreationAttempted && admin && claimedOrderId && activeClaimToken) {
+      const { error: releaseError } = await admin.from("orders")
+        .update({ payment_creation_token: null, payment_creation_started_at: null })
+        .eq("id", claimedOrderId)
+        .eq("payment_creation_token", activeClaimToken);
+      if (releaseError) console.error("Falha ao liberar reserva após erro", releaseError);
+    }
     return Response.json({ error: "Erro interno ao preparar pagamento" }, { status: 500, headers: cors });
   }
 });
