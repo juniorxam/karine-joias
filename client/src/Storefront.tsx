@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { toast } from "sonner";
-import { ArrowRight, ArrowLeft, Check, Gem, Heart, Instagram, Menu, Search, ShoppingBag, Sparkles, X, User, Truck, Tag, ShieldCheck, Star, MessageCircle } from "lucide-react";
+import { ArrowRight, ArrowLeft, Check, CreditCard, Gem, Heart, Instagram, Menu, Search, ShoppingBag, Sparkles, X, User, Truck, Tag, ShieldCheck, Star, MessageCircle } from "lucide-react";
 import { formatMoney, type CatalogProduct } from "./lib/catalog";
 type ShippingDistanceRule = { min_km:number; max_km:number|null; price:number };
 type ProductReview = { id:string; product_id:number; rating:number; comment:string; display_name:string; created_at:string };
@@ -178,6 +178,7 @@ export default function Storefront() {
     returnedOrder ? { order_number: returnedOrder, total_amount: 0, payment_status: returnParams.get("status") || "success" } : null
   );
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [redirectingToPayment, setRedirectingToPayment] = useState(false);
   const [trackingLoading, setTrackingLoading] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerSignedIn, setCustomerSignedIn] = useState(false);
@@ -485,11 +486,13 @@ export default function Storefront() {
     setCart([]);
     localStorage.removeItem(checkoutDraftKey);
     checkoutIdempotencyKey.current = null;
+    setRedirectingToPayment(true);
     const payment = await supabase.functions.invoke("create-payment", { body: { order_number: data.order_number, email: customer.email } });
     if (payment.data?.init_point || payment.data?.sandbox_init_point) {
       window.location.href = payment.data.init_point || payment.data.sandbox_init_point;
       return;
     }
+    setRedirectingToPayment(false);
     if (payment.error || payment.data?.error) {
       const message = await getFunctionErrorMessage(payment.error, payment.data, "Verifique a configuração do Mercado Pago no Supabase.");
       toast.error("Pedido criado, mas o pagamento não foi gerado", { description: message });
@@ -503,6 +506,10 @@ export default function Storefront() {
 
   if (view === "account") {
     return <CustomerAccount onBack={backToStore} />;
+  }
+
+  if (redirectingToPayment) {
+    return <div className="storefront success-page"><main className="success-card payment-redirect-card" role="status" aria-live="polite"><div className="success-icon"><CreditCard size={30}/></div><p className="store-kicker">PAGAMENTO SEGURO</p><h1>Redirecionando para o Mercado Pago…</h1><p>Seu pedido já foi registrado e estamos abrindo o ambiente seguro para você concluir o pagamento.</p><div className="payment-redirect-loader" aria-hidden="true"><span/><span/><span/></div><small>Não feche esta janela. Se o Mercado Pago não abrir, aguarde alguns segundos e tente novamente.</small></main></div>;
   }
 
   if (view === "product") {
@@ -537,10 +544,12 @@ export default function Storefront() {
         setPaymentLoading(false);
         return;
       }
+      setRedirectingToPayment(true);
       const payment = await supabase.functions.invoke("create-payment", { body: { order_number: order.order_number, email } });
       setPaymentLoading(false);
       if (payment.data?.init_point || payment.data?.sandbox_init_point) window.location.href = payment.data.init_point || payment.data.sandbox_init_point;
       else {
+        setRedirectingToPayment(false);
         const message = await getFunctionErrorMessage(payment.error, payment.data, "Verifique a configuração do Mercado Pago no Supabase.");
         toast.error("Não foi possível gerar o pagamento", { description: message });
       }
