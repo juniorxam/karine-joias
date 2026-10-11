@@ -35,6 +35,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   const [profileName,setProfileName]=useState("");
   const [profilePhone,setProfilePhone]=useState("");
   const [profileBirthday,setProfileBirthday]=useState("");
+  const [marketingConsent,setMarketingConsent]=useState(false);
   const [profileBusy,setProfileBusy]=useState(false);
   const [confirmationSent,setConfirmationSent]=useState(false);
   const [loginConfirmationNeeded,setLoginConfirmationNeeded]=useState(false);
@@ -53,6 +54,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       setProfileName(String(data.session?.user?.user_metadata?.full_name||""));
       setProfilePhone(String(data.session?.user?.user_metadata?.phone||""));
       setProfileBirthday(String(data.session?.user?.user_metadata?.birthday||""));
+      setMarketingConsent(data.session?.user?.user_metadata?.marketing_consent===true);
       setLoading(false);
     });
     const {data:{subscription}}=supabase.auth.onAuthStateChange((event,next)=>{
@@ -62,6 +64,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       setProfileName(String(next?.user?.user_metadata?.full_name||""));
       setProfilePhone(String(next?.user?.user_metadata?.phone||""));
       setProfileBirthday(String(next?.user?.user_metadata?.birthday||""));
+      setMarketingConsent(next?.user?.user_metadata?.marketing_consent===true);
       if(event==="PASSWORD_RECOVERY"){
         setMode("new-password");
         window.history.replaceState({}, document.title, "/minha-conta");
@@ -126,7 +129,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
         const {data,error}=await supabase.auth.signUp({
           email:email.trim().toLowerCase(),
           password,
-          options:{emailRedirectTo:window.location.origin+"/minha-conta",data:{full_name:profileName.trim(),phone:profilePhone.replace(/\D/g,""),birthday:profileBirthday,welcome_email_pending:true}}
+          options:{emailRedirectTo:window.location.origin+"/minha-conta",data:{full_name:profileName.trim(),phone:profilePhone.replace(/\D/g,""),birthday:profileBirthday,marketing_consent:marketingConsent,marketing_consent_updated_at:new Date().toISOString(),welcome_email_pending:true}}
         });
         if(!error&&data.user&&Array.isArray(data.user.identities)&&data.user.identities.length===0){
           setSignupAccountExists(true);
@@ -198,7 +201,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
     if(profileName.trim().length<2)return toast.error("Informe seu nome completo.");
     setProfileBusy(true);
     try{
-      const {data,error}=await supabase.auth.updateUser({data:{full_name:profileName.trim(),phone:profilePhone.replace(/\D/g,""),birthday:profileBirthday}});
+      const {data,error}=await supabase.auth.updateUser({data:{full_name:profileName.trim(),phone:profilePhone.replace(/\D/g,""),birthday:profileBirthday,marketing_consent:marketingConsent,marketing_consent_updated_at:new Date().toISOString()}});
       if(error)throw error;
       setSession((current:any)=>current?{...current,user:data.user}:current);
       toast.success("Perfil atualizado");
@@ -215,7 +218,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
     <h1>{mode==="login"?"Entrar na Violetta":mode==="signup"?"Criar minha conta":mode==="reset"?"Recuperar senha":"Criar nova senha"}</h1>
     <p>{mode==="login"?"Acompanhe seus pedidos, pagamentos e entregas em um só lugar.":mode==="signup"?"Crie sua conta para acompanhar automaticamente suas compras.":mode==="reset"?"Informe seu e-mail e enviaremos um link seguro.":"Defina uma nova senha para proteger sua conta."}</p>
     <form onSubmit={submitAuth} className="customer-form">
-      {mode==="signup"&&<><label>Nome completo<input type="text" autoComplete="name" required value={profileName} onChange={e=>setProfileName(e.target.value)} placeholder="Seu nome completo" /></label><label>WhatsApp<input type="tel" autoComplete="tel" required value={profilePhone} onChange={e=>setProfilePhone(e.target.value)} placeholder="(63) 99999-9999" /></label><label>Data de nascimento<input type="date" autoComplete="bday" required value={profileBirthday} onChange={e=>setProfileBirthday(e.target.value)} /></label></>}
+      {mode==="signup"&&<><label>Nome completo<input type="text" autoComplete="name" required value={profileName} onChange={e=>setProfileName(e.target.value)} placeholder="Seu nome completo" /></label><label>WhatsApp<input type="tel" autoComplete="tel" required value={profilePhone} onChange={e=>setProfilePhone(e.target.value)} placeholder="(63) 99999-9999" /></label><label>Data de nascimento<input type="date" autoComplete="bday" required value={profileBirthday} onChange={e=>setProfileBirthday(e.target.value)} /></label><label style={{display:"flex",flexDirection:"row",alignItems:"flex-start",gap:10,fontWeight:400,lineHeight:1.5}}><input type="checkbox" checked={marketingConsent} onChange={e=>setMarketingConsent(e.target.checked)} style={{width:18,height:18,marginTop:2,flexShrink:0}}/><span>Quero receber novidades, promoções e ofertas especiais da Violetta, incluindo uma surpresa no meu aniversário. Posso cancelar esse recebimento quando quiser.</span></label></>}
       {mode!=="new-password"&&<label>E-mail<input type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)} /></label>}
       {mode!=="reset"&&<label>{mode==="new-password"?"Nova senha":"Senha"}<input type="password" autoComplete={mode==="new-password"?"new-password":"current-password"} minLength={6} required value={password} onChange={e=>setPassword(e.target.value)} /></label>}
       {mode==="new-password"&&<label>Confirmar nova senha<input type="password" autoComplete="new-password" minLength={6} required value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} /></label>}
@@ -274,6 +277,6 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       <div className="customer-orders-toolbar"><input placeholder="Buscar por número do pedido..." value={search} onChange={e=>setSearch(e.target.value)}/><select value={orderFilter} onChange={e=>setOrderFilter(e.target.value)}><option value="ALL">Todos os status</option>{Object.entries(statusLabels).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></div>
       {!filteredOrders.length?<div className="customer-empty"><Package size={28}/><h3>Nenhum pedido encontrado.</h3><p>Tente alterar a busca ou o filtro.</p></div>:<div className="customer-orders-list">{filteredOrders.map(order=><button className="customer-order-row" key={order.id} onClick={()=>setSelected(order)}><span className="customer-order-icon"><Package size={19}/></span><span className="customer-order-main"><strong>{order.order_number}</strong><small>{new Date(order.created_at).toLocaleDateString("pt-BR")} · {displayStatus(order.status)}</small></span><strong>{money(order.total_amount)}</strong><span className="customer-order-arrow">›</span></button>)}</div>}
     </div>
-    :<div className="customer-profile-panel"><div className="customer-detail-panel"><p className="store-kicker">DADOS DA CONTA</p><h2>Meu perfil</h2><div className="customer-form"><label>Nome completo<input value={profileName} onChange={e=>setProfileName(e.target.value)} autoComplete="name"/></label><label>WhatsApp<input value={profilePhone} onChange={e=>setProfilePhone(e.target.value)} autoComplete="tel"/></label><label>Data de nascimento<input type="date" value={profileBirthday} onChange={e=>setProfileBirthday(e.target.value)} autoComplete="bday"/></label><label>E-mail<input value={session.user.email||""} readOnly/></label><button className="store-primary-cta" onClick={saveProfile} disabled={profileBusy}><Save size={16}/>{profileBusy?"Salvando…":"Salvar dados"}</button></div></div><div className="customer-detail-panel"><p className="store-kicker">SEGURANÇA</p><h2>Sua conta</h2><p>Você pode sair da conta a qualquer momento ou usar a recuperação de senha na tela de login.</p><div className="customer-security-badge"><LockKeyhole size={17}/><span>Autenticação por e-mail e senha</span></div><button className="customer-logout customer-logout-wide" onClick={async()=>{await supabase?.auth.signOut();setSelected(null);}}><LogOut size={16}/> Sair da conta</button></div></div>}
+    :<div className="customer-profile-panel"><div className="customer-detail-panel"><p className="store-kicker">DADOS DA CONTA</p><h2>Meu perfil</h2><div className="customer-form"><label>Nome completo<input value={profileName} onChange={e=>setProfileName(e.target.value)} autoComplete="name"/></label><label>WhatsApp<input value={profilePhone} onChange={e=>setProfilePhone(e.target.value)} autoComplete="tel"/></label><label>Data de nascimento<input type="date" value={profileBirthday} onChange={e=>setProfileBirthday(e.target.value)} autoComplete="bday"/></label><label>E-mail<input value={session.user.email||""} readOnly/></label><label style={{display:"flex",flexDirection:"row",alignItems:"flex-start",gap:10,fontWeight:400,lineHeight:1.5}}><input type="checkbox" checked={marketingConsent} onChange={e=>setMarketingConsent(e.target.checked)} style={{width:18,height:18,marginTop:2,flexShrink:0}}/><span>Quero receber novidades, promoções e ofertas especiais da Violetta, incluindo uma surpresa no meu aniversário. Posso cancelar esse recebimento quando quiser.</span></label><button className="store-primary-cta" onClick={saveProfile} disabled={profileBusy}><Save size={16}/>{profileBusy?"Salvando…":"Salvar dados"}</button></div></div><div className="customer-detail-panel"><p className="store-kicker">SEGURANÇA</p><h2>Sua conta</h2><p>Você pode sair da conta a qualquer momento ou usar a recuperação de senha na tela de login.</p><div className="customer-security-badge"><LockKeyhole size={17}/><span>Autenticação por e-mail e senha</span></div><button className="customer-logout customer-logout-wide" onClick={async()=>{await supabase?.auth.signOut();setSelected(null);}}><LogOut size={16}/> Sair da conta</button></div></div>}
   </section></main>;
 }
