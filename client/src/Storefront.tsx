@@ -750,6 +750,9 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   const [couponBusy, setCouponBusy] = useState(false);
   const [couponError, setCouponError] = useState("");
   const [couponDiscount, setCouponDiscount] = useState(0); const [couponApplied, setCouponApplied] = useState(false); const [couponGiftDescription, setCouponGiftDescription] = useState("");
+  const [quickPurchaseOpen, setQuickPurchaseOpen] = useState(false);
+  const [quickPurchaseBusy, setQuickPurchaseBusy] = useState(false);
+  const [quickPurchase, setQuickPurchase] = useState({ name: draft.customer.name || "", phone: draft.customer.phone || "", address: "" });
   useEffect(() => {
     if (!supabase) return;
     supabase.auth.getSession().then(({ data }) => {
@@ -845,6 +848,28 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     try { await onFinish({ ...customer, name: customer.name.trim(), email: customer.email.trim().toLowerCase(), phone }, { ...shipping, postal_code: postalCode, state: shipping.state.trim().toUpperCase(), shipping_option: shippingOption }, couponApplied ? couponCode : ""); }
     finally { setBusy(false); }
   };
+  const submitQuickPurchase = (event: React.FormEvent) => {
+    event.preventDefault();
+    const name = quickPurchase.name.trim();
+    const phone = normalizePhone(quickPurchase.phone);
+    const address = quickPurchase.address.trim();
+    if (name.length < 2) return toast.error("Informe seu nome completo");
+    if (phone.length < 10 || phone.length > 11) return toast.error("Informe um WhatsApp válido com DDD");
+    if (address.length < 8) return toast.error("Informe seu endereço completo");
+    setQuickPurchaseBusy(true);
+    const productsText = cart.map(item => `${item.quantity}x ${item.name} (${formatMoney(item.price * item.quantity)})`).join(", ");
+    const shippingText = shippingOption?.service ? `Modalidade indicada: ${shippingOption.service}${shippingPrice > 0 ? ` (${formatMoney(shippingPrice)})` : ""}.` : "Frete a combinar.";
+    const message = `Olá! Quero fazer uma compra rápida na Violetta.\n\nNome: ${name}\nWhatsApp: ${formatPhone(phone)}\nEndereço: ${address}\n\nProdutos: ${productsText}\nSubtotal: ${formatMoney(subtotal)}\n${shippingText}\n\nPodem confirmar a disponibilidade, o frete e me enviar as opções de pagamento?`;
+    if (storeWhatsApp) {
+      window.open(`https://wa.me/${storeWhatsApp}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+      toast.success("Mensagem preparada no WhatsApp", { description: "A equipe Violetta confirmará o frete e o pagamento." });
+      setQuickPurchaseOpen(false);
+    } else {
+      navigator.clipboard?.writeText(message);
+      toast.success("Mensagem copiada", { description: "Envie a mensagem para a Violetta." });
+    }
+    setQuickPurchaseBusy(false);
+  };
   return <div className="storefront checkout-page">
     <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></span></span><span className="checkout-secure">Checkout seguro</span></header>
     <main className="checkout-layout"><form className="checkout-form" onSubmit={submit}>
@@ -858,10 +883,13 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
       <section className="checkout-section"><h2><ShieldCheck size={17}/> Pagamento</h2><div className="payment-placeholder"><ShoppingBag size={18}/><div><strong>Pagamento seguro pelo Mercado Pago</strong><p>Ao confirmar o pedido, você será direcionada ao Mercado Pago. O frete negociado separadamente não entra neste pagamento.</p><div className="payment-methods"><span>PIX</span><span>Cartão</span><span>Ambiente seguro</span></div></div></div></section>
       <div className="checkout-final-note"><ShieldCheck size={16}/><span>{shippingOption?.service === "Retirada no local" ? "Retirada no local sem cobrança de frete." : isPalmas&&shippingOption ? "Frete de "+formatMoney(shippingPrice)+" calculado automaticamente pela distância." : "Para entregas fora de Palmas, o frete será acertado separadamente com a loja."}</span></div>
       <button className="checkout-submit" disabled={busy||!cart.length||!shippingOption}>{busy?"Criando pedido...":"Confirmar pedido e pagar"}</button>
-      <button type="button" className="checkout-whatsapp" onClick={() => onAskWhatsApp(cart, customer.name)} disabled={!cart.length}><MessageCircle size={15}/> Falar sobre estes produtos no WhatsApp</button>
+      <button type="button" className="checkout-whatsapp checkout-quick-purchase" onClick={() => { setQuickPurchase(v => ({ ...v, name: v.name || customer.name, phone: v.phone || customer.phone, address: v.address || [shipping.address, shipping.number && `nº ${shipping.number}`, shipping.neighborhood, shipping.city, shipping.state].filter(Boolean).join(", ") })); setQuickPurchaseOpen(true); }} disabled={!cart.length}><MessageCircle size={15}/> Comprar rápido pelo WhatsApp</button>
+      <button type="button" className="checkout-whatsapp checkout-whatsapp-secondary" onClick={() => onAskWhatsApp(cart, customer.name)} disabled={!cart.length}><MessageCircle size={15}/> Apenas tirar dúvidas sobre os produtos</button>
     </form>
     <aside className="checkout-summary"><div className="checkout-summary-head"><div><p className="store-kicker">RESUMO</p><h2>Seu pedido</h2></div><span>{cart.reduce((sum,item)=>sum+item.quantity,0)} itens</span></div>{cart.map(item=><div className="checkout-item" key={item.id}><div className="checkout-item-thumb" style={item.imageUrl?{backgroundImage:"url("+item.imageUrl+")"}:undefined}>{!item.imageUrl&&<Gem size={18}/>}</div><div className="checkout-item-main"><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span><div className="qty-controls"><button type="button" onClick={()=>onChangeQty(item.id,-1)}>−</button><span>{item.quantity}</span><button type="button" onClick={()=>onChangeQty(item.id,1)}>+</button></div></div><b>{formatMoney(item.price*item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total"><span>Frete</span><strong>{shippingOption?.service === "Retirada no local" || shippingOption?.service === "Frete a combinar" ? "À parte" : shippingOption ? formatMoney(shippingOption.price) : "À parte"}</strong></div>{couponDiscount>0&&<div className="checkout-total"><span>Desconto</span><strong>- {formatMoney(couponDiscount)}</strong></div>}<div className="checkout-total grand"><span>Total no Mercado Pago</span><strong>{formatMoney(orderTotal)}</strong></div><p className="checkout-note">{shippingOption?.service === "Retirada no local" ? "O Mercado Pago cobrará somente os produtos menos o desconto. A retirada não tem custo de frete." : shippingOption?.price ? "O Mercado Pago cobrará os produtos, desconto e frete calculado para Palmas." : "O Mercado Pago cobrará somente os produtos menos o desconto. O frete, quando aplicável, será combinado e pago separadamente."}</p></aside>
-    </main></div>;
+    </main>
+    {quickPurchaseOpen && <div className="quick-purchase-overlay" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setQuickPurchaseOpen(false); }}><section className="quick-purchase-modal" role="dialog" aria-modal="true" aria-labelledby="quick-purchase-title"><button type="button" className="quick-purchase-close" onClick={() => setQuickPurchaseOpen(false)} aria-label="Fechar">×</button><p className="store-kicker">COMPRA MAIS RÁPIDA</p><h2 id="quick-purchase-title">Resolva pelo WhatsApp</h2><p className="quick-purchase-intro">Informe só o essencial. A equipe confirma disponibilidade, frete e envia o link ou as opções de pagamento.</p><form onSubmit={submitQuickPurchase}><label>Nome completo<input autoFocus required autoComplete="name" value={quickPurchase.name} onChange={event => setQuickPurchase(v => ({ ...v, name: event.target.value }))} /></label><label>WhatsApp com DDD<input required autoComplete="tel" inputMode="tel" value={quickPurchase.phone} onChange={event => setQuickPurchase(v => ({ ...v, phone: formatPhone(event.target.value) }))} placeholder="(63) 99999-9999" /></label><label>Endereço de entrega<textarea required rows={3} value={quickPurchase.address} onChange={event => setQuickPurchase(v => ({ ...v, address: event.target.value }))} placeholder="Rua, número, bairro, cidade e UF" /></label><small className="quick-purchase-note">Não precisa informar e-mail, CPF ou preencher o checkout completo.</small><button className="quick-purchase-submit" disabled={quickPurchaseBusy || !storeWhatsApp}><MessageCircle size={16}/>{quickPurchaseBusy ? "Preparando mensagem..." : "Continuar pelo WhatsApp"}</button></form></section></div>}
+  </div>;
 }
 
 function OrderSuccess({ order, onStore, onPay, onTrack, onReview, paymentLoading, trackingLoading }: { order: { order_number: string; total_amount: number; payment_status?: string; status?: string; shipment?: { carrier?: string | null; service?: string | null; tracking_code?: string | null; tracking_url?: string | null; shipping_status?: string | null } | null; items?: Array<{ id:string; product_id:number; product_name:string; quantity:number; unit_price:number; total_price:number }>; reviews?: Array<{ order_item_id:string; status:string }> }; onStore: () => void; onPay: () => void; onTrack: () => void; onReview: (orderItemId: string, rating: number, comment: string) => Promise<void>; paymentLoading: boolean; trackingLoading: boolean }) {
