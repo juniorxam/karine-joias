@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
     const db = rateDb;
     let customerUserId: string | null = null;
     const authorization = req.headers.get("authorization") || "";
-    const bearer = authorization.match(/^Bearer\\s+(.+)$/i)?.[1]?.trim();
+    const bearer = authorization.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
     if (bearer && anonKey) {
       try {
