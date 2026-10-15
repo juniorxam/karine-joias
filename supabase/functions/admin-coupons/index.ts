@@ -22,7 +22,7 @@ Deno.serve(async(req)=>{
   const ownerId=String(store.owner_id);
   if(user.id!==ownerId){
    const {data:membership}=await admin.from("store_memberships").select("role").eq("owner_id",ownerId).eq("user_id",user.id).eq("active",true).maybeSingle();
-   if(!membership || !["owner","manager"].includes(String(membership.role))) return json({error:"Usuário sem loja autorizada"},403);
+   if(!membership || !["owner","developer"].includes(String(membership.role))) return json({error:"Usuário sem loja autorizada"},403);
   }
 
   if(req.method==="GET"){
