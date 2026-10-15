@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { isSupabaseConfigured } from "./supabase";
-import { fallbackCatalog, type CatalogProduct } from "./catalog";
+import { type CatalogProduct } from "./catalog";
 
 type PublicRow = {
   id: string;
@@ -39,9 +39,9 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
     try {
       const local = JSON.parse(localStorage.getItem("kj-public-products") || "[]") as CatalogProduct[];
       const published = local.filter((item: any) => item.isPublished);
-      return published.length ? published : fallbackCatalog;
+      return published;
     } catch {
-      return fallbackCatalog;
+      return [];
     }
   }
 
@@ -65,7 +65,7 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
 
   if (error) {
     console.error("Falha ao carregar catálogo público", error);
-    return fallbackCatalog;
+    return [];
   }
   if (!data?.length) return [];
   return (data as PublicRow[]).map((row) => ({

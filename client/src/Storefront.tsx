@@ -599,7 +599,7 @@ export default function Storefront() {
           <p className="store-kicker"><Sparkles size={13} /> NOVA COLEÇÃO VIOLETTA JOIAS</p>
           <h1>{storefrontSettings?.hero_title || "Seu brilho, seu momento."}</h1>
           <p className="store-hero-text">{storefrontSettings?.hero_subtitle || "Descubra peças escolhidas para valorizar cada detalhe. Elegância, delicadeza e personalidade em uma só vitrine."}</p>
-          <div className="store-hero-actions"><a className="store-primary-cta" href="#novidades">{storefrontSettings?.hero_cta || "Comprar agora"} <ArrowRight size={16} /></a><a className="store-text-link" href="#categorias">Ver categorias</a></div>
+          <div className="store-hero-actions"><a className="store-primary-cta" href={products.length ? "#novidades" : "#em-breve"}>{products.length ? (storefrontSettings?.hero_cta || "Comprar agora") : "Em breve"} <ArrowRight size={16} /></a><a className="store-text-link" href="#categorias">Ver categorias</a></div>
         </div>
         <div className="store-hero-art" style={storefrontSettings?.hero_image_url ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${storefrontSettings.hero_image_url})` } : latest[0]?.imageUrl ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${latest[0].imageUrl})` } : undefined}>
           {!storefrontSettings?.hero_image_url && !latest[0]?.imageUrl && <><div className="hero-orbit orbit-one" /><div className="hero-orbit orbit-two" /><div className="hero-gem"><Gem size={82} strokeWidth={1} /></div></>}
@@ -632,6 +632,7 @@ export default function Storefront() {
       </section>) : null}
 
       <div className="store-home-sections">
+      {products.length ? <>
       {(storefrontSettings?.latest_enabled ?? true) ? (<section className="store-latest" id="lancamentos" style={sectionStyle("launches")}>
         <div className="store-section-heading"><div><p className="store-kicker">COLEÇÃO EM DESTAQUE</p><h2>Lançamentos</h2></div><a href="#colecao">Ver todos <ArrowRight size={15} /></a></div>
         <div className="store-product-grid">{(launches.length ? launches : latest).map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
@@ -661,6 +662,13 @@ export default function Storefront() {
         <div className="store-section-heading"><div><p className="store-kicker">PARA PRESENTEAR</p><h2>Escolhas especiais para presentear</h2></div><a href="#colecao">Ver opções <ArrowRight size={15} /></a></div>
         <div className="store-product-grid">{giftProducts.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} isTopSeller={false} />)}</div>
       </section>) : null}
+      </> : <section className="store-empty-state" id="em-breve" aria-live="polite">
+        <div className="store-empty-icon"><Sparkles size={27} strokeWidth={1.2} /></div>
+        <p className="store-kicker">A VIOLETTA ESTÁ PREPARANDO ALGO ESPECIAL</p>
+        <h2>Em breve, novidades para você.</h2>
+        <p>Estamos selecionando cada detalhe da nossa próxima coleção. Volte em breve para descobrir peças feitas para marcar seus momentos.</p>
+        <a className="store-text-link" href={`https://wa.me/${storeWhatsApp}`} target="_blank" rel="noreferrer">Fale com a nossa equipe <ArrowRight size={14}/></a>
+      </section>}
       </div>
 
       <section className="store-catalog" id="colecao">
@@ -669,7 +677,7 @@ export default function Storefront() {
           <div className="catalog-search"><Search size={17} /><input aria-label="Buscar produtos" placeholder="Buscar uma peça..." value={query} onChange={event => setQuery(event.target.value)} /><button className="catalog-clear" onClick={() => setQuery("")} aria-label="Limpar busca" disabled={!query}><X size={14}/></button></div>
           {(query || category !== "Todas") && <button className="catalog-clear-filters" onClick={() => { setQuery(""); setCategory("Todas"); }}>Limpar filtros</button>}<div className="catalog-toolbar-row"><div className="category-list">{categories.map(item => <button className={category === item ? "selected" : ""} key={item} onClick={() => setCategory(item)}>{item}</button>)}</div><div className="catalog-toolbar-actions"><label className="catalog-sort">Ordenar<select value={sort} onChange={event => setSort(event.target.value)}><option value="relevancia">Relevância</option><option value="novidades">Novidades</option><option value="menor-preco">Menor preço</option><option value="maior-preco">Maior preço</option><option value="estoque">Disponibilidade</option></select></label><span className="catalog-result-count">{filtered.length} {filtered.length === 1 ? "peça encontrada" : "peças encontradas"}</span></div></div>
         </div>
-        {filtered.length ? <div className="store-product-grid">{filtered.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} />)}</div> : <div className="empty-catalog"><Gem size={28} /><h3>Nenhuma peça encontrada.</h3><p>Tente outro termo ou volte para todas as categorias.</p><button onClick={() => { setQuery(""); setCategory("Todas"); }}>Limpar busca</button></div>}
+        {filtered.length ? <div className="store-product-grid">{filtered.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} />)}</div> : products.length ? <div className="empty-catalog"><Gem size={28} /><h3>Nenhuma peça encontrada.</h3><p>Tente outro termo ou volte para todas as categorias.</p><button onClick={() => { setQuery(""); setCategory("Todas"); }}>Limpar busca</button></div> : <div className="empty-catalog"><Sparkles size={28} /><h3>Em breve, novidades da Violetta.</h3><p>O catálogo está sendo preparado com carinho. Em breve teremos novas peças para você.</p></div>}
       </section>
     </main>
 
