@@ -96,6 +96,10 @@ export default function Storefront() {
     try {
       const latest = await loadPublicCatalog();
       setProducts(latest);
+      if (!latest.length) {
+        setCart([]);
+        localStorage.removeItem(cartKey);
+      }
     } catch (error) {
       console.error("Falha ao sincronizar catálogo público", error);
     }
