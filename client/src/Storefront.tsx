@@ -674,15 +674,20 @@ export default function Storefront() {
 }
 
 function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false, isTopSeller = false }: { product: CatalogProduct; onAdd: (product: CatalogProduct) => void; onBuyNow: (product: CatalogProduct) => void; onAsk: (product: CatalogProduct) => void; onOpen: (product: CatalogProduct) => void; featured?: boolean; isTopSeller?: boolean }) {
+  const [isImageHovered, setIsImageHovered] = useState(false);
   const badges = product.isBestSeller || isTopSeller ? ["MAIS VENDIDO"] : product.isNew ? ["NOVO"] : product.stock !== undefined && product.stock > 0 && product.stock <= 3 ? ["ÚLTIMAS UNIDADES"] : [];
   const pixPrice = Number(product.pixPrice ?? product.price);
   const compareAtPrice = Number(product.compareAtPrice ?? 0);
   const hasDiscount = compareAtPrice > product.price;
   const discountPercent = hasDiscount ? Math.round((1 - product.price / compareAtPrice) * 100) : 0;
   const installmentNote = product.installmentCount ? `Em até ${product.installmentCount}x sem juros` : "Parcelamento no Mercado Pago";
+  const primaryImage = product.imageUrls?.[0] || product.imageUrl;
+  const secondaryImage = product.imageUrls?.[1];
   return <article className={featured ? "store-product-card featured-card" : "store-product-card"} onClick={() => onOpen(product)}>
-    <button className="store-product-art" onClick={() => onOpen(product)} aria-label={`Ver ${product.name}`} style={(product.imageUrls?.[0] || product.imageUrl) ? { backgroundImage: `url(${product.imageUrls?.[0] || product.imageUrl})` } : undefined}>
-      {!(product.imageUrls?.[0] || product.imageUrl) && <div className="product-art-glow"><Gem size={featured ? 39 : 31} strokeWidth={1.1} /></div>}
+    <button className="store-product-art" onClick={() => onOpen(product)} onMouseEnter={() => setIsImageHovered(Boolean(secondaryImage))} onMouseLeave={() => setIsImageHovered(false)} onFocus={() => setIsImageHovered(Boolean(secondaryImage))} onBlur={() => setIsImageHovered(false)} aria-label={`Ver ${product.name}`}>
+      {primaryImage && <span className="product-image-layer product-image-primary" style={{ backgroundImage: `url(${primaryImage})` }} aria-hidden="true" />}
+      {secondaryImage && <span className={`product-image-layer product-image-secondary${isImageHovered ? " is-visible" : ""}`} style={{ backgroundImage: `url(${secondaryImage})` }} aria-hidden="true" />}
+      {!primaryImage && <div className="product-art-glow"><Gem size={featured ? 39 : 31} strokeWidth={1.1} /></div>}
       {badges.length > 0 && <span className="product-badge">{badges[0]}</span>}
       <span className="product-category-tag">{featured ? "DESTAQUE" : product.category}</span>
       <span className="product-quick-view"><Search size={14}/> Ver detalhes</span>

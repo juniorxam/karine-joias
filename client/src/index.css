@@ -628,3 +628,11 @@
 .store-product-bottom .product-actions{margin-left:auto;align-self:center}
 @media(max-width:800px){.store-quick-categories{padding-left:16px;padding-right:16px;padding-bottom:45px}.quick-category-list{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}.quick-category-list::-webkit-scrollbar{display:none}.quick-category-list button{white-space:nowrap}.product-price-stack strong{font-size:15px}.product-installments{font-size:8px}}
 @media(max-width:480px){.store-product-bottom{gap:6px}.store-product-bottom .product-actions{margin-left:0;width:100%}.product-price-stack{width:100%}}
+
+
+.product-image-layer{position:absolute;inset:0;background-position:center;background-size:contain;background-repeat:no-repeat;transition:opacity .28s ease,transform .35s ease;pointer-events:none}
+.product-image-primary{opacity:1;z-index:0}
+.product-image-secondary{opacity:0;z-index:1}
+.product-image-secondary.is-visible{opacity:1}
+.store-product-art:hover .product-image-primary,.store-product-art:focus-visible .product-image-primary{transform:scale(1.015)}
+.store-product-art:hover .product-image-secondary,.store-product-art:focus-visible .product-image-secondary{transform:scale(1.015)}
