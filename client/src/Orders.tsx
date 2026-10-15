@@ -16,6 +16,8 @@ type PaymentDetails = {
   transaction_id: string | null;
   amount: number | null;
   net_amount: number | null;
+  buyer_paid_amount: number | null;
+  receipt_url: string | null;
   installments: number | null;
   payer_email: string | null;
   payer_name: string | null;
@@ -173,13 +175,15 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
       method: latest.payment_method_id || latest.payment_type_id || order.payment_method || null,
       status: latest.status || order.payment_status || null,
       status_detail: latest.status_detail || null,
-      transaction_id: latest.transaction_details?.transaction_id || latest.point_of_interaction?.transaction_data?.e2e_id || null,
-      amount: latest.transaction_amount ?? null,
+      transaction_id: latest.transaction_details?.transaction_id || latest.point_of_interaction?.transaction_data?.e2e_id || latest.transaction_nsu || latest.verified?.transaction_nsu || null,
+      amount: latest.transaction_amount ?? (latest.verified?.amount != null ? Number(latest.verified.amount) / 100 : (latest.amount != null ? Number(latest.amount) / 100 : null)),
       net_amount: latest.transaction_details?.net_received_amount ?? null,
-      installments: latest.installments ?? null,
+      buyer_paid_amount: latest.verified?.paid_amount != null ? Number(latest.verified.paid_amount) / 100 : null,
+      receipt_url: latest.receipt_url || null,
+      installments: latest.installments ?? latest.verified?.installments ?? null,
       payer_email: latest.payer?.email || null,
       payer_name: [latest.payer?.first_name,latest.payer?.last_name].filter(Boolean).join(" ") || latest.additional_info?.payer?.first_name || null,
-      external_reference: latest.external_reference || null,
+      external_reference: latest.external_reference || latest.order_nsu || latest.invoice_slug || latest.slug || null,
       date_approved: latest.date_approved || null,
       expiration_date: latest.date_of_expiration || null,
       events: (p.data||[]) as PaymentEvent[]
@@ -359,9 +363,9 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
       </div>
       {(payment?.payer_name||payment?.payer_email)&&<p style={{margin:"12px 0 0"}}><strong>Pagador:</strong> {payment?.payer_name||"—"}{payment?.payer_email?(" · "+payment.payer_email):""}</p>}
       {(payment?.date_approved||payment?.expiration_date)&&<p style={{margin:"8px 0 0"}}><small>{payment?.date_approved?("Aprovado em "+date(payment.date_approved)):""}{payment?.expiration_date?(" · Expira em "+date(payment.expiration_date)):""}</small></p>}
-      {payment?.payment_url&&<p style={{margin:"12px 0 0"}}><a href={payment.payment_url} target="_blank" rel="noreferrer">Abrir pagamento/checkout do Mercado Pago ↗</a></p>}
+      {payment?.payment_url&&<p style={{margin:"12px 0 0"}}><a href={payment.payment_url} target="_blank" rel="noreferrer">Abrir pagamento/checkout ↗</a></p>}
       <h4 style={{margin:"16px 0 8px"}}>Eventos do pagamento</h4>
-      {payment?.events?.length ? payment.events.map(e=><div key={e.id} style={{padding:"8px 0",borderTop:"1px solid rgba(0,0,0,.06)"}}><strong>{e.event_type||"Evento"}</strong><small style={{display:"block"}}>{e.provider||"Mercado Pago"} · {e.provider_event_id||"sem ID"} · {date(e.created_at)}</small></div>) : <small>Nenhum evento registrado para este pedido.</small>}
+      {payment?.buyer_paid_amount!=null&&<div><small>Valor pago pelo comprador</small><strong style={{display:"block"}}>{money(payment.buyer_paid_amount)}</strong></div>}{payment?.receipt_url&&<p style={{margin:"12px 0 0"}}><a href={payment.receipt_url} target="_blank" rel="noreferrer">Abrir comprovante InfinitePay ↗</a></p>}{payment?.events?.length ? payment.events.map(e=><div key={e.id} style={{padding:"8px 0",borderTop:"1px solid rgba(0,0,0,.06)"}}><strong>{e.event_type||"Evento"}</strong><small style={{display:"block"}}>{e.provider||"Provedor de pagamento"} · {e.provider_event_id||"sem ID"} · {date(e.created_at)}</small></div>) : <small>Nenhum evento registrado para este pedido.</small>}
     </div><h3>Entrega</h3><p>{selected.shipping_address?.address}, {selected.shipping_address?.number}<br/>{selected.shipping_address?.neighborhood}<br/>{selected.shipping_address?.city} - {selected.shipping_address?.state}<br/>CEP {selected.shipping_address?.postal_code}</p><h3>Entrega e frete</h3><div style={{padding:"12px 14px",border:"1px solid rgba(0,0,0,.08)",borderRadius:12,background:"rgba(0,0,0,.02)",marginBottom:16}}><strong>{String(selected.shipping_address?.shipping_option?.service||"").includes("Retirada no local") ? "Retirada no local" : Number(selected.shipping_amount||0)===0 ? "Frete a combinar" : "Frete calculado"}</strong><p style={{margin:"6px 0 0"}}>{String(selected.shipping_address?.shipping_option?.service||"").includes("Retirada no local") ? "Cliente fará a retirada no local, sem cobrança de frete." : String(selected.shipping_address?.shipping_option?.service||"").includes("Entrega em Palmas") ? "Entrega em Palmas: frete calculado automaticamente pela distância." : "O frete não foi calculado automaticamente e será negociado diretamente com a loja."}</p></div><h3>Rastreamento</h3><div className="tracking-edit"><input placeholder="Código de rastreio (opcional)" value={tracking} onChange={e=>setTracking(e.target.value)}/><button className="primary" onClick={()=>void saveTracking()}>Salvar</button>{tracking&&<button className="secondary" onClick={()=>void copyText(tracking,"Código de rastreio")}>Copiar</button>}</div><p style={{marginTop:8}}><small>O rastreamento é informado manualmente pela loja. Nenhuma integração automática de transportadora é utilizada.</small></p><h3>Linha do tempo</h3>{timeline.length?timeline.map((event,index)=><div className="history-row" key={event.kind+"-"+event.date+"-"+index}><strong>{event.kind==="payment"?"💳 ":""}{event.title}</strong><small>{date(event.date)} · {event.detail}</small></div>):<small>Nenhuma movimentação registrada.</small>}</aside></div>}
   </>;
 }
