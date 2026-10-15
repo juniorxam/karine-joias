@@ -495,14 +495,14 @@ export default function Storefront() {
     localStorage.removeItem(checkoutDraftKey);
     checkoutIdempotencyKey.current = null;
     setRedirectingToPayment(true);
-    const payment = await supabase.functions.invoke("create-payment", { body: { order_number: data.order_number, email: customer.email } });
-    if (payment.data?.init_point || payment.data?.sandbox_init_point) {
-      window.location.href = payment.data.init_point || payment.data.sandbox_init_point;
+    const payment = await supabase.functions.invoke("create-infinitepay-payment", { body: { order_number: data.order_number, email: customer.email } });
+    if (payment.data?.url) {
+      window.location.href = payment.data.url;
       return;
     }
     setRedirectingToPayment(false);
     if (payment.error || payment.data?.error) {
-      const message = await getFunctionErrorMessage(payment.error, payment.data, "Verifique a configuração do Mercado Pago no Supabase.");
+      const message = await getFunctionErrorMessage(payment.error, payment.data, "Verifique a configuração do InfinitePay no Supabase.");
       toast.error("Pedido criado, mas o pagamento não foi gerado", { description: message });
     } else {
       toast.success("Pedido criado", { description: "Você já pode acompanhar o pedido e tentar o pagamento novamente." });
@@ -517,7 +517,7 @@ export default function Storefront() {
   }
 
   if (redirectingToPayment) {
-    return <div className="storefront success-page"><main className="success-card payment-redirect-card" role="status" aria-live="polite"><div className="success-icon"><CreditCard size={30}/></div><p className="store-kicker">PAGAMENTO SEGURO</p><h1>Redirecionando para o Mercado Pago…</h1><p>Seu pedido já foi registrado e estamos abrindo o ambiente seguro para você concluir o pagamento.</p><div className="payment-redirect-loader" aria-hidden="true"><span/><span/><span/></div><small>Não feche esta janela. Se o Mercado Pago não abrir, aguarde alguns segundos e tente novamente.</small></main></div>;
+    return <div className="storefront success-page"><main className="success-card payment-redirect-card" role="status" aria-live="polite"><div className="success-icon"><CreditCard size={30}/></div><p className="store-kicker">PAGAMENTO SEGURO</p><h1>Redirecionando para o InfinitePay…</h1><p>Seu pedido já foi registrado e estamos abrindo o ambiente seguro para você concluir o pagamento.</p><div className="payment-redirect-loader" aria-hidden="true"><span/><span/><span/></div><small>Não feche esta janela. Se o InfinitePay não abrir, aguarde alguns segundos e tente novamente.</small></main></div>;
   }
 
   if (view === "product") {
@@ -553,12 +553,12 @@ export default function Storefront() {
         return;
       }
       setRedirectingToPayment(true);
-      const payment = await supabase.functions.invoke("create-payment", { body: { order_number: order.order_number, email } });
+      const payment = await supabase.functions.invoke("create-infinitepay-payment", { body: { order_number: order.order_number, email } });
       setPaymentLoading(false);
-      if (payment.data?.init_point || payment.data?.sandbox_init_point) window.location.href = payment.data.init_point || payment.data.sandbox_init_point;
+      if (payment.data?.url) window.location.href = payment.data.url;
       else {
         setRedirectingToPayment(false);
-        const message = await getFunctionErrorMessage(payment.error, payment.data, "Verifique a configuração do Mercado Pago no Supabase.");
+        const message = await getFunctionErrorMessage(payment.error, payment.data, "Verifique a configuração do InfinitePay no Supabase.");
         toast.error("Não foi possível gerar o pagamento", { description: message });
       }
     }} onReview={submitReview} paymentLoading={paymentLoading} trackingLoading={trackingLoading} />;
@@ -613,7 +613,7 @@ export default function Storefront() {
 
       <section className="store-values" id="essencia">
         <div><span>01</span><strong>Curadoria especial</strong><p>Peças selecionadas para combinar com diferentes estilos e momentos.</p></div>
-        <div><span>02</span><strong>Compra segura</strong><p>Finalize seu pedido online com pagamento processado pelo Mercado Pago.</p></div>
+        <div><span>02</span><strong>Compra segura</strong><p>Finalize seu pedido online com pagamento processado pelo InfinitePay.</p></div>
         <div><span>03</span><strong>Atendimento próximo</strong><p>Fale diretamente com a nossa equipe sempre que precisar.</p></div><div><span>04</span><strong>Entrega acompanhada</strong><p>Após o envio, você recebe o código para acompanhar seu pedido.</p></div>
       </section>
 
@@ -696,7 +696,7 @@ function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false
   const compareAtPrice = Number(product.compareAtPrice ?? 0);
   const hasDiscount = compareAtPrice > product.price;
   const discountPercent = Number(product.discountPercent ?? (hasDiscount ? Math.round((1 - product.price / compareAtPrice) * 100) : 0));
-  const installmentNote = product.installmentCount ? `Em até ${product.installmentCount}x sem juros` : "Parcelamento no Mercado Pago";
+  const installmentNote = product.installmentCount ? `Em até ${product.installmentCount}x sem juros` : "Parcelamento no InfinitePay";
   const primaryImage = product.imageUrls?.[0] || product.imageUrl;
   const secondaryImage = product.imageUrls?.[1];
   return <article className={featured ? "store-product-card featured-card" : "store-product-card"} onClick={() => onOpen(product)}>
@@ -746,7 +746,7 @@ function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNow, onCh
       </div>
       <div className="product-detail-copy">
         <p className="store-kicker">{product.category}</p><p className="product-material">{product.material}</p><h1>{product.name}</h1>
-        <strong className="product-detail-price">{formatMoney(product.price)}</strong><span className="product-installment-note">Parcelamento e opções de pagamento disponíveis no Mercado Pago</span><span className="product-detail-payment-note"><ShieldCheck size={14}/> Pagamento seguro pelo Mercado Pago</span><span className={available ? "product-stock-note" : "product-stock-note sold-out"}>{available ? (Number(product.stock) <= 3 ? "Últimas unidades disponíveis" : "Disponível para envio") : "Produto temporariamente esgotado"}</span>
+        <strong className="product-detail-price">{formatMoney(product.price)}</strong><span className="product-installment-note">Parcelamento e opções de pagamento disponíveis no InfinitePay</span><span className="product-detail-payment-note"><ShieldCheck size={14}/> Pagamento seguro pelo InfinitePay</span><span className={available ? "product-stock-note" : "product-stock-note sold-out"}>{available ? (Number(product.stock) <= 3 ? "Últimas unidades disponíveis" : "Disponível para envio") : "Produto temporariamente esgotado"}</span>
         <p className="product-detail-description">{product.description || "Uma peça escolhida para trazer delicadeza, presença e brilho aos seus momentos."}</p>
         <div className="product-detail-meta">
           <div><Gem size={17}/><span><b>Material</b><small>{product.material}</small></span></div>
@@ -762,7 +762,7 @@ function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNow, onCh
         </div>
         <div className="product-detail-actions"><div className="product-detail-buy-actions"><button className="product-detail-add" onClick={() => onAdd(quantity)} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Adicionar ao carrinho" : "Produto esgotado"}</button><button className="product-detail-buy-now" onClick={() => onBuyNow(quantity)} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Comprar agora" : "Indisponível"}</button></div><button className="product-detail-whatsapp" onClick={() => onAsk(product)} disabled={!storeWhatsApp}>Tenho interesse <ArrowRight size={15}/></button></div>
         <div className="product-detail-benefits"><span><ShieldCheck size={15}/> Compra segura</span><span><Truck size={15}/> Envio calculado no checkout</span></div><button className="store-primary-cta" onClick={onCart}>Ver carrinho <ArrowRight size={16}/></button>
-        <p className="product-detail-note">Pagamento online processado pelo Mercado Pago. Consulte as opções de entrega no checkout.</p>
+        <p className="product-detail-note">Pagamento online processado pelo InfinitePay. Consulte as opções de entrega no checkout.</p>
       </div>
     </main>
     <ProductReviews productId={Number(product.id)} />
@@ -923,13 +923,13 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
         {!shippingOption&&!isPalmas&&<div className="checkout-final-note"><Truck size={16}/><span>Informe cidade e UF para visualizar como o frete será tratado.</span></div>}
       </section>
       <section className="checkout-section"><h2><Tag size={17}/> Cupom de desconto</h2><div className="checkout-grid"><label className="wide">Código do cupom<input value={couponCode} onChange={e=>{setCouponCode(e.target.value.toUpperCase());setCouponDiscount(0);setCouponError("")}} placeholder="EX.: BEMVINDO10"/></label><button type="button" className="shipping-quote-button" onClick={applyCoupon} disabled={couponBusy}>{couponBusy?"Validando...":"Aplicar cupom"}</button></div>{couponError&&<small>{couponError}</small>}{couponApplied&&<small>Cupom aplicado: {couponGiftDescription || (couponDiscount>0 ? "desconto de "+formatMoney(couponDiscount) : "benefício de primeira compra")}</small>}</section>
-      <section className="checkout-section"><h2><ShieldCheck size={17}/> Pagamento</h2><div className="payment-placeholder"><ShoppingBag size={18}/><div><strong>Pagamento seguro pelo Mercado Pago</strong><p>Ao confirmar o pedido, você será direcionada ao Mercado Pago. O frete negociado separadamente não entra neste pagamento.</p><div className="payment-methods"><span>PIX</span><span>Cartão</span><span>Ambiente seguro</span></div></div></div></section>
+      <section className="checkout-section"><h2><ShieldCheck size={17}/> Pagamento</h2><div className="payment-placeholder"><ShoppingBag size={18}/><div><strong>Pagamento seguro pelo InfinitePay</strong><p>Ao confirmar o pedido, você será direcionada ao InfinitePay. O frete negociado separadamente não entra neste pagamento.</p><div className="payment-methods"><span>PIX</span><span>Cartão</span><span>Ambiente seguro</span></div></div></div></section>
       <div className="checkout-final-note"><ShieldCheck size={16}/><span>{shippingOption?.service === "Retirada no local" ? "Retirada no local sem cobrança de frete." : isPalmas&&shippingOption ? "Frete de "+formatMoney(shippingPrice)+" calculado automaticamente pela distância." : "Para entregas fora de Palmas, o frete será acertado separadamente com a loja."}</span></div>
       <button className="checkout-submit" disabled={busy||!cart.length||!shippingOption}>{busy?"Criando pedido...":"Confirmar pedido e pagar"}</button>
       <button type="button" className="checkout-whatsapp checkout-quick-purchase" onClick={() => { setQuickPurchase(v => ({ ...v, name: v.name || customer.name, phone: v.phone || customer.phone, address: v.address || [shipping.address, shipping.number && `nº ${shipping.number}`, shipping.neighborhood, shipping.city, shipping.state].filter(Boolean).join(", ") })); setQuickPurchaseOpen(true); }} disabled={!cart.length}><MessageCircle size={15}/> Comprar rápido pelo WhatsApp</button>
       <button type="button" className="checkout-whatsapp checkout-whatsapp-secondary" onClick={() => onAskWhatsApp(cart, customer.name)} disabled={!cart.length}><MessageCircle size={15}/> Apenas tirar dúvidas sobre os produtos</button>
     </form>
-    <aside className="checkout-summary"><div className="checkout-summary-head"><div><p className="store-kicker">RESUMO</p><h2>Seu pedido</h2></div><span>{cart.reduce((sum,item)=>sum+item.quantity,0)} itens</span></div>{cart.map(item=><div className="checkout-item" key={item.id}><div className="checkout-item-thumb" style={item.imageUrl?{backgroundImage:"url("+item.imageUrl+")"}:undefined}>{!item.imageUrl&&<Gem size={18}/>}</div><div className="checkout-item-main"><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span><div className="qty-controls"><button type="button" onClick={()=>onChangeQty(item.id,-1)}>−</button><span>{item.quantity}</span><button type="button" onClick={()=>onChangeQty(item.id,1)}>+</button></div></div><b>{formatMoney(item.price*item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total"><span>Frete</span><strong>{shippingOption?.service === "Retirada no local" || shippingOption?.service === "Frete a combinar" ? "À parte" : shippingOption ? formatMoney(shippingOption.price) : "À parte"}</strong></div>{couponDiscount>0&&<div className="checkout-total"><span>Desconto</span><strong>- {formatMoney(couponDiscount)}</strong></div>}<div className="checkout-total grand"><span>Total no Mercado Pago</span><strong>{formatMoney(orderTotal)}</strong></div><p className="checkout-note">{shippingOption?.service === "Retirada no local" ? "O Mercado Pago cobrará somente os produtos menos o desconto. A retirada não tem custo de frete." : shippingOption?.price ? "O Mercado Pago cobrará os produtos, desconto e frete calculado para Palmas." : "O Mercado Pago cobrará somente os produtos menos o desconto. O frete, quando aplicável, será combinado e pago separadamente."}</p></aside>
+    <aside className="checkout-summary"><div className="checkout-summary-head"><div><p className="store-kicker">RESUMO</p><h2>Seu pedido</h2></div><span>{cart.reduce((sum,item)=>sum+item.quantity,0)} itens</span></div>{cart.map(item=><div className="checkout-item" key={item.id}><div className="checkout-item-thumb" style={item.imageUrl?{backgroundImage:"url("+item.imageUrl+")"}:undefined}>{!item.imageUrl&&<Gem size={18}/>}</div><div className="checkout-item-main"><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span><div className="qty-controls"><button type="button" onClick={()=>onChangeQty(item.id,-1)}>−</button><span>{item.quantity}</span><button type="button" onClick={()=>onChangeQty(item.id,1)}>+</button></div></div><b>{formatMoney(item.price*item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total"><span>Frete</span><strong>{shippingOption?.service === "Retirada no local" || shippingOption?.service === "Frete a combinar" ? "À parte" : shippingOption ? formatMoney(shippingOption.price) : "À parte"}</strong></div>{couponDiscount>0&&<div className="checkout-total"><span>Desconto</span><strong>- {formatMoney(couponDiscount)}</strong></div>}<div className="checkout-total grand"><span>Total no InfinitePay</span><strong>{formatMoney(orderTotal)}</strong></div><p className="checkout-note">{shippingOption?.service === "Retirada no local" ? "O InfinitePay cobrará somente os produtos menos o desconto. A retirada não tem custo de frete." : shippingOption?.price ? "O InfinitePay cobrará os produtos, desconto e frete calculado para Palmas." : "O InfinitePay cobrará somente os produtos menos o desconto. O frete, quando aplicável, será combinado e pago separadamente."}</p></aside>
     </main>
     {quickPurchaseOpen && <div className="quick-purchase-overlay" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setQuickPurchaseOpen(false); }}><section className="quick-purchase-modal" role="dialog" aria-modal="true" aria-labelledby="quick-purchase-title"><button type="button" className="quick-purchase-close" onClick={() => setQuickPurchaseOpen(false)} aria-label="Fechar">×</button><p className="store-kicker">COMPRA MAIS RÁPIDA</p><h2 id="quick-purchase-title">Resolva pelo WhatsApp</h2><p className="quick-purchase-intro">Informe só o essencial. A equipe confirma disponibilidade, frete e envia o link ou as opções de pagamento.</p><form onSubmit={submitQuickPurchase}><label>Nome completo<input autoFocus required autoComplete="name" value={quickPurchase.name} onChange={event => setQuickPurchase(v => ({ ...v, name: event.target.value }))} /></label><label>WhatsApp com DDD<input required autoComplete="tel" inputMode="tel" value={quickPurchase.phone} onChange={event => setQuickPurchase(v => ({ ...v, phone: formatPhone(event.target.value) }))} placeholder="(63) 99999-9999" /></label><label>Endereço de entrega<textarea required rows={3} value={quickPurchase.address} onChange={event => setQuickPurchase(v => ({ ...v, address: event.target.value }))} placeholder="Rua, número, bairro, cidade e UF" /></label><small className="quick-purchase-note">Não precisa informar e-mail, CPF ou preencher o checkout completo.</small><button className="quick-purchase-submit" disabled={quickPurchaseBusy || !storeWhatsApp}><MessageCircle size={16}/>{quickPurchaseBusy ? "Preparando mensagem..." : "Continuar pelo WhatsApp"}</button></form></section></div>}
   </div>;
