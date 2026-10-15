@@ -4,7 +4,7 @@ import { ArrowRight, ArrowLeft, Check, CreditCard, Gem, Heart, Instagram, Menu, 
 import { formatMoney, type CatalogProduct } from "./lib/catalog";
 type ShippingDistanceRule = { min_km:number; max_km:number|null; price:number };
 type ProductReview = { id:string; product_id:number; rating:number; comment:string; display_name:string; created_at:string };
-type StorefrontSettings = { hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string; shipping_palmas_enabled:boolean; shipping_palmas_min_subtotal:number; shipping_palmas_free_above:number; shipping_palmas_pickup_enabled:boolean; shipping_origin_postal_code:string; shipping_palmas_distance_rules:ShippingDistanceRule[]; top_banner_enabled:boolean; top_banner_text:string; top_banner_message:string; top_banner_cta:string; top_banner_cta_url:string };
+type StorefrontSettings = { quick_categories?:string[]; home_section_order?:string[]; hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string; shipping_palmas_enabled:boolean; shipping_palmas_min_subtotal:number; shipping_palmas_free_above:number; shipping_palmas_pickup_enabled:boolean; shipping_origin_postal_code:string; shipping_palmas_distance_rules:ShippingDistanceRule[]; top_banner_enabled:boolean; top_banner_text:string; top_banner_message:string; top_banner_cta:string; top_banner_cta_url:string };
 import { loadPublicCatalog } from "./lib/publicCatalog";
 import { supabase } from "./lib/supabase";
 import CustomerAccount from "./CustomerAccount";
@@ -104,7 +104,7 @@ export default function Storefront() {
   const refreshStorefrontSettings = async () => {
     if (!supabase) return;
     const { data, error } = await supabase.from("storefront_settings")
-      .select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled,collection_enabled,collection_title,collection_subtitle,collection_image_url,collection_cta,shipping_palmas_enabled,shipping_palmas_min_subtotal,shipping_palmas_free_above,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_palmas_distance_rules,top_banner_enabled,top_banner_text,top_banner_message,top_banner_cta,top_banner_cta_url")
+      .select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled,collection_enabled,collection_title,collection_subtitle,collection_image_url,collection_cta,shipping_palmas_enabled,shipping_palmas_min_subtotal,shipping_palmas_free_above,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_palmas_distance_rules,top_banner_enabled,top_banner_text,top_banner_message,top_banner_cta,top_banner_cta_url,quick_categories,home_section_order")
       .eq("store_slug","violetta")
       .limit(1)
       .maybeSingle();
@@ -339,7 +339,9 @@ export default function Storefront() {
     { name: "Semi-joias", label: "Semi-joias", icon: "◇", imageUrl: products.find(product => product.category === "Semi-joias" && product.imageUrl)?.imageUrl },
     { name: "Acessórios", label: "Acessórios", icon: "◌", imageUrl: products.find(product => product.category === "Acessórios" && product.imageUrl)?.imageUrl },
   ];
-  const quickSubcategories = ["Anéis", "Brincos", "Colares", "Pulseiras", "Conjuntos", "Presentes"];
+  const quickSubcategories = Array.isArray(storefrontSettings?.quick_categories) && storefrontSettings.quick_categories.length ? storefrontSettings.quick_categories : ["Anéis", "Brincos", "Colares", "Pulseiras", "Conjuntos", "Presentes"];
+  const homeSectionOrder = Array.isArray(storefrontSettings?.home_section_order) && storefrontSettings.home_section_order.length ? storefrontSettings.home_section_order : ["launches", "quick_categories", "best_sellers", "collection_banner", "latest", "gifts"];
+  const sectionStyle = (key: string) => ({ order: Math.max(0, homeSectionOrder.indexOf(key)) });
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
@@ -629,35 +631,37 @@ export default function Storefront() {
         <div className="category-cards">{categoryCards.map(item => <button key={item.name} onClick={() => { setCategory(item.name); document.getElementById("colecao")?.scrollIntoView({ behavior: "smooth" }); }} style={item.imageUrl ? { backgroundImage: `linear-gradient(180deg, rgba(40,32,26,.02), rgba(40,32,26,.72)), url(${item.imageUrl})` } : undefined}><span>{item.icon}</span><strong>{item.label}</strong><small>Ver peças <ArrowRight size={13} /></small></button>)}</div>
       </section>) : null}
 
-      {(storefrontSettings?.latest_enabled ?? true) ? (<section className="store-latest" id="lancamentos">
+      <div className="store-home-sections">
+      {(storefrontSettings?.latest_enabled ?? true) ? (<section className="store-latest" id="lancamentos" style={sectionStyle("launches")}>
         <div className="store-section-heading"><div><p className="store-kicker">COLEÇÃO EM DESTAQUE</p><h2>Lançamentos</h2></div><a href="#colecao">Ver todos <ArrowRight size={15} /></a></div>
         <div className="store-product-grid">{(launches.length ? launches : latest).map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
       </section>) : null}
 
-      <section className="store-quick-categories" aria-labelledby="subcategorias-title">
+      <section className="store-quick-categories" aria-labelledby="subcategorias-title" style={sectionStyle("quick_categories")}>
         <div className="store-section-heading"><div><p className="store-kicker">NAVEGUE POR SUBCATEGORIAS</p><h2 id="subcategorias-title">Encontre sua próxima peça</h2></div></div>
         <div className="quick-category-list">{quickSubcategories.map(item => <button key={item} onClick={() => { setQuery(item); setCategory("Todas"); document.getElementById("colecao")?.scrollIntoView({ behavior: "smooth" }); }}>{item}<ArrowRight size={13} /></button>)}</div>
       </section>
 
-      {(storefrontSettings?.featured_enabled ?? true) && (bestSellers.length > 0 || featured.length > 0) ? (<section className="store-featured" id="mais-vendidos">
+      {(storefrontSettings?.featured_enabled ?? true) && (bestSellers.length > 0 || featured.length > 0) ? (<section className="store-featured" id="mais-vendidos" style={sectionStyle("best_sellers")}>
         <div className="store-section-heading"><div><p className="store-kicker">DESTAQUES VIOLETTA</p><h2>{storefrontSettings?.featured_title || "Mais vendidos"}</h2></div><a href="#colecao">Ver todos <ArrowRight size={15} /></a></div>
         <div className="featured-grid">{(bestSellers.length ? bestSellers : featured).map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} featured isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
       </section>) : null}
 
-      {(storefrontSettings?.collection_enabled ?? true) ? (<section className="store-collection-banner" id="colecao-banner" style={storefrontSettings?.collection_image_url ? { backgroundImage: `linear-gradient(90deg, rgba(42,36,31,.88), rgba(42,36,31,.25)), url(${storefrontSettings.collection_image_url})` } : undefined}>
+      {(storefrontSettings?.collection_enabled ?? true) ? (<section className="store-collection-banner" id="colecao-banner" style={{ ...sectionStyle("collection_banner"), ...(storefrontSettings?.collection_image_url ? { backgroundImage: `linear-gradient(90deg, rgba(42,36,31,.88), rgba(42,36,31,.25)), url(${storefrontSettings.collection_image_url})` } : {}) }}>
         <div className="store-collection-copy"><p className="store-kicker">COLEÇÃO VIOLETTA</p><h2>{storefrontSettings?.collection_title || "Uma coleção para guardar."}</h2><p>{storefrontSettings?.collection_subtitle || "Detalhes delicados para acompanhar você em todos os momentos."}</p><a href="#colecao" className="store-primary-cta">{storefrontSettings?.collection_cta || "Conhecer coleção"} <ArrowRight size={16}/></a></div>
         {!storefrontSettings?.collection_image_url && <div className="collection-art"><Gem size={88} strokeWidth={1}/></div>}
       </section>) : null}
 
-      {(storefrontSettings?.latest_enabled ?? true) ? (<section className="store-latest store-latest-after-promo" id="novidades">
+      {(storefrontSettings?.latest_enabled ?? true) ? (<section className="store-latest store-latest-after-promo" id="novidades" style={sectionStyle("latest")}>
         <div className="store-section-heading"><div><p className="store-kicker">RECÉM-CHEGARAM</p><h2>Novidades</h2></div><a href="#colecao">Ver todos <ArrowRight size={15} /></a></div>
         <div className="store-product-grid">{latest.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
       </section>) : null}
 
-      {giftProducts.length > 0 ? (<section className="store-gifts" id="presentes">
+      {giftProducts.length > 0 ? (<section className="store-gifts" id="presentes" style={sectionStyle("gifts")}>
         <div className="store-section-heading"><div><p className="store-kicker">PARA PRESENTEAR</p><h2>Escolhas especiais para presentear</h2></div><a href="#colecao">Ver opções <ArrowRight size={15} /></a></div>
         <div className="store-product-grid">{giftProducts.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} isTopSeller={false} />)}</div>
       </section>) : null}
+      </div>
 
       <section className="store-catalog" id="colecao">
         <div className="store-section-heading catalog-heading"><div><p className="store-kicker">A COLEÇÃO</p><h2>Encontre o seu brilho.</h2><p className="catalog-intro">Explore joias, semi-joias e acessórios escolhidos para você.</p></div><span>{filtered.length} peças</span></div>
@@ -679,7 +683,7 @@ function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false
   const pixPrice = Number(product.pixPrice ?? product.price);
   const compareAtPrice = Number(product.compareAtPrice ?? 0);
   const hasDiscount = compareAtPrice > product.price;
-  const discountPercent = hasDiscount ? Math.round((1 - product.price / compareAtPrice) * 100) : 0;
+  const discountPercent = Number(product.discountPercent ?? (hasDiscount ? Math.round((1 - product.price / compareAtPrice) * 100) : 0));
   const installmentNote = product.installmentCount ? `Em até ${product.installmentCount}x sem juros` : "Parcelamento no Mercado Pago";
   const primaryImage = product.imageUrls?.[0] || product.imageUrl;
   const secondaryImage = product.imageUrls?.[1];

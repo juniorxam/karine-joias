@@ -6,6 +6,7 @@ export type CatalogProduct = {
   price: number;
   pixPrice?: number;
   compareAtPrice?: number;
+  discountPercent?: number;
   installmentCount?: number;
   imageUrl?: string;
   imageUrls?: string[];

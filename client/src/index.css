@@ -636,3 +636,4 @@
 .product-image-secondary.is-visible{opacity:1}
 .store-product-art:hover .product-image-primary,.store-product-art:focus-visible .product-image-primary{transform:scale(1.015)}
 .store-product-art:hover .product-image-secondary,.store-product-art:focus-visible .product-image-secondary{transform:scale(1.015)}
+.store-home-sections{display:flex;flex-direction:column}.store-home-sections>section{width:100%}
