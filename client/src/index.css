@@ -611,3 +611,20 @@
 }
 
 .payment-redirect-card{max-width:620px}.payment-redirect-card p:not(.store-kicker){max-width:480px;margin:0 auto 18px;line-height:1.7;color:var(--store-muted)}.payment-redirect-card small{display:block;margin-top:20px;color:var(--store-muted);line-height:1.6}.payment-redirect-loader{display:flex;justify-content:center;gap:7px;margin:20px 0 4px}.payment-redirect-loader span{width:8px;height:8px;border-radius:50%;background:var(--store-gold);animation:paymentRedirectPulse 1.2s infinite ease-in-out}.payment-redirect-loader span:nth-child(2){animation-delay:.15s}.payment-redirect-loader span:nth-child(3){animation-delay:.3s}@keyframes paymentRedirectPulse{0%,80%,100%{opacity:.35;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+
+
+/* Organização comercial inspirada em vitrines editoriais, mantendo a identidade Violetta */
+.store-quick-categories{max-width:1200px;margin:0 auto;padding:20px 30px 62px;border-top:1px solid var(--store-line)}
+.quick-category-list{display:flex;gap:10px;flex-wrap:wrap}
+.quick-category-list button{display:inline-flex;align-items:center;gap:10px;border:1px solid var(--store-line);border-radius:999px;background:#fff;color:var(--store-ink);padding:11px 15px;font-size:11px;transition:.2s}
+.quick-category-list button:hover{border-color:#FFC1D5;background:#fff0f5;color:#a34f70;transform:translateY(-1px)}
+.product-price-stack{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}
+.product-price-stack strong{font:600 16px/1.1 'Playfair Display';color:var(--store-ink);white-space:nowrap}
+.product-price-stack strong small{font:600 9px 'DM Sans';color:#a34f70}
+.product-compare-price{font-size:10px;color:var(--store-muted);text-decoration:line-through;line-height:1}
+.product-installments{font-size:9px;color:var(--store-muted);line-height:1.25}
+.product-discount{display:inline-flex;padding:4px 6px;border-radius:999px;background:#fff0f5;color:#a34f70;font-size:8px;font-weight:800;letter-spacing:.4px}
+.store-product-bottom{align-items:flex-start;gap:8px}
+.store-product-bottom .product-actions{margin-left:auto;align-self:center}
+@media(max-width:800px){.store-quick-categories{padding-left:16px;padding-right:16px;padding-bottom:45px}.quick-category-list{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}.quick-category-list::-webkit-scrollbar{display:none}.quick-category-list button{white-space:nowrap}.product-price-stack strong{font-size:15px}.product-installments{font-size:8px}}
+@media(max-width:480px){.store-product-bottom{gap:6px}.store-product-bottom .product-actions{margin-left:0;width:100%}.product-price-stack{width:100%}}

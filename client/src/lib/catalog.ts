@@ -4,6 +4,9 @@ export type CatalogProduct = {
   category: string;
   material: string;
   price: number;
+  pixPrice?: number;
+  compareAtPrice?: number;
+  installmentCount?: number;
   imageUrl?: string;
   imageUrls?: string[];
   featured?: boolean;

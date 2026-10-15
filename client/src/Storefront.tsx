@@ -330,6 +330,7 @@ export default function Storefront() {
   const topSoldQuantity = Math.max(0, ...products.map(product => product.soldQuantity ?? 0));
   const featured = products.filter((product) => product.featured).sort((a,b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 4);
   const bestSellers = [...products].filter(product => product.isBestSeller || (product.soldQuantity ?? 0) > 0).sort((a,b) => (b.soldQuantity ?? 0) - (a.soldQuantity ?? 0)).slice(0, 8);
+  const launches = [...products].filter(product => product.isNew).sort((a,b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 8);
   const latest = [...products].sort((a,b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0) || (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 8);
   const gifts = [...products].filter(product => /presente|kit|mix|conjunto/i.test(product.name)).slice(0, 8);
   const giftProducts = gifts.length ? gifts : latest.slice(0, 4);
@@ -338,6 +339,7 @@ export default function Storefront() {
     { name: "Semi-joias", label: "Semi-joias", icon: "◇", imageUrl: products.find(product => product.category === "Semi-joias" && product.imageUrl)?.imageUrl },
     { name: "Acessórios", label: "Acessórios", icon: "◌", imageUrl: products.find(product => product.category === "Acessórios" && product.imageUrl)?.imageUrl },
   ];
+  const quickSubcategories = ["Anéis", "Brincos", "Colares", "Pulseiras", "Conjuntos", "Presentes"];
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
@@ -627,24 +629,34 @@ export default function Storefront() {
         <div className="category-cards">{categoryCards.map(item => <button key={item.name} onClick={() => { setCategory(item.name); document.getElementById("colecao")?.scrollIntoView({ behavior: "smooth" }); }} style={item.imageUrl ? { backgroundImage: `linear-gradient(180deg, rgba(40,32,26,.02), rgba(40,32,26,.72)), url(${item.imageUrl})` } : undefined}><span>{item.icon}</span><strong>{item.label}</strong><small>Ver peças <ArrowRight size={13} /></small></button>)}</div>
       </section>) : null}
 
+      {(storefrontSettings?.latest_enabled ?? true) ? (<section className="store-latest" id="lancamentos">
+        <div className="store-section-heading"><div><p className="store-kicker">COLEÇÃO EM DESTAQUE</p><h2>Lançamentos</h2></div><a href="#colecao">Ver todos <ArrowRight size={15} /></a></div>
+        <div className="store-product-grid">{(launches.length ? launches : latest).map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
+      </section>) : null}
+
+      <section className="store-quick-categories" aria-labelledby="subcategorias-title">
+        <div className="store-section-heading"><div><p className="store-kicker">NAVEGUE POR SUBCATEGORIAS</p><h2 id="subcategorias-title">Encontre sua próxima peça</h2></div></div>
+        <div className="quick-category-list">{quickSubcategories.map(item => <button key={item} onClick={() => { setQuery(item); setCategory("Todas"); document.getElementById("colecao")?.scrollIntoView({ behavior: "smooth" }); }}>{item}<ArrowRight size={13} /></button>)}</div>
+      </section>
+
       {(storefrontSettings?.featured_enabled ?? true) && (bestSellers.length > 0 || featured.length > 0) ? (<section className="store-featured" id="mais-vendidos">
         <div className="store-section-heading"><div><p className="store-kicker">DESTAQUES VIOLETTA</p><h2>{storefrontSettings?.featured_title || "Mais vendidos"}</h2></div><a href="#colecao">Ver todos <ArrowRight size={15} /></a></div>
         <div className="featured-grid">{(bestSellers.length ? bestSellers : featured).map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} featured isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
       </section>) : null}
 
-      {giftProducts.length > 0 ? (<section className="store-gifts" id="presentes">
-        <div className="store-section-heading"><div><p className="store-kicker">PARA PRESENTEAR</p><h2>Escolhas especiais para presentear</h2></div><a href="#colecao">Ver opções <ArrowRight size={15} /></a></div>
-        <div className="store-product-grid">{giftProducts.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} isTopSeller={false} />)}</div>
+      {(storefrontSettings?.collection_enabled ?? true) ? (<section className="store-collection-banner" id="colecao-banner" style={storefrontSettings?.collection_image_url ? { backgroundImage: `linear-gradient(90deg, rgba(42,36,31,.88), rgba(42,36,31,.25)), url(${storefrontSettings.collection_image_url})` } : undefined}>
+        <div className="store-collection-copy"><p className="store-kicker">COLEÇÃO VIOLETTA</p><h2>{storefrontSettings?.collection_title || "Uma coleção para guardar."}</h2><p>{storefrontSettings?.collection_subtitle || "Detalhes delicados para acompanhar você em todos os momentos."}</p><a href="#colecao" className="store-primary-cta">{storefrontSettings?.collection_cta || "Conhecer coleção"} <ArrowRight size={16}/></a></div>
+        {!storefrontSettings?.collection_image_url && <div className="collection-art"><Gem size={88} strokeWidth={1}/></div>}
       </section>) : null}
 
-      {(storefrontSettings?.latest_enabled ?? true) ? (<section className="store-latest" id="novidades">
+      {(storefrontSettings?.latest_enabled ?? true) ? (<section className="store-latest store-latest-after-promo" id="novidades">
         <div className="store-section-heading"><div><p className="store-kicker">RECÉM-CHEGARAM</p><h2>Novidades</h2></div><a href="#colecao">Ver todos <ArrowRight size={15} /></a></div>
         <div className="store-product-grid">{latest.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
       </section>) : null}
 
-      {(storefrontSettings?.collection_enabled ?? true) ? (<section className="store-collection-banner" id="colecao-banner" style={storefrontSettings?.collection_image_url ? { backgroundImage: `linear-gradient(90deg, rgba(42,36,31,.88), rgba(42,36,31,.25)), url(${storefrontSettings.collection_image_url})` } : undefined}>
-        <div className="store-collection-copy"><p className="store-kicker">COLEÇÃO VIOLETTA</p><h2>{storefrontSettings?.collection_title || "Uma coleção para guardar."}</h2><p>{storefrontSettings?.collection_subtitle || "Detalhes delicados para acompanhar você em todos os momentos."}</p><a href="#colecao" className="store-primary-cta">{storefrontSettings?.collection_cta || "Conhecer coleção"} <ArrowRight size={16}/></a></div>
-        {!storefrontSettings?.collection_image_url && <div className="collection-art"><Gem size={88} strokeWidth={1}/></div>}
+      {giftProducts.length > 0 ? (<section className="store-gifts" id="presentes">
+        <div className="store-section-heading"><div><p className="store-kicker">PARA PRESENTEAR</p><h2>Escolhas especiais para presentear</h2></div><a href="#colecao">Ver opções <ArrowRight size={15} /></a></div>
+        <div className="store-product-grid">{giftProducts.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} isTopSeller={false} />)}</div>
       </section>) : null}
 
       <section className="store-catalog" id="colecao">
@@ -663,6 +675,11 @@ export default function Storefront() {
 
 function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false, isTopSeller = false }: { product: CatalogProduct; onAdd: (product: CatalogProduct) => void; onBuyNow: (product: CatalogProduct) => void; onAsk: (product: CatalogProduct) => void; onOpen: (product: CatalogProduct) => void; featured?: boolean; isTopSeller?: boolean }) {
   const badges = product.isBestSeller || isTopSeller ? ["MAIS VENDIDO"] : product.isNew ? ["NOVO"] : product.stock !== undefined && product.stock > 0 && product.stock <= 3 ? ["ÚLTIMAS UNIDADES"] : [];
+  const pixPrice = Number(product.pixPrice ?? product.price);
+  const compareAtPrice = Number(product.compareAtPrice ?? 0);
+  const hasDiscount = compareAtPrice > product.price;
+  const discountPercent = hasDiscount ? Math.round((1 - product.price / compareAtPrice) * 100) : 0;
+  const installmentNote = product.installmentCount ? `Em até ${product.installmentCount}x sem juros` : "Parcelamento no Mercado Pago";
   return <article className={featured ? "store-product-card featured-card" : "store-product-card"} onClick={() => onOpen(product)}>
     <button className="store-product-art" onClick={() => onOpen(product)} aria-label={`Ver ${product.name}`} style={(product.imageUrls?.[0] || product.imageUrl) ? { backgroundImage: `url(${product.imageUrls?.[0] || product.imageUrl})` } : undefined}>
       {!(product.imageUrls?.[0] || product.imageUrl) && <div className="product-art-glow"><Gem size={featured ? 39 : 31} strokeWidth={1.1} /></div>}
@@ -674,7 +691,12 @@ function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false
       <p className="product-material">{product.material}</p>
       <h3>{product.name}</h3>
       <div className="store-product-bottom">
-        <strong>{formatMoney(product.price)}</strong>
+        <div className="product-price-stack">
+          {hasDiscount && <span className="product-compare-price">{formatMoney(compareAtPrice)}</span>}
+          <strong>{formatMoney(pixPrice)} <small>no Pix</small></strong>
+          <span className="product-installments">{installmentNote}</span>
+          {hasDiscount && <span className="product-discount">-{discountPercent}% OFF</span>}
+        </div>
         {Number(product.stock ?? 0) > 0 && Number(product.stock ?? 0) <= 3 && <small className="product-low-stock">Últimas unidades</small>}
         <div className="product-actions" onClick={event => event.stopPropagation()}>
           <button className="product-interest" onClick={() => onAsk(product)} aria-label={`Tenho interesse em ${product.name} pelo WhatsApp`}><MessageCircle size={15} /><span>WhatsApp</span></button>
