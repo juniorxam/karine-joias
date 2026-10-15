@@ -692,11 +692,10 @@ export default function Storefront() {
 function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false, isTopSeller = false }: { product: CatalogProduct; onAdd: (product: CatalogProduct) => void; onBuyNow: (product: CatalogProduct) => void; onAsk: (product: CatalogProduct) => void; onOpen: (product: CatalogProduct) => void; featured?: boolean; isTopSeller?: boolean }) {
   const [isImageHovered, setIsImageHovered] = useState(false);
   const badges = product.isBestSeller || isTopSeller ? ["MAIS VENDIDO"] : product.isNew ? ["NOVO"] : product.stock !== undefined && product.stock > 0 && product.stock <= 3 ? ["ÚLTIMAS UNIDADES"] : [];
-  const pixPrice = Number(product.pixPrice ?? product.price);
   const compareAtPrice = Number(product.compareAtPrice ?? 0);
   const hasDiscount = compareAtPrice > product.price;
   const discountPercent = Number(product.discountPercent ?? (hasDiscount ? Math.round((1 - product.price / compareAtPrice) * 100) : 0));
-  const installmentNote = product.installmentCount ? `Em até ${product.installmentCount}x sem juros` : "Parcelamento no InfinitePay";
+  const installmentNote = "Pix e parcelamento conforme opções no checkout";
   const primaryImage = product.imageUrls?.[0] || product.imageUrl;
   const secondaryImage = product.imageUrls?.[1];
   return <article className={featured ? "store-product-card featured-card" : "store-product-card"} onClick={() => onOpen(product)}>
@@ -714,7 +713,7 @@ function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false
       <div className="store-product-bottom">
         <div className="product-price-stack">
           {hasDiscount && <span className="product-compare-price">{formatMoney(compareAtPrice)}</span>}
-          <strong>{formatMoney(pixPrice)} <small>no Pix</small></strong>
+          <strong>{formatMoney(product.price)} <small>preço da peça</small></strong>
           <span className="product-installments">{installmentNote}</span>
           {hasDiscount && <span className="product-discount">-{discountPercent}% OFF</span>}
         </div>
