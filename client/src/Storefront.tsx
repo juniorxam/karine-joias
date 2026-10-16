@@ -839,6 +839,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   const [distanceLoading, setDistanceLoading] = useState(false);
   const [distanceRequest, setDistanceRequest] = useState(0);
   const [distanceError, setDistanceError] = useState("");
+  const [serverShippingQuote, setServerShippingQuote] = useState<{ shipping_price: number | null; serviceable: boolean; service?: string } | null>(null);
   const handleCalculateShipping = async () => {
     const cep = shipping.postal_code.replace(/\D/g, "");
     if (cep.length !== 8 || !shipping.address.trim() || !shipping.number.trim() || !shipping.neighborhood.trim() || !shipping.city.trim() || !shipping.state.trim()) {
@@ -918,6 +919,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
       const cep = shipping.postal_code.replace(/\D/g, "");
       if (!isPalmas || cep.length !== 8 || !storefrontSettings?.shipping_palmas_enabled) {
         setDistanceKmValue(null);
+        setServerShippingQuote(null);
         setDistanceError("");
         setDistanceLoading(false);
         return;
@@ -934,12 +936,14 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
         return;
       }
       setDistanceLoading(true);
+      setServerShippingQuote(null);
       setDistanceError("");
       try {
         const invokeStartedAt = Date.now();
         console.info("[Violetta frete] Iniciando cálculo de distância", { city: shipping.city, state: shipping.state, cep: cep.slice(0, 5) + "***" });
         const invokePromise = supabase.functions.invoke("calculate-shipping", {
           body: {
+            subtotal,
             origin_postal_code: storefrontSettings.shipping_origin_postal_code,
             shipping: {
               postal_code: cep,
@@ -968,7 +972,10 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
         if (data?.error) throw new Error(data.error);
         const km = Number(data?.distance_km);
         if (!Number.isFinite(km) || km <= 0) throw new Error("O serviço de rotas retornou uma distância inválida");
-        if (!cancelled) setDistanceKmValue(km);
+        if (!cancelled) {
+          setDistanceKmValue(km);
+          setServerShippingQuote({ shipping_price: data.shipping_price === null ? null : Number(data.shipping_price), serviceable: data.serviceable === true, service: String(data.service || "") });
+        }
       } catch (error) {
         const message = await getFunctionErrorMessage(
           error,
@@ -978,6 +985,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
         console.error("[Violetta frete] Falha no cálculo da distância", { message });
         if (!cancelled) {
           setDistanceKmValue(null);
+          setServerShippingQuote(null);
           setDistanceError(message);
         }
       } finally {
@@ -992,14 +1000,14 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
       // Se o endereço mudar durante a consulta, libera o botão para permitir nova tentativa.
       setDistanceLoading(false);
     };
-  }, [isPalmas, shipping.postal_code, shipping.address, shipping.number, shipping.neighborhood, shipping.city, shipping.state, storefrontSettings?.shipping_palmas_enabled, storefrontSettings?.shipping_origin_postal_code, distanceRequest]);
+  }, [isPalmas, shipping.postal_code, shipping.address, shipping.number, shipping.neighborhood, shipping.city, shipping.state, storefrontSettings?.shipping_palmas_enabled, storefrontSettings?.shipping_origin_postal_code, distanceRequest, subtotal]);
   const matchingRule=distanceKmValue===null?null:(storefrontSettings?.shipping_palmas_distance_rules||[]).find((rule,index,rules)=>{const min=Number(rule.min_km||0);const max=rule.max_km===null||rule.max_km===undefined?null:Number(rule.max_km);const isLast=index===rules.length-1;return distanceKmValue>=min&&(max===null||(isLast?distanceKmValue<=max:distanceKmValue<max));});
   const freeShippingThreshold = Number(storefrontSettings?.shipping_palmas_free_above || 0);
   const hasFreePalmasShipping = isPalmas && freeShippingThreshold > 0 && subtotal >= freeShippingThreshold;
   const hasCompleteShippingAddress = shipping.postal_code.replace(/\D/g, "").length === 8 && Boolean(shipping.address.trim() && shipping.number.trim() && shipping.neighborhood.trim() && shipping.city.trim() && shipping.state.trim());
   const shippingOptions: ShippingOption[] = hasCompleteShippingAddress ? (isPalmas ? [
-    ...(storefrontSettings?.shipping_palmas_enabled&&matchingRule ? [{id:"palmas-distance-"+matchingRule.min_km+"-"+(matchingRule.max_km??"plus"),company:"Violetta",service:hasFreePalmasShipping ? "Entrega em Palmas · frete grátis" : "Entrega em Palmas · "+distanceKmValue!.toFixed(1)+" km",price:hasFreePalmasShipping ? 0 : Number(matchingRule.price),delivery_time:0}] : []),
-    ...((!storefrontSettings?.shipping_palmas_enabled || (distanceKmValue!==null && distanceKmValue>20)) ? [{id:"palmas-combine",company:"Violetta",service:"Frete a combinar",price:0,delivery_time:0}] : []),
+    ...(storefrontSettings?.shipping_palmas_enabled && serverShippingQuote?.serviceable && serverShippingQuote.shipping_price !== null ? [{id:"palmas-server-quote",company:"Violetta",service:serverShippingQuote.service || (serverShippingQuote.shipping_price === 0 ? "Entrega em Palmas · frete grátis" : "Entrega em Palmas · "+distanceKmValue!.toFixed(1)+" km"),price:Number(serverShippingQuote.shipping_price),delivery_time:0}] : []),
+    ...((!storefrontSettings?.shipping_palmas_enabled || serverShippingQuote?.serviceable === false) ? [{id:"palmas-combine",company:"Violetta",service:"Frete a combinar",price:0,delivery_time:0}] : []),
   ] : [{id:"outside-palmas",company:"Violetta",service:"Frete a combinar",price:0,delivery_time:0}]) : [];
   const shippingOption: ShippingOption | null = shippingOptions.find(option => String(option.id) === String(shipping.shipping_option?.id)) || shippingOptions[0] || null;
   const shippingPrice=shippingOption?.price||0;
