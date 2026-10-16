@@ -207,26 +207,45 @@ Deno.serve(async (req) => {
       } else if (storeSettings?.shipping_palmas_enabled) {
         const quoteUrl = url.replace(/\/$/, "") + "/functions/v1/calculate-shipping";
         const publicKey = Deno.env.get("SUPABASE_ANON_KEY") || key;
-        const quoteResponse = await fetch(quoteUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "apikey": publicKey, "Authorization": "Bearer " + publicKey },
-          body: JSON.stringify({ shipping: { ...shipping, postal_code: postalCode, address, number, neighborhood, city, state }, subtotal }),
-          signal: AbortSignal.timeout(25_000),
-        });
-        const quote = await quoteResponse.json().catch(() => ({}));
-        if (!quoteResponse.ok || quote?.error) throw new Error(String(quote?.error || "Não foi possível validar o frete. Tente novamente."));
-        const distance = Number(quote.distance_km);
-        if (!Number.isFinite(distance) || distance <= 0) throw new Error("O serviço de frete retornou uma distância inválida.");
-        if (quote.serviceable !== true || distance > 20 || quote.shipping_price === null) {
-          if (requestedService !== "Frete a combinar") throw new Error("Este endereço fica fora do raio de 20 km. Selecione Frete a combinar para negociar a entrega com a loja.");
+        let quote: any = {};
+        let quoteUnavailable = false;
+        try {
+          const quoteResponse = await fetch(quoteUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "apikey": publicKey, "Authorization": "Bearer " + publicKey },
+            body: JSON.stringify({ shipping: { ...shipping, postal_code: postalCode, address, number, neighborhood, city, state }, subtotal }),
+            signal: AbortSignal.timeout(25_000),
+          });
+          quote = await quoteResponse.json().catch(() => ({}));
+          if (!quoteResponse.ok || quote?.error) {
+            if (requestedService !== "Frete a combinar") throw new Error(String(quote?.error || "Não foi possível validar o frete. Tente novamente."));
+            quoteUnavailable = true;
+            console.warn(JSON.stringify({ event: "shipping_manual_fallback", reason: "quote_error", status: quoteResponse.status }));
+          }
+        } catch (quoteError) {
+          if (requestedService !== "Frete a combinar") throw quoteError;
+          quoteUnavailable = true;
+          console.warn(JSON.stringify({ event: "shipping_manual_fallback", reason: "quote_request_failed" }));
+        }
+        if (quoteUnavailable) {
+          // Manual shipping is explicitly disclosed at checkout and is paid separately.
+          // Never invent a distance or include an unverified delivery fee in the online total.
           shippingAmount = 0;
           normalizedShippingOption = { id: "palmas-combine", company: "Violetta", service: "Frete a combinar", price: 0, delivery_time: 0 };
         } else {
-          if (requestedService === "Frete a combinar") throw new Error("Este endereço está dentro do raio de entrega automática. Recalcule e selecione o frete exibido pela loja.");
-          const serverPrice = Number(quote.shipping_price);
-          if (!Number.isFinite(serverPrice) || serverPrice < 0) throw new Error("O valor de frete retornado pelo servidor é inválido.");
-          shippingAmount = Math.round(serverPrice * 100) / 100;
-          normalizedShippingOption = { id: "palmas-server-quote", company: "Violetta", service: String(quote.service || ("Entrega em Palmas · " + distance.toFixed(1) + " km")), price: shippingAmount, delivery_time: Number(quote.estimated_duration_minutes || 0) };
+          const distance = Number(quote.distance_km);
+          if (!Number.isFinite(distance) || distance <= 0) throw new Error("O serviço de frete retornou uma distância inválida.");
+          if (quote.serviceable !== true || distance > 20 || quote.shipping_price === null) {
+            if (requestedService !== "Frete a combinar") throw new Error("Este endereço fica fora do raio de 20 km. Selecione Frete a combinar para negociar a entrega com a loja.");
+            shippingAmount = 0;
+            normalizedShippingOption = { id: "palmas-combine", company: "Violetta", service: "Frete a combinar", price: 0, delivery_time: 0 };
+          } else {
+            if (requestedService === "Frete a combinar") throw new Error("Este endereço está dentro do raio de entrega automática. Recalcule e selecione o frete exibido pela loja.");
+            const serverPrice = Number(quote.shipping_price);
+            if (!Number.isFinite(serverPrice) || serverPrice < 0) throw new Error("O valor de frete retornado pelo servidor é inválido.");
+            shippingAmount = Math.round(serverPrice * 100) / 100;
+            normalizedShippingOption = { id: "palmas-server-quote", company: "Violetta", service: String(quote.service || ("Entrega em Palmas · " + distance.toFixed(1) + " km")), price: shippingAmount, delivery_time: Number(quote.estimated_duration_minutes || 0) };
+          }
         }
       } else {
         if (requestedService !== "Frete a combinar") throw new Error("O cálculo automático de frete de Palmas está desativado.");
