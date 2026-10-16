@@ -964,7 +964,8 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
           if (timeoutId) clearTimeout(timeoutId);
         }
         console.info("[Violetta frete] Resposta do cálculo recebida", { durationMs: Date.now() - invokeStartedAt, hasError: Boolean(error), hasData: Boolean(data) });
-        if (error || data?.error) throw new Error(data?.error || error?.message || "Não foi possível calcular a rota");
+        if (error) throw new Error(await getFunctionErrorMessage(error, data, "Não foi possível calcular a rota"));
+        if (data?.error) throw new Error(data.error);
         const km = Number(data?.distance_km);
         if (!Number.isFinite(km) || km <= 0) throw new Error("O serviço de rotas retornou uma distância inválida");
         if (!cancelled) setDistanceKmValue(km);
