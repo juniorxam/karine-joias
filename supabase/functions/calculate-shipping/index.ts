@@ -378,7 +378,7 @@ async function getDestinationAddress(shipping: any): Promise<AddressParts> {
   const postal = await resolvePostalCode(postalCode);
   const city = String(shipping.city || "").trim();
   const state = String(shipping.state || "").trim().toUpperCase();
-  const normalizedCity = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/[\\s,/-]*(TO|TOCANTINS)$/, "").trim();
+  const normalizedCity = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/[\s,/-]*(TO|TOCANTINS)$/, "").trim();
   const normalizedState = (value: string) => {
     const normalized = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
     return normalized === "TOCANTINS" ? "TO" : normalized;
@@ -472,7 +472,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const shipping = body?.shipping || {};
     const normalizeAddressPart = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
-    const city = normalizeAddressPart(String(shipping.city || "")).replace(/[\\s,/-]*(TO|TOCANTINS)$/, "").trim();
+    const city = normalizeAddressPart(String(shipping.city || "")).replace(/[\s,/-]*(TO|TOCANTINS)$/, "").trim();
     const rawState = normalizeAddressPart(String(shipping.state || ""));
     const state = rawState === "TOCANTINS" ? "TO" : rawState;
     const postalCode = String(shipping.postal_code || "").replace(/\D/g, "");
