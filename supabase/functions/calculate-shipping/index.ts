@@ -195,6 +195,63 @@ async function geocodeAddress(parts: AddressParts, apiKey: string): Promise<[num
       }
     }
   }
+  // Last-resort fallback: use an exact CEP/postal-code feature when providers do not index
+  // the street in Palmas. This is an approximate neighborhood/CEP point, not an exact house pin.
+  // Requiring an exact postcode prevents silently routing to a similarly named street.
+  if (!feature) {
+    const params = new URLSearchParams({
+      text: [parts.postalCode, parts.city, parts.state, "Brasil"].filter(Boolean).join(", "),
+      "boundary.country": "BR",
+      "boundary.rect.min_lon": "-48.60",
+      "boundary.rect.min_lat": "-10.60",
+      "boundary.rect.max_lon": "-48.00",
+      "boundary.rect.max_lat": "-9.70",
+      size: "10",
+      layers: "postalcode",
+    });
+    const response = await fetchWithTimeout(
+      "https://api.openrouteservice.org/geocode/search?" + params.toString(),
+      { headers: { "Authorization": apiKey, "Accept": "application/json" } },
+      GEOCODE_TIMEOUT_MS,
+      "geocode_postal_fallback"
+    );
+    if (response.ok) {
+      const data = await response.json();
+      const features = Array.isArray(data?.features) ? data.features : [];
+      const exactPostal = features.find((item: any) => {
+        const point = item?.geometry?.coordinates;
+        const props = item?.properties || {};
+        const resultPostal = String(props.postalcode || "").replace(/\D/g, "");
+        const label = String(props.label || "");
+        const normalizedLabel = label.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const city = normalize(String(props.locality || props.localadmin || props.city || label));
+        const region = String(props.region_a || props.region || "").toUpperCase();
+        return Array.isArray(point) && point.length >= 2
+          && Number.isFinite(Number(point[0])) && Number.isFinite(Number(point[1]))
+          && Number(point[0]) >= -48.60 && Number(point[0]) <= -48.00
+          && Number(point[1]) >= -10.60 && Number(point[1]) <= -9.70
+          && resultPostal === parts.postalCode
+          && city.includes("palmas")
+          && (!region || region === "TO" || region.includes("TOCANTINS"));
+      });
+      if (exactPostal) {
+        feature = {
+          geometry: exactPostal.geometry,
+          properties: {
+            ...exactPostal.properties,
+            label: String(exactPostal.properties?.label || parts.postalCode + ", Palmas, TO"),
+            layer: "postalcode_approximate",
+          },
+        };
+        console.warn(JSON.stringify({
+          event: "shipping_geocode_postal_fallback",
+          postal_code: parts.postalCode,
+          result_label: feature.properties.label,
+          note: "CEP aproximado utilizado porque o logradouro não foi encontrado com confiança",
+        }));
+      }
+    }
+  }
   const coordinates = feature?.geometry?.coordinates;
   if (!Array.isArray(coordinates) || coordinates.length < 2) {
     console.warn(JSON.stringify({
