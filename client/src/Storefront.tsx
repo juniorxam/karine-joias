@@ -952,10 +952,17 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
             },
           },
         });
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error("O cálculo de frete demorou mais de 25 segundos. Confira sua conexão e tente novamente.")), 25_000);
-        });
-        const { data, error } = await Promise.race([invokePromise, timeoutPromise]);
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+        let data: any;
+        let error: any;
+        try {
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error("O cálculo de frete demorou mais de 25 segundos. Confira sua conexão e tente novamente.")), 25_000);
+          });
+          ({ data, error } = await Promise.race([invokePromise, timeoutPromise]));
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
+        }
         console.info("[Violetta frete] Resposta do cálculo recebida", { durationMs: Date.now() - invokeStartedAt, hasError: Boolean(error), hasData: Boolean(data) });
         if (error || data?.error) throw new Error(data?.error || error?.message || "Não foi possível calcular a rota");
         const km = Number(data?.distance_km);
@@ -975,6 +982,8 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     return () => {
       cancelled = true;
       clearTimeout(debounceTimer);
+      // Se o endereço mudar durante a consulta, libera o botão para permitir nova tentativa.
+      setDistanceLoading(false);
     };
   }, [isPalmas, shipping.postal_code, shipping.address, shipping.number, shipping.neighborhood, shipping.city, shipping.state, storefrontSettings?.shipping_palmas_enabled, storefrontSettings?.shipping_origin_postal_code, distanceRequest]);
   const matchingRule=distanceKmValue===null?null:(storefrontSettings?.shipping_palmas_distance_rules||[]).find((rule,index,rules)=>{const min=Number(rule.min_km||0);const max=rule.max_km===null||rule.max_km===undefined?null:Number(rule.max_km);const isLast=index===rules.length-1;return distanceKmValue>=min&&(max===null||(isLast?distanceKmValue<=max:distanceKmValue<max));});
