@@ -41,44 +41,71 @@ function getClientOrigin(req: Request) {
   );
 }
 
-async function geocodePostalCode(postalCode: string) {
+async function geocodeAddress(query: string, apiKey: string) {
+  const url = "https://api.heigit.org/pelias/v1/search?text=" + encodeURIComponent(query) + "&boundary.country=BR&size=1";
+  const response = await fetch(url, { headers: { "Authorization": apiKey, "Accept": "application/json" } });
+  if (!response.ok) throw new Error("Não foi possível localizar um dos endereços no mapa. Confira o CEP e o endereço.");
+  const data = await response.json();
+  const coordinates = data?.features?.[0]?.geometry?.coordinates;
+  if (!Array.isArray(coordinates) || coordinates.length < 2) throw new Error("O mapa não encontrou coordenadas para este endereço. Confira o CEP e o endereço.");
+  const lon = Number(coordinates[0]);
+  const lat = Number(coordinates[1]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) throw new Error("O mapa retornou coordenadas inválidas para este endereço.");
+  return [lon, lat] as [number, number];
+}
+
+async function routeDistanceKm(originQuery: string, destinationQuery: string) {
+  const apiKey = Deno.env.get("ORS_API_KEY");
+  if (!apiKey) throw new Error("O cálculo de rotas ainda não está configurado no servidor (ORS_API_KEY).");
+  const [origin, destination] = await Promise.all([
+    geocodeAddress(originQuery, apiKey),
+    geocodeAddress(destinationQuery, apiKey),
+  ]);
+  const response = await fetch("https://api.heigit.org/openrouteservice/v2/directions/driving-car", {
+    method: "POST",
+    headers: { "Authorization": apiKey, "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify({ coordinates: [origin, destination], instructions: false }),
+  });
+  if (!response.ok) throw new Error("Não foi possível calcular a rota pelas ruas. Tente novamente ou combine a entrega com a loja.");
+  const data = await response.json();
+  const meters = Number(data?.routes?.[0]?.summary?.distance);
+  if (!Number.isFinite(meters) || meters <= 0) throw new Error("Não foi possível obter a distância da rota.");
+  return Number((meters / 1000).toFixed(1));
+}
+
+function buildOriginQuery(postalCode: string) {
   const cep = postalCode.replace(/\D/g, "");
-  if (cep.length !== 8) throw new Error("CEP inválido");
+  if (!/^\d{8}$/.test(cep)) throw new Error("O CEP de origem da loja não está configurado corretamente.");
+  return cep + ", Palmas, Tocantins, Brasil";
+}
 
-  try {
-    const response = await fetch("https://brasilapi.com.br/api/cep/v2/" + cep, {
-      headers: { "Accept": "application/json" },
-    });
-    if (response.ok) {
-      const data = await response.json();
-      const rawLat = data?.location?.coordinates?.latitude;
-      const rawLon = data?.location?.coordinates?.longitude;
-      // Não converter null para zero: isso trata CEP sem coordenadas como se fosse (0, 0).
-      if (rawLat === null || rawLat === undefined || rawLat === "" || rawLon === null || rawLon === undefined || rawLon === "") {
-        throw new Error("Este CEP não possui coordenadas suficientes para calcular o frete");
-      }
-      const lat = Number(rawLat);
-      const lon = Number(rawLon);
-      if (Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
-        return { lat, lon };
-      }
-      throw new Error("Este CEP não possui coordenadas válidas para calcular o frete");
-    }
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("coordenadas")) throw error;
+function buildConfirmedOriginQuery(settings: any) {
+  const postalCode = digits(settings?.shipping_origin_draft_postal_code);
+  const street = String(settings?.shipping_origin_draft_street || "").trim();
+  const number = String(settings?.shipping_origin_draft_number || "").trim();
+  const city = String(settings?.shipping_origin_draft_city || "").trim();
+  const state = String(settings?.shipping_origin_draft_state || "").trim().toUpperCase();
+  if (!street || !number || !city || !/^[A-Z]{2}$/.test(state) || !/^\d{8}$/.test(postalCode)) {
+    throw new Error("O endereço de origem ativado está incompleto. Revise as configurações de entrega.");
   }
-
-  throw new Error("Não foi possível localizar o CEP para calcular a distância");
+  return [street, number, settings?.shipping_origin_draft_neighborhood, city, state, postalCode, "Brasil"]
+    .map((value) => String(value ?? "").trim()).filter(Boolean).join(", ");
 }
 
-function distanceKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
-  const rad = (value: number) => value * Math.PI / 180;
-  const dLat = rad(b.lat - a.lat);
-  const dLon = rad(b.lon - a.lon);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
-  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+function buildDestinationQuery(shipping: any) {
+  const cep = String(shipping.postal_code || "").replace(/\D/g, "");
+  const parts = [
+    shipping.address,
+    shipping.number,
+    shipping.neighborhood,
+    shipping.city,
+    shipping.state,
+    cep,
+    "Brasil",
+  ].map((value) => String(value || "").trim()).filter(Boolean);
+  if (parts.length < 5) throw new Error("Endereço incompleto para calcular a rota.");
+  return parts.join(", ");
 }
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
@@ -169,47 +196,39 @@ Deno.serve(async (req) => {
     let normalizedShippingOption: any;
 
     if (isPalmas) {
-      const { data: storeSettings, error: settingsError } = await db
-        .from("storefront_settings")
-        .select("shipping_palmas_enabled,shipping_palmas_free_above,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_palmas_distance_rules")
-        .eq("store_slug", "violetta")
-        .maybeSingle();
+      const { data: storeSettings, error: settingsError } = await db.from("storefront_settings")
+        .select("shipping_palmas_enabled,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_palmas_distance_rules,shipping_origin_address_confirmed,shipping_origin_draft_postal_code,shipping_origin_draft_street,shipping_origin_draft_number,shipping_origin_draft_neighborhood,shipping_origin_draft_city,shipping_origin_draft_state")
+        .eq("store_slug", "violetta").maybeSingle();
       if (settingsError) throw settingsError;
-
       if (pickupSelected) {
         if (storeSettings?.shipping_palmas_pickup_enabled !== true) throw new Error("A retirada no local está desativada.");
         if (city.toLowerCase() !== "palmas" || state !== "TO") throw new Error("A retirada no local está disponível somente em Palmas-TO.");
         normalizedShippingOption = { id: "violetta-pickup", company: "Violetta", service: "Retirada no local", price: 0, delivery_time: 0 };
       } else if (storeSettings?.shipping_palmas_enabled) {
-          const rules = Array.isArray(storeSettings.shipping_palmas_distance_rules) ? storeSettings.shipping_palmas_distance_rules : [];
-          const originCep = String(storeSettings.shipping_origin_postal_code || "").replace(/\D/g, "");
-          if (!/^\d{8}$/.test(originCep)) throw new Error("O CEP de origem da loja não está configurado corretamente");
-          const origin = await geocodePostalCode(originCep);
-          const destination = await geocodePostalCode(postalCode);
-          const distance = Number(distanceKm(origin, destination).toFixed(1));
-
-          if (distance > 20) {
-            if (requestedService !== "Frete a combinar") {
-              throw new Error("Este endereço fica a mais de 20 km da loja. Selecione Frete a combinar para negociar a entrega com o vendedor.");
-            }
-            normalizedShippingOption = { id: "palmas-combine", company: "Violetta", service: "Frete a combinar", price: 0, delivery_time: 0 };
-          } else {
-            if (requestedService === "Frete a combinar") {
-              throw new Error("Para endereços em Palmas a até 20 km, selecione uma das faixas de frete automático.");
-            }
-            const rule = rules.find((item: any, index: number) => {
-              const min = Number(item?.min_km);
-              const max = item?.max_km === null || item?.max_km === undefined || item?.max_km === "" ? null : Number(item.max_km);
-              const isLast = index === rules.length - 1;
-              return Number.isFinite(min) && distance >= min && (max === null || (Number.isFinite(max) && (isLast ? distance <= max : distance < max)));
-            });
-            if (!rule) throw new Error("Não há uma faixa de frete configurada para esta distância");
-            const freeShippingThreshold = Number(storeSettings?.shipping_palmas_free_above || 0);
-            shippingAmount = freeShippingThreshold > 0 && subtotal >= freeShippingThreshold ? 0 : Math.max(0, Number(rule.price) || 0);
-            normalizedShippingOption = { id: "palmas-distance-" + Number(rule.min_km) + "-" + (rule.max_km ?? "plus"), company: "Violetta", service: "Entrega em Palmas · " + distance.toFixed(1) + " km", price: shippingAmount, delivery_time: 0 };
-          }
+        const quoteUrl = url.replace(/\/$/, "") + "/functions/v1/calculate-shipping";
+        const publicKey = Deno.env.get("SUPABASE_ANON_KEY") || key;
+        const quoteResponse = await fetch(quoteUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "apikey": publicKey, "Authorization": "Bearer " + publicKey },
+          body: JSON.stringify({ shipping: { ...shipping, postal_code: postalCode, address, number, neighborhood, city, state }, subtotal }),
+          signal: AbortSignal.timeout(25_000),
+        });
+        const quote = await quoteResponse.json().catch(() => ({}));
+        if (!quoteResponse.ok || quote?.error) throw new Error(String(quote?.error || "Não foi possível validar o frete. Tente novamente."));
+        const distance = Number(quote.distance_km);
+        if (!Number.isFinite(distance) || distance <= 0) throw new Error("O serviço de frete retornou uma distância inválida.");
+        if (quote.serviceable !== true || distance > 20 || quote.shipping_price === null) {
+          if (requestedService !== "Frete a combinar") throw new Error("Este endereço fica fora do raio de 20 km. Selecione Frete a combinar para negociar a entrega com a loja.");
+          shippingAmount = 0;
+          normalizedShippingOption = { id: "palmas-combine", company: "Violetta", service: "Frete a combinar", price: 0, delivery_time: 0 };
+        } else {
+          if (requestedService === "Frete a combinar") throw new Error("Este endereço está dentro do raio de entrega automática. Recalcule e selecione o frete exibido pela loja.");
+          const serverPrice = Number(quote.shipping_price);
+          if (!Number.isFinite(serverPrice) || serverPrice < 0) throw new Error("O valor de frete retornado pelo servidor é inválido.");
+          shippingAmount = Math.round(serverPrice * 100) / 100;
+          normalizedShippingOption = { id: "palmas-server-quote", company: "Violetta", service: String(quote.service || ("Entrega em Palmas · " + distance.toFixed(1) + " km")), price: shippingAmount, delivery_time: Number(quote.estimated_duration_minutes || 0) };
         }
-      else {
+      } else {
         if (requestedService !== "Frete a combinar") throw new Error("O cálculo automático de frete de Palmas está desativado.");
         normalizedShippingOption = { id: "palmas-combine", company: "Violetta", service: "Frete a combinar", price: 0, delivery_time: 0 };
       }
