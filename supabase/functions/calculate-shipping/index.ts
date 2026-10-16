@@ -477,7 +477,7 @@ Deno.serve(async (req: Request) => {
     const state = rawState === "TOCANTINS" ? "TO" : rawState;
     const postalCode = String(shipping.postal_code || "").replace(/\D/g, "");
     if (city !== "PALMAS" || state !== "TO") throw new Error("A entrega automática está disponível somente para endereços de Palmas-TO. Confira cidade, UF e CEP.");
-    if (!/^\\d{8}$/.test(postalCode)) throw new Error("CEP inválido.");
+    if (!/^\d{8}$/.test(postalCode)) throw new Error("CEP inválido.");
     if (!String(shipping.address || "").trim() || !String(shipping.number || "").trim() || !String(shipping.neighborhood || "").trim()) {
       throw new Error("Preencha logradouro, número e bairro para calcular a rota.");
     }
