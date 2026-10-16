@@ -853,28 +853,42 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
       setDistanceError("O cálculo automático por distância está disponível para endereços em Palmas/TO. Para outras cidades, o frete será combinado com a loja.");
       return;
     }
-    let settings = storefrontSettings;
-    if (!settings) {
-      setDistanceLoading(true);
-      setDistanceError("");
-      settings = await refreshStorefrontSettings();
-    }
-    if (!settings) {
-      setDistanceKmValue(null);
-      setDistanceLoading(false);
-      setDistanceError("Não foi possível carregar as configurações da loja. Verifique sua conexão e tente novamente.");
-      return;
-    }
-    if (!settings.shipping_palmas_enabled) {
-      setDistanceKmValue(null);
-      setDistanceLoading(false);
-      setDistanceError("O cálculo automático de frete para Palmas está desativado nas configurações da loja. Confira a opção de entrega em Palmas no painel de gestão.");
-      return;
-    }
+
     setDistanceKmValue(null);
     setDistanceError("");
     setDistanceLoading(true);
-    setDistanceRequest(value => value + 1);
+
+    try {
+      let settings = storefrontSettings;
+      if (!settings) {
+        // Evita que o botão fique preso caso o carregamento das configurações não responda.
+        let settingsTimeout: ReturnType<typeof setTimeout> | undefined;
+        try {
+          settings = await Promise.race([
+            refreshStorefrontSettings(),
+            new Promise<null>((resolve) => {
+              settingsTimeout = setTimeout(() => resolve(null), 8000);
+            }),
+          ]) || null;
+        } finally {
+          if (settingsTimeout) clearTimeout(settingsTimeout);
+        }
+      }
+      if (!settings) {
+        setDistanceError("Não foi possível carregar as configurações da loja em 8 segundos. Tente novamente.");
+        return;
+      }
+      if (!settings.shipping_palmas_enabled) {
+        setDistanceError("O cálculo automático de frete para Palmas está desativado nas configurações da loja. Confira a opção de entrega em Palmas no painel de gestão.");
+        return;
+      }
+      setDistanceRequest(value => value + 1);
+    } catch (error) {
+      setDistanceError(error instanceof Error ? error.message : "Não foi possível iniciar o cálculo do frete. Tente novamente.");
+    } finally {
+      // O efeito assume o carregamento quando a consulta é iniciada.
+      if (!storefrontSettings) setDistanceLoading(false);
+    }
   };
   useEffect(() => { onDraftChange(v => ({ ...v, customer, shipping, couponCode })); }, [customer, shipping, couponCode, onDraftChange]);
   const cartSignature = cart.map(item => item.id + ":" + item.quantity).sort().join("|");
