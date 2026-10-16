@@ -277,7 +277,7 @@ async function geocodeAddress(parts: AddressParts, apiKey: string): Promise<[num
         const lat = Number(item?.lat);
         const lon = Number(item?.lon);
         const address = item?.address || {};
-        const resultPostal = String(address.postcode || "").replace(/\\D/g, "");
+        const resultPostal = String(address.postcode || "").replace(/\D/g, "");
         const city = normalize(String(address.city || address.town || address.municipality || address.city_district || ""));
         const state = normalize(String(address.state || ""));
         return Number.isFinite(lat) && Number.isFinite(lon)
