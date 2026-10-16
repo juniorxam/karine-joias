@@ -252,6 +252,58 @@ async function geocodeAddress(parts: AddressParts, apiKey: string): Promise<[num
       }
     }
   }
+  // Fallback 2: query OpenStreetMap Nominatim by exact CEP. ORS may return HTTP 200
+  // with no postal-code features for CEPs in Palmas. Accept only an exact CEP match.
+  if (!feature) {
+    const params = new URLSearchParams({
+      postalcode: parts.postalCode,
+      city: parts.city,
+      state: parts.state === "TO" ? "Tocantins" : parts.state,
+      country: "Brazil",
+      format: "jsonv2",
+      addressdetails: "1",
+      limit: "10",
+    });
+    const response = await fetchWithTimeout(
+      "https://nominatim.openstreetmap.org/search?" + params.toString(),
+      { headers: { "Accept": "application/json", "User-Agent": "ViolettaStoreShipping/1.0 (shipping address lookup)" } },
+      GEOCODE_TIMEOUT_MS,
+      "nominatim_postal_fallback"
+    );
+    if (response.ok) {
+      const data = await response.json();
+      const candidates = Array.isArray(data) ? data : [];
+      const exactPostal = candidates.find((item: any) => {
+        const lat = Number(item?.lat);
+        const lon = Number(item?.lon);
+        const address = item?.address || {};
+        const resultPostal = String(address.postcode || "").replace(/\\D/g, "");
+        const city = normalize(String(address.city || address.town || address.municipality || address.city_district || ""));
+        const state = normalize(String(address.state || ""));
+        return Number.isFinite(lat) && Number.isFinite(lon)
+          && lon >= -48.60 && lon <= -48.00 && lat >= -10.60 && lat <= -9.70
+          && resultPostal === parts.postalCode
+          && city.includes("palmas")
+          && (!state || state.includes("tocantins"));
+      });
+      if (exactPostal) {
+        feature = {
+          geometry: { coordinates: [Number(exactPostal.lon), Number(exactPostal.lat)] },
+          properties: {
+            label: String(exactPostal.display_name || parts.postalCode + ", Palmas, TO"),
+            layer: "postalcode_approximate",
+          },
+        };
+        console.warn(JSON.stringify({
+          event: "shipping_geocode_postal_fallback",
+          provider: "nominatim",
+          postal_code: parts.postalCode,
+          result_label: feature.properties.label,
+          note: "Ponto aproximado do CEP; não representa o número exato do imóvel",
+        }));
+      }
+    }
+  }
   const coordinates = feature?.geometry?.coordinates;
   if (!Array.isArray(coordinates) || coordinates.length < 2) {
     console.warn(JSON.stringify({
