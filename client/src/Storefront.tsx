@@ -859,23 +859,9 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     setDistanceLoading(true);
 
     try {
-      let settings = storefrontSettings;
+      const settings = storefrontSettings;
       if (!settings) {
-        // Evita que o botão fique preso caso o carregamento das configurações não responda.
-        let settingsTimeout: ReturnType<typeof setTimeout> | undefined;
-        try {
-          settings = await Promise.race([
-            refreshStorefrontSettings(),
-            new Promise<null>((resolve) => {
-              settingsTimeout = setTimeout(() => resolve(null), 8000);
-            }),
-          ]) || null;
-        } finally {
-          if (settingsTimeout) clearTimeout(settingsTimeout);
-        }
-      }
-      if (!settings) {
-        setDistanceError("Não foi possível carregar as configurações da loja em 8 segundos. Tente novamente.");
+        setDistanceError("As configurações da loja ainda estão carregando. Aguarde alguns segundos e clique em Calcular frete novamente.");
         return;
       }
       if (!settings.shipping_palmas_enabled) {
