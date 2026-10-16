@@ -6,7 +6,7 @@ type ShippingDistanceRule = { min_km:number; max_km:number|null; price:number };
 type ProductReview = { id:string; product_id:number; rating:number; comment:string; display_name:string; created_at:string };
 type StorefrontSettings = { quick_categories?:string[]; home_section_order?:string[]; hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string; shipping_palmas_enabled:boolean; shipping_palmas_min_subtotal:number; shipping_palmas_free_above:number; shipping_palmas_pickup_enabled:boolean; shipping_origin_postal_code:string; shipping_palmas_distance_rules:ShippingDistanceRule[]; top_banner_enabled:boolean; top_banner_text:string; top_banner_message:string; top_banner_cta:string; top_banner_cta_url:string };
 import { loadPublicCatalog } from "./lib/publicCatalog";
-import { supabase } from "./lib/supabase";
+import { supabase, customerSupabase } from "./lib/supabase";
 import CustomerAccount from "./CustomerAccount";
 
 const categories = ["Todas", "Joias", "Semi-joias", "Acessórios"];
@@ -795,8 +795,8 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   const [quickPurchaseBusy, setQuickPurchaseBusy] = useState(false);
   const [quickPurchase, setQuickPurchase] = useState({ name: draft.customer.name || "", phone: draft.customer.phone || "", address: "" });
   useEffect(() => {
-    if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => {
+    if (!customerSupabase) return;
+    customerSupabase.auth.getSession().then(({ data }) => {
       const user = data.session?.user;
       if (!user) return;
       setCustomer(current => ({
@@ -805,6 +805,24 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
         name: current.name || String(user.user_metadata?.full_name || ""),
         phone: current.phone || String(user.user_metadata?.phone || ""),
       }));
+      const saved = Array.isArray(user.user_metadata?.saved_addresses) ? user.user_metadata.saved_addresses : [];
+      const preferred = saved.find((address: any) => address?.is_default) || saved[0];
+      if (preferred) {
+        setShipping(current => {
+          const hasExistingAddress = Boolean(current.postal_code || current.address || current.number || current.neighborhood || current.city);
+          if (hasExistingAddress) return current;
+          return {
+            ...current,
+            postal_code: String(preferred.postal_code || ""),
+            address: String(preferred.address || ""),
+            number: String(preferred.number || ""),
+            complement: String(preferred.complement || ""),
+            neighborhood: String(preferred.neighborhood || ""),
+            city: String(preferred.city || ""),
+            state: String(preferred.state || ""),
+          };
+        });
+      }
     });
   }, []);
   const [distanceKmValue, setDistanceKmValue] = useState<number|null>(null);
