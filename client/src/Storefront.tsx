@@ -785,6 +785,7 @@ function ProductReviews({ productId }: { productId: number }) {
 function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onChangeQty, onAskWhatsApp, storefrontSettings }: { cart: CartItem[]; subtotal: number; draft: { customer: Customer; shipping: Shipping; couponCode: string }; onDraftChange: Dispatch<SetStateAction<{ customer: Customer; shipping: Shipping; couponCode: string }>>; onBack: () => void; onFinish: (customer: Customer, shipping: Shipping, couponCode?: string) => Promise<void>; onChangeQty: (id: CatalogProduct["id"], delta: number) => void; onAskWhatsApp: (items: CartItem[], name?: string) => void; storefrontSettings: StorefrontSettings | null }) {
   const [customer, setCustomer] = useState<Customer>(draft.customer);
   const [shipping, setShipping] = useState<Shipping>(draft.shipping);
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
   const [zipLoading, setZipLoading] = useState(false);
   const [couponCode, setCouponCode] = useState(draft.couponCode || (() => { try { return localStorage.getItem("kj-first-purchase-coupon") || ""; } catch { return ""; } })());
@@ -806,6 +807,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
         phone: current.phone || String(user.user_metadata?.phone || ""),
       }));
       const saved = Array.isArray(user.user_metadata?.saved_addresses) ? user.user_metadata.saved_addresses : [];
+      setSavedAddresses(saved);
       const preferred = saved.find((address: any) => address?.is_default) || saved[0];
       if (preferred) {
         setShipping(current => {
@@ -833,6 +835,23 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   useEffect(() => { setCouponDiscount(0); setCouponError(""); setCouponApplied(false); setCouponGiftDescription(""); }, [cartSignature]);
   const updateCustomer = (field: keyof Customer, value: string) => setCustomer(v => ({ ...v, [field]: value }));
   const updateShipping = (field: keyof Shipping, value: string) => setShipping(v => ({ ...v, [field]: value }));
+  const chooseSavedAddress = (id: string) => {
+    const address = savedAddresses.find(item => item.id === id);
+    if (!address) return;
+    setShipping(current => ({
+      ...current,
+      postal_code: String(address.postal_code || ""),
+      address: String(address.address || ""),
+      number: String(address.number || ""),
+      complement: String(address.complement || ""),
+      neighborhood: String(address.neighborhood || ""),
+      city: String(address.city || ""),
+      state: String(address.state || ""),
+      shipping_option: undefined,
+      shipping_quote_id: undefined,
+    }));
+    toast.success("Endereço de entrega atualizado");
+  };
   const fetchZip = async (value: string) => {
     const postal_code = value.replace(/\D/g, "").slice(0, 8);
     updateShipping("postal_code", postal_code);
@@ -971,7 +990,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
     <main className="checkout-layout"><form className="checkout-form" onSubmit={submit}>
       <div className="checkout-title"><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}><span className="payment-methods"><span>1. Dados</span><span>2. Entrega</span><span>3. Pagamento</span></span></div><p className="store-kicker">FINALIZAR PEDIDO</p><h1>Quase seu.</h1><p>Preencha seus dados para reservar as peças e gerar seu pedido. O endereço será usado para organizar a entrega.</p></div>
       <section className="checkout-section"><h2><User size={17}/> Seus dados</h2><div className="checkout-grid"><label>Nome completo<input required autoComplete="name" value={customer.name} onChange={e=>updateCustomer("name",e.target.value)}/></label><label>E-mail<input required type="email" autoComplete="email" value={customer.email} onChange={e=>updateCustomer("email",e.target.value)}/></label><label>WhatsApp<input required autoComplete="tel" value={customer.phone} onChange={e=>updateCustomer("phone",formatPhone(e.target.value))}/></label><label>CPF<input required inputMode="numeric" maxLength={14} value={customer.recipient_code} onChange={e=>updateCustomer("recipient_code",formatCPF(e.target.value))} placeholder="000.000.000-00"/></label></div></section>
-      <section className="checkout-section"><h2><Truck size={17}/> Entrega</h2><div className="checkout-grid"><label>CEP<input required inputMode="numeric" value={shipping.postal_code} onChange={e=>fetchZip(e.target.value)} placeholder="00000-000"/>{zipLoading&&<small>Consultando CEP...</small>}</label><label className="wide">Endereço<input required={!pickupSelected} value={shipping.address} onChange={e=>updateShipping("address",e.target.value)}/></label><label>Número<input required={!pickupSelected} value={shipping.number} onChange={e=>updateShipping("number",e.target.value)}/></label><label>Complemento<input value={shipping.complement} onChange={e=>updateShipping("complement",e.target.value)}/></label><label>Bairro<input required={!pickupSelected} value={shipping.neighborhood} onChange={e=>updateShipping("neighborhood",e.target.value)}/></label><label>Cidade<input required value={shipping.city} onChange={e=>updateShipping("city",e.target.value)}/></label><label>UF<input required maxLength={2} value={shipping.state} onChange={e=>updateShipping("state",e.target.value.toUpperCase())}/></label></div>
+      <section className="checkout-section"><h2><Truck size={17}/> Entrega</h2>{savedAddresses.length>0&&<label style={{display:"block",marginBottom:14}}>Usar endereço salvo<select value="" onChange={e=>chooseSavedAddress(e.target.value)}><option value="">Selecionar outro endereço salvo…</option>{savedAddresses.map((address:any)=><option key={address.id} value={address.id}>{address.label||"Endereço"}{address.is_default?" (padrão)":""} — {address.address}, {address.number} · {address.city}/{address.state}</option>)}</select><small>O endereço padrão já foi preenchido. Você pode escolher outro salvo.</small></label>}<div className="checkout-grid"><label>CEP<input required inputMode="numeric" value={shipping.postal_code} onChange={e=>fetchZip(e.target.value)} placeholder="00000-000"/>{zipLoading&&<small>Consultando CEP...</small>}</label><label className="wide">Endereço<input required={!pickupSelected} value={shipping.address} onChange={e=>updateShipping("address",e.target.value)}/></label><label>Número<input required={!pickupSelected} value={shipping.number} onChange={e=>updateShipping("number",e.target.value)}/></label><label>Complemento<input value={shipping.complement} onChange={e=>updateShipping("complement",e.target.value)}/></label><label>Bairro<input required={!pickupSelected} value={shipping.neighborhood} onChange={e=>updateShipping("neighborhood",e.target.value)}/></label><label>Cidade<input required value={shipping.city} onChange={e=>updateShipping("city",e.target.value)}/></label><label>UF<input required maxLength={2} value={shipping.state} onChange={e=>updateShipping("state",e.target.value.toUpperCase())}/></label></div>
         {isPalmas&&distanceLoading&&<div className="checkout-final-note"><Truck size={16}/><span>Calculando a distância para definir o frete…</span></div>}{isPalmas&&distanceError&&<div className="checkout-final-note"><Truck size={16}/><span>{distanceError}. Confira o CEP ou tente novamente.</span></div>}{beyondDeliveryRadius&&<div className="checkout-final-note"><Truck size={16}/><span>Este endereço está a {distanceKmValue.toFixed(1)} km da loja. Para endereços em Palmas acima de 20 km, o frete será combinado diretamente com o vendedor.</span></div>}{shippingOptions.length>0&&<div className="shipping-options">{shippingOptions.map(option=><label className={"shipping-option "+(shippingOption?.id===option.id?"selected":"")} key={String(option.id)}><input type="radio" name="shipping-option" checked={shippingOption?.id===option.id} onChange={()=>setShipping(v=>({...v,shipping_option:option}))}/><span><strong>{option.company} · {option.service}</strong><small>{option.service === "Retirada no local" ? "Retire seu pedido no endereço da Violetta, sem cobrança de frete." : isPalmas && option.service !== "Frete a combinar" ? "Frete calculado pela rota viária entre a loja e o seu endereço." : "Para este endereço, o frete será negociado separadamente com a loja."}</small></span><b>{option.service === "Frete a combinar" ? "À parte" : option.price > 0 ? formatMoney(option.price) : "Grátis"}</b></label>)}</div>}
         {!shippingOption&&!isPalmas&&<div className="checkout-final-note"><Truck size={16}/><span>Informe cidade e UF para visualizar como o frete será tratado.</span></div>}
       </section>
