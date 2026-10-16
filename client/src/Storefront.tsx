@@ -55,8 +55,7 @@ function formatCPF(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 11);
   return digits.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
 }
-async function geocodePostalCode(postalCode:string){ const cep=postalCode.replace(/\D/g,""); if(cep.length!==8) throw new Error("CEP inválido"); const response=await fetch("https://brasilapi.com.br/api/cep/v2/"+cep,{headers:{"Accept":"application/json"}}); if(!response.ok) throw new Error("Não foi possível localizar o CEP para calcular a distância"); const data=await response.json(); const rawLat=data?.location?.coordinates?.latitude; const rawLon=data?.location?.coordinates?.longitude; if(rawLat===null||rawLat===undefined||rawLat===""||rawLon===null||rawLon===undefined||rawLon==="") throw new Error("Este CEP não possui coordenadas suficientes para calcular o frete"); const lat=Number(rawLat); const lon=Number(rawLon); if(!Number.isFinite(lat)||!Number.isFinite(lon)||lat < -90||lat > 90||lon < -180||lon > 180) throw new Error("Este CEP não possui coordenadas válidas para calcular o frete"); return {lat,lon}; }
-function distanceKm(a:{lat:number;lon:number},b:{lat:number;lon:number}){ const rad=(v:number)=>v*Math.PI/180; const dLat=rad(b.lat-a.lat),dLon=rad(b.lon-a.lon); const h=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLon/2)**2; return 6371*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h)); }
+
 function formatPhone(value: string) {
   const digits = normalizePhone(value).slice(0, 11);
   if (digits.length <= 10) return digits.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3").replace(/-$/, "");
@@ -831,21 +830,57 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   };
   const isPalmas = shipping.city.trim().toLowerCase() === "palmas" && shipping.state.trim().toUpperCase() === "TO";
   useEffect(() => {
-    let cancelled=false;
-    const calculate=async()=>{
-      if(!isPalmas || !shipping.postal_code || !storefrontSettings?.shipping_palmas_enabled){ setDistanceKmValue(null); setDistanceError(""); return; }
-      setDistanceLoading(true); setDistanceError("");
-      try{
-        const origin=await geocodePostalCode(storefrontSettings.shipping_origin_postal_code);
-        const destination=await geocodePostalCode(shipping.postal_code);
-        const km=distanceKm(origin,destination);
-        if(!cancelled)setDistanceKmValue(Number(km.toFixed(1)));
-      }catch(error){if(!cancelled){setDistanceKmValue(null);setDistanceError(error instanceof Error?error.message:"Não foi possível calcular a distância");}}
-      finally{if(!cancelled)setDistanceLoading(false);}
+    let cancelled = false;
+    const calculate = async () => {
+      const cep = shipping.postal_code.replace(/\\D/g, "");
+      if (!isPalmas || cep.length !== 8 || !storefrontSettings?.shipping_palmas_enabled) {
+        setDistanceKmValue(null);
+        setDistanceError("");
+        return;
+      }
+      if (!shipping.address.trim() || !shipping.number.trim() || !shipping.neighborhood.trim() || !shipping.city.trim() || !shipping.state.trim()) {
+        setDistanceKmValue(null);
+        setDistanceError("");
+        return;
+      }
+      if (!supabase) {
+        setDistanceKmValue(null);
+        setDistanceError("Serviço de cálculo de rota indisponível no momento");
+        return;
+      }
+      setDistanceLoading(true);
+      setDistanceError("");
+      try {
+        const { data, error } = await supabase.functions.invoke("calculate-shipping", {
+          body: {
+            origin_postal_code: storefrontSettings.shipping_origin_postal_code,
+            shipping: {
+              postal_code: cep,
+              address: shipping.address,
+              number: shipping.number,
+              complement: shipping.complement,
+              neighborhood: shipping.neighborhood,
+              city: shipping.city,
+              state: shipping.state,
+            },
+          },
+        });
+        if (error || data?.error) throw new Error(data?.error || error?.message || "Não foi possível calcular a rota");
+        const km = Number(data?.distance_km);
+        if (!Number.isFinite(km) || km <= 0) throw new Error("O serviço de rotas retornou uma distância inválida");
+        if (!cancelled) setDistanceKmValue(km);
+      } catch (error) {
+        if (!cancelled) {
+          setDistanceKmValue(null);
+          setDistanceError(error instanceof Error ? error.message : "Não foi possível calcular a rota pelas ruas");
+        }
+      } finally {
+        if (!cancelled) setDistanceLoading(false);
+      }
     };
-    calculate();
-    return()=>{cancelled=true;};
-  },[isPalmas,shipping.postal_code,storefrontSettings?.shipping_palmas_enabled,storefrontSettings?.shipping_origin_postal_code]);
+    void calculate();
+    return () => { cancelled = true; };
+  }, [isPalmas, shipping.postal_code, shipping.address, shipping.number, shipping.neighborhood, shipping.city, shipping.state, storefrontSettings?.shipping_palmas_enabled, storefrontSettings?.shipping_origin_postal_code]);
   const matchingRule=distanceKmValue===null?null:(storefrontSettings?.shipping_palmas_distance_rules||[]).find((rule,index,rules)=>{const min=Number(rule.min_km||0);const max=rule.max_km===null||rule.max_km===undefined?null:Number(rule.max_km);const isLast=index===rules.length-1;return distanceKmValue>=min&&(max===null||(isLast?distanceKmValue<=max:distanceKmValue<max));});
   const freeShippingThreshold = Number(storefrontSettings?.shipping_palmas_free_above || 0);
   const hasFreePalmasShipping = isPalmas && freeShippingThreshold > 0 && subtotal >= freeShippingThreshold;
@@ -853,7 +888,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   const shippingOptions: ShippingOption[] = hasCompleteShippingAddress ? (isPalmas ? [
     ...(storefrontSettings?.shipping_palmas_enabled&&matchingRule ? [{id:"palmas-distance-"+matchingRule.min_km+"-"+(matchingRule.max_km??"plus"),company:"Violetta",service:hasFreePalmasShipping ? "Entrega em Palmas · frete grátis" : "Entrega em Palmas · "+distanceKmValue!.toFixed(1)+" km",price:hasFreePalmasShipping ? 0 : Number(matchingRule.price),delivery_time:0}] : []),
     ...(storefrontSettings?.shipping_palmas_pickup_enabled ? [{id:"violetta-pickup",company:"Violetta",service:"Retirada no local",price:0,delivery_time:0}] : []),
-    ...((!storefrontSettings?.shipping_palmas_enabled || (distanceKmValue!==null && distanceKmValue>20) || Boolean(distanceError)) ? [{id:"palmas-combine",company:"Violetta",service:"Frete a combinar",price:0,delivery_time:0}] : []),
+    ...((!storefrontSettings?.shipping_palmas_enabled || (distanceKmValue!==null && distanceKmValue>20)) ? [{id:"palmas-combine",company:"Violetta",service:"Frete a combinar",price:0,delivery_time:0}] : []),
   ] : [{id:"outside-palmas",company:"Violetta",service:"Frete a combinar",price:0,delivery_time:0}]) : [];
   const shippingOption: ShippingOption | null = shippingOptions.find(option => String(option.id) === String(shipping.shipping_option?.id)) || shippingOptions[0] || null;
   const shippingPrice=shippingOption?.price||0;
@@ -919,7 +954,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
       <div className="checkout-title"><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}><span className="payment-methods"><span>1. Dados</span><span>2. Entrega</span><span>3. Pagamento</span></span></div><p className="store-kicker">FINALIZAR PEDIDO</p><h1>Quase seu.</h1><p>Preencha seus dados para reservar as peças e gerar seu pedido. O endereço será usado para organizar a entrega.</p></div>
       <section className="checkout-section"><h2><User size={17}/> Seus dados</h2><div className="checkout-grid"><label>Nome completo<input required autoComplete="name" value={customer.name} onChange={e=>updateCustomer("name",e.target.value)}/></label><label>E-mail<input required type="email" autoComplete="email" value={customer.email} onChange={e=>updateCustomer("email",e.target.value)}/></label><label>WhatsApp<input required autoComplete="tel" value={customer.phone} onChange={e=>updateCustomer("phone",formatPhone(e.target.value))}/></label><label>CPF<input required inputMode="numeric" maxLength={14} value={customer.recipient_code} onChange={e=>updateCustomer("recipient_code",formatCPF(e.target.value))} placeholder="000.000.000-00"/></label></div></section>
       <section className="checkout-section"><h2><Truck size={17}/> Entrega</h2><div className="checkout-grid"><label>CEP<input required inputMode="numeric" value={shipping.postal_code} onChange={e=>fetchZip(e.target.value)} placeholder="00000-000"/>{zipLoading&&<small>Consultando CEP...</small>}</label><label className="wide">Endereço<input required={!pickupSelected} value={shipping.address} onChange={e=>updateShipping("address",e.target.value)}/></label><label>Número<input required={!pickupSelected} value={shipping.number} onChange={e=>updateShipping("number",e.target.value)}/></label><label>Complemento<input value={shipping.complement} onChange={e=>updateShipping("complement",e.target.value)}/></label><label>Bairro<input required={!pickupSelected} value={shipping.neighborhood} onChange={e=>updateShipping("neighborhood",e.target.value)}/></label><label>Cidade<input required value={shipping.city} onChange={e=>updateShipping("city",e.target.value)}/></label><label>UF<input required maxLength={2} value={shipping.state} onChange={e=>updateShipping("state",e.target.value.toUpperCase())}/></label></div>
-        {isPalmas&&distanceLoading&&<div className="checkout-final-note"><Truck size={16}/><span>Calculando a distância para definir o frete…</span></div>}{isPalmas&&distanceError&&<div className="checkout-final-note"><Truck size={16}/><span>{distanceError}. Confira o CEP ou tente novamente.</span></div>}{beyondDeliveryRadius&&<div className="checkout-final-note"><Truck size={16}/><span>Este endereço está a {distanceKmValue.toFixed(1)} km da loja. Para endereços em Palmas acima de 20 km, o frete será combinado diretamente com o vendedor.</span></div>}{shippingOptions.length>0&&<div className="shipping-options">{shippingOptions.map(option=><label className={"shipping-option "+(shippingOption?.id===option.id?"selected":"")} key={String(option.id)}><input type="radio" name="shipping-option" checked={shippingOption?.id===option.id} onChange={()=>setShipping(v=>({...v,shipping_option:option}))}/><span><strong>{option.company} · {option.service}</strong><small>{option.service === "Retirada no local" ? "Retire seu pedido no endereço da Violetta, sem cobrança de frete." : isPalmas && option.service !== "Frete a combinar" ? "Frete calculado pela distância entre o CEP da loja e o seu endereço." : "Para este endereço, o frete será negociado separadamente com a loja."}</small></span><b>{option.service === "Frete a combinar" ? "À parte" : option.price > 0 ? formatMoney(option.price) : "Grátis"}</b></label>)}</div>}
+        {isPalmas&&distanceLoading&&<div className="checkout-final-note"><Truck size={16}/><span>Calculando a distância para definir o frete…</span></div>}{isPalmas&&distanceError&&<div className="checkout-final-note"><Truck size={16}/><span>{distanceError}. Confira o CEP ou tente novamente.</span></div>}{beyondDeliveryRadius&&<div className="checkout-final-note"><Truck size={16}/><span>Este endereço está a {distanceKmValue.toFixed(1)} km da loja. Para endereços em Palmas acima de 20 km, o frete será combinado diretamente com o vendedor.</span></div>}{shippingOptions.length>0&&<div className="shipping-options">{shippingOptions.map(option=><label className={"shipping-option "+(shippingOption?.id===option.id?"selected":"")} key={String(option.id)}><input type="radio" name="shipping-option" checked={shippingOption?.id===option.id} onChange={()=>setShipping(v=>({...v,shipping_option:option}))}/><span><strong>{option.company} · {option.service}</strong><small>{option.service === "Retirada no local" ? "Retire seu pedido no endereço da Violetta, sem cobrança de frete." : isPalmas && option.service !== "Frete a combinar" ? "Frete calculado pela rota viária entre a loja e o seu endereço." : "Para este endereço, o frete será negociado separadamente com a loja."}</small></span><b>{option.service === "Frete a combinar" ? "À parte" : option.price > 0 ? formatMoney(option.price) : "Grátis"}</b></label>)}</div>}
         {!shippingOption&&!isPalmas&&<div className="checkout-final-note"><Truck size={16}/><span>Informe cidade e UF para visualizar como o frete será tratado.</span></div>}
       </section>
       <section className="checkout-section"><h2><Tag size={17}/> Cupom de desconto</h2><div className="checkout-grid"><label className="wide">Código do cupom<input value={couponCode} onChange={e=>{setCouponCode(e.target.value.toUpperCase());setCouponDiscount(0);setCouponError("")}} placeholder="EX.: BEMVINDO10"/></label><button type="button" className="shipping-quote-button" onClick={applyCoupon} disabled={couponBusy}>{couponBusy?"Validando...":"Aplicar cupom"}</button></div>{couponError&&<small>{couponError}</small>}{couponApplied&&<small>Cupom aplicado: {couponGiftDescription || (couponDiscount>0 ? "desconto de "+formatMoney(couponDiscount) : "benefício de primeira compra")}</small>}</section>
