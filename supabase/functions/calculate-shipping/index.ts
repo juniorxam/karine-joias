@@ -378,8 +378,12 @@ async function getDestinationAddress(shipping: any): Promise<AddressParts> {
   const postal = await resolvePostalCode(postalCode);
   const city = String(shipping.city || "").trim();
   const state = String(shipping.state || "").trim().toUpperCase();
-  const normalizedCity = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-  if (normalizedCity(postal.city) !== normalizedCity(city) || postal.state !== state) {
+  const normalizedCity = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/[\\s,/-]*(TO|TOCANTINS)$/, "").trim();
+  const normalizedState = (value: string) => {
+    const normalized = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
+    return normalized === "TOCANTINS" ? "TO" : normalized;
+  };
+  if (normalizedCity(postal.city) !== normalizedCity(city) || postal.state !== normalizedState(state)) {
     throw new Error("O CEP informado não corresponde à cidade e ao estado do endereço. Confira os dados de entrega.");
   }
   // Geocode the actual address typed by the customer. The previous code used only
@@ -467,10 +471,12 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.json();
     const shipping = body?.shipping || {};
-    const city = String(shipping.city || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toUpperCase();
-    const state = String(shipping.state || "").trim().toUpperCase();
-    const postalCode = String(shipping.postal_code || "").replace(/\\D/g, "");
-    if (city !== "PALMAS" || state !== "TO") throw new Error("O cálculo automático por rota está disponível somente para Palmas-TO.");
+    const normalizeAddressPart = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
+    const city = normalizeAddressPart(String(shipping.city || "")).replace(/[\\s,/-]*(TO|TOCANTINS)$/, "").trim();
+    const rawState = normalizeAddressPart(String(shipping.state || ""));
+    const state = rawState === "TOCANTINS" ? "TO" : rawState;
+    const postalCode = String(shipping.postal_code || "").replace(/\D/g, "");
+    if (city !== "PALMAS" || state !== "TO") throw new Error("A entrega automática está disponível somente para endereços de Palmas-TO. Confira cidade, UF e CEP.");
     if (!/^\\d{8}$/.test(postalCode)) throw new Error("CEP inválido.");
     if (!String(shipping.address || "").trim() || !String(shipping.number || "").trim() || !String(shipping.neighborhood || "").trim()) {
       throw new Error("Preencha logradouro, número e bairro para calcular a rota.");
