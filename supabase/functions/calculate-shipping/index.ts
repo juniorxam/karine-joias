@@ -439,7 +439,7 @@ async function routeDistanceKm(destinationQuery: any) {
   if (data?.code !== "Ok" || !Number.isFinite(meters) || meters <= 0) {
     throw new Error("Não foi possível obter a distância da rota pelas ruas para este endereço.");
   }
-  const distanceKm = Number((meters / 1000).toFixed(1));
+  const distanceKm = Number((meters / 1000).toFixed(2));
   const now = new Date();
   const { error: cacheWriteError } = await db.from("shipping_route_cache").upsert({
     cache_key: cacheKey,
