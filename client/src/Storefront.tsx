@@ -998,14 +998,13 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   const hasCompleteShippingAddress = shipping.postal_code.replace(/\D/g, "").length === 8 && Boolean(shipping.address.trim() && shipping.number.trim() && shipping.neighborhood.trim() && shipping.city.trim() && shipping.state.trim());
   const shippingOptions: ShippingOption[] = hasCompleteShippingAddress ? (isPalmas ? [
     ...(storefrontSettings?.shipping_palmas_enabled&&matchingRule ? [{id:"palmas-distance-"+matchingRule.min_km+"-"+(matchingRule.max_km??"plus"),company:"Violetta",service:hasFreePalmasShipping ? "Entrega em Palmas · frete grátis" : "Entrega em Palmas · "+distanceKmValue!.toFixed(1)+" km",price:hasFreePalmasShipping ? 0 : Number(matchingRule.price),delivery_time:0}] : []),
-    ...(storefrontSettings?.shipping_palmas_pickup_enabled ? [{id:"violetta-pickup",company:"Violetta",service:"Retirada no local",price:0,delivery_time:0}] : []),
     ...((!storefrontSettings?.shipping_palmas_enabled || (distanceKmValue!==null && distanceKmValue>20)) ? [{id:"palmas-combine",company:"Violetta",service:"Frete a combinar",price:0,delivery_time:0}] : []),
   ] : [{id:"outside-palmas",company:"Violetta",service:"Frete a combinar",price:0,delivery_time:0}]) : [];
   const shippingOption: ShippingOption | null = shippingOptions.find(option => String(option.id) === String(shipping.shipping_option?.id)) || shippingOptions[0] || null;
   const shippingPrice=shippingOption?.price||0;
   const beyondDeliveryRadius=isPalmas&&distanceKmValue!==null&&distanceKmValue>20;
   const orderTotal=Math.max(0,subtotal-couponDiscount+shippingPrice);
-  const pickupSelected = shippingOption?.service === "Retirada no local";
+  const pickupSelected = false; // Retirada no local desativada temporariamente para a loja Violetta.
   const applyCoupon = async () => {
     const code = couponCode.trim().toUpperCase();
     if (!code) return toast.error("Informe o código do cupom");
