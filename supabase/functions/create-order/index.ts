@@ -51,11 +51,22 @@ async function geocodePostalCode(postalCode: string) {
     });
     if (response.ok) {
       const data = await response.json();
-      const lat = Number(data?.location?.coordinates?.latitude);
-      const lon = Number(data?.location?.coordinates?.longitude);
-      if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+      const rawLat = data?.location?.coordinates?.latitude;
+      const rawLon = data?.location?.coordinates?.longitude;
+      // Não converter null para zero: isso trata CEP sem coordenadas como se fosse (0, 0).
+      if (rawLat === null || rawLat === undefined || rawLat === "" || rawLon === null || rawLon === undefined || rawLon === "") {
+        throw new Error("Este CEP não possui coordenadas suficientes para calcular o frete");
+      }
+      const lat = Number(rawLat);
+      const lon = Number(rawLon);
+      if (Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+        return { lat, lon };
+      }
+      throw new Error("Este CEP não possui coordenadas válidas para calcular o frete");
     }
-  } catch {}
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("coordenadas")) throw error;
+  }
 
   throw new Error("Não foi possível localizar o CEP para calcular a distância");
 }
