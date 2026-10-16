@@ -110,7 +110,7 @@ export default function Storefront() {
       return null;
     }
     const { data, error } = await supabase.from("storefront_settings")
-      .select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled,collection_enabled,collection_title,collection_subtitle,collection_image_url,collection_cta,shipping_palmas_enabled,shipping_palmas_min_subtotal,shipping_palmas_free_above,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_origin_draft_street,shipping_origin_draft_number,shipping_origin_draft_neighborhood,shipping_origin_draft_city,shipping_origin_draft_state,shipping_palmas_distance_rules,top_banner_enabled,top_banner_text,top_banner_message,top_banner_cta,top_banner_cta_url,quick_categories,home_section_order")
+      .select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled,collection_enabled,collection_title,collection_subtitle,collection_image_url,collection_cta,shipping_palmas_enabled,shipping_palmas_min_subtotal,shipping_palmas_free_above,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_origin_draft_street,shipping_origin_draft_number,shipping_origin_draft_neighborhood,shipping_origin_draft_city,shipping_origin_draft_state,shipping_palmas_distance_rules,top_banner_enabled,top_banner_text,top_banner_message,top_banner_cta,top_banner_cta_url")
       .eq("store_slug","violetta")
       .limit(1)
       .maybeSingle();
