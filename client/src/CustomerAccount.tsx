@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Clock3, CreditCard, Eye, LogOut, Package, ShieldCheck
 import { toast } from "sonner";
 import { customerSupabase } from "./lib/supabase";
 
+type SavedAddress = { id:string; label:string; recipient:string; postal_code:string; address:string; number:string; complement:string; neighborhood:string; city:string; state:string; is_default:boolean };
 type StatusHistory = { id:string; status:string; note?:string|null; created_at:string };
 type Order = {
   id:string; order_number:string; total_amount:number; subtotal_amount:number; shipping_amount:number; discount_amount:number;
@@ -49,6 +50,9 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   const [confirmationSent,setConfirmationSent]=useState(false);
   const [loginConfirmationNeeded,setLoginConfirmationNeeded]=useState(false);
   const [signupAccountExists,setSignupAccountExists]=useState(false);
+  const [savedAddresses,setSavedAddresses]=useState<SavedAddress[]>([]);
+  const [addressDraft,setAddressDraft]=useState<Omit<SavedAddress,"id"|"is_default">>({label:"Casa",recipient:"",postal_code:"",address:"",number:"",complement:"",neighborhood:"",city:"",state:""});
+  const [addressBusy,setAddressBusy]=useState(false);
 
   const recoveryLink = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("type") === "recovery";
 
@@ -64,6 +68,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       setProfilePhone(String(data.session?.user?.user_metadata?.phone||""));
       setProfileBirthday(String(data.session?.user?.user_metadata?.birthday||""));
       setMarketingConsent(data.session?.user?.user_metadata?.marketing_consent===true);
+      setSavedAddresses(Array.isArray(data.session?.user?.user_metadata?.saved_addresses)?data.session.user.user_metadata.saved_addresses:[]);
       setLoading(false);
     });
     const {data:{subscription}}=customerSupabase.auth.onAuthStateChange((event,next)=>{
@@ -74,6 +79,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       setProfilePhone(String(next?.user?.user_metadata?.phone||""));
       setProfileBirthday(String(next?.user?.user_metadata?.birthday||""));
       setMarketingConsent(next?.user?.user_metadata?.marketing_consent===true);
+      setSavedAddresses(Array.isArray(next?.user?.user_metadata?.saved_addresses)?next.user.user_metadata.saved_addresses:[]);
       if(event==="PASSWORD_RECOVERY"){
         setMode("new-password");
         window.history.replaceState({}, document.title, "/minha-conta");
@@ -135,11 +141,12 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
         if(profilePhone.replace(/\D/g,"").length<10)throw new Error("Informe um WhatsApp válido.");
         if(!profileBirthday)throw new Error("Informe sua data de nascimento.");
         if(!isValidBirthday(profileBirthday))throw new Error("Informe uma data de nascimento válida, que não seja futura.");
+        if(addressDraft.postal_code.replace(/\D/g,"").length!==8||!addressDraft.address.trim()||!addressDraft.number.trim()||!addressDraft.neighborhood.trim()||!addressDraft.city.trim()||addressDraft.state.trim().length!==2)throw new Error("Preencha o endereço padrão completo, com CEP válido.");
         if(password.length<6)throw new Error("A senha deve ter pelo menos 6 caracteres.");
         const {data,error}=await customerSupabase.auth.signUp({
           email:email.trim().toLowerCase(),
           password,
-          options:{emailRedirectTo:window.location.origin+"/minha-conta",data:{full_name:profileName.trim(),phone:profilePhone.replace(/\D/g,""),birthday:profileBirthday,marketing_consent:marketingConsent,marketing_consent_updated_at:new Date().toISOString(),welcome_email_pending:true}}
+          options:{emailRedirectTo:window.location.origin+"/minha-conta",data:{full_name:profileName.trim(),phone:profilePhone.replace(/\D/g,""),birthday:profileBirthday,marketing_consent:marketingConsent,marketing_consent_updated_at:new Date().toISOString(),saved_addresses:[{...addressDraft,id:crypto.randomUUID(),recipient:profileName.trim(),postal_code:addressDraft.postal_code.replace(/\D/g,""),state:addressDraft.state.trim().toUpperCase(),is_default:true}],welcome_email_pending:true}}
         });
         if(!error&&data.user&&Array.isArray(data.user.identities)&&data.user.identities.length===0){
           setSignupAccountExists(true);
@@ -206,6 +213,40 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
     }catch{}
   };
 
+  const saveAddressDraft=async()=>{
+    if(!customerSupabase||!session?.user)return;
+    const postal=addressDraft.postal_code.replace(/\D/g,"");
+    if(postal.length!==8||!addressDraft.address.trim()||!addressDraft.number.trim()||!addressDraft.neighborhood.trim()||!addressDraft.city.trim()||addressDraft.state.trim().length!==2)return toast.error("Preencha o endereço completo e informe um CEP válido.");
+    if(!addressDraft.label.trim())return toast.error("Dê um nome ao endereço, como Casa ou Trabalho.");
+    setAddressBusy(true);
+    try{
+      const current=[...savedAddresses];
+      const next:SavedAddress[]=[...current,{...addressDraft,id:crypto.randomUUID(),postal_code:postal,recipient:addressDraft.recipient.trim()||profileName.trim(),state:addressDraft.state.trim().toUpperCase(),is_default:current.length===0}];
+      const {data,error}=await customerSupabase.auth.updateUser({data:{saved_addresses:next}});
+      if(error)throw error;
+      setSavedAddresses(next);
+      setSession((v:any)=>v?{...v,user:data.user}:v);
+      setAddressDraft({label:"Casa",recipient:profileName,postal_code:"",address:"",number:"",complement:"",neighborhood:"",city:"",state:""});
+      toast.success("Endereço salvo");
+    }catch(error){toast.error("Não foi possível salvar o endereço",{description:error instanceof Error?error.message:"Tente novamente."});}
+    finally{setAddressBusy(false);}
+  };
+  const setDefaultAddress=async(id:string)=>{
+    if(!customerSupabase||!session?.user)return;
+    const next=savedAddresses.map(a=>({...a,is_default:a.id===id}));
+    const {data,error}=await customerSupabase.auth.updateUser({data:{saved_addresses:next}});
+    if(error)return toast.error("Não foi possível definir o endereço padrão",{description:error.message});
+    setSavedAddresses(next);setSession((v:any)=>v?{...v,user:data.user}:v);toast.success("Endereço padrão atualizado");
+  };
+  const deleteAddress=async(id:string)=>{
+    if(!customerSupabase||!session?.user)return;
+    const remaining=savedAddresses.filter(a=>a.id!==id);
+    const next=remaining.map((a,i)=>({...a,is_default:remaining.some(x=>x.is_default)?a.is_default:i===0}));
+    const {data,error}=await customerSupabase.auth.updateUser({data:{saved_addresses:next}});
+    if(error)return toast.error("Não foi possível excluir o endereço",{description:error.message});
+    setSavedAddresses(next);setSession((v:any)=>v?{...v,user:data.user}:v);toast.success("Endereço removido");
+  };
+
   const saveProfile=async()=>{
     if(!customerSupabase||!session?.user)return;
     if(profileName.trim().length<2)return toast.error("Informe seu nome completo.");
@@ -230,7 +271,16 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
     <h1>{mode==="login"?"Entrar na Violetta":mode==="signup"?"Criar minha conta":mode==="reset"?"Recuperar senha":"Criar nova senha"}</h1>
     <p>{mode==="login"?"Acompanhe seus pedidos, pagamentos e entregas em um só lugar.":mode==="signup"?"Crie sua conta para acompanhar automaticamente suas compras.":mode==="reset"?"Informe seu e-mail e enviaremos um link seguro.":"Defina uma nova senha para proteger sua conta."}</p>
     <form onSubmit={submitAuth} className="customer-form">
-      {mode==="signup"&&<><label>Nome completo<input type="text" autoComplete="name" required value={profileName} onChange={e=>setProfileName(e.target.value)} placeholder="Seu nome completo" /></label><label>WhatsApp<input type="tel" autoComplete="tel" required value={profilePhone} onChange={e=>setProfilePhone(e.target.value)} placeholder="(63) 99999-9999" /></label><label>Data de nascimento<input type="date" autoComplete="bday" required value={profileBirthday} onChange={e=>setProfileBirthday(e.target.value)} /></label><label style={{display:"flex",flexDirection:"row",alignItems:"flex-start",gap:10,fontWeight:400,lineHeight:1.5}}><input type="checkbox" checked={marketingConsent} onChange={e=>setMarketingConsent(e.target.checked)} style={{width:18,height:18,marginTop:2,flexShrink:0}}/><span>Quero receber novidades, promoções e ofertas especiais da Violetta, incluindo uma surpresa no meu aniversário. Posso cancelar esse recebimento quando quiser.</span></label></>}
+      {mode==="signup"&&<><label>Nome completo<input type="text" autoComplete="name" required value={profileName} onChange={e=>setProfileName(e.target.value)} placeholder="Seu nome completo" /></label><label>WhatsApp<input type="tel" autoComplete="tel" required value={profilePhone} onChange={e=>setProfilePhone(e.target.value)} placeholder="(63) 99999-9999" /></label><label>Data de nascimento<input type="date" autoComplete="bday" required value={profileBirthday} onChange={e=>setProfileBirthday(e.target.value)} /></label>
+      <p className="store-kicker" style={{gridColumn:"1 / -1",marginTop:8}}>ENDEREÇO PADRÃO DE ENTREGA</p>
+      <label>CEP<input required inputMode="numeric" maxLength={9} autoComplete="postal-code" value={addressDraft.postal_code} onChange={e=>setAddressDraft(v=>({...v,postal_code:e.target.value.replace(/\D/g,"").slice(0,8)}))} placeholder="77001-570"/></label>
+      <label className="wide">Logradouro<input required autoComplete="street-address" value={addressDraft.address} onChange={e=>setAddressDraft(v=>({...v,address:e.target.value}))} placeholder="Rua, avenida..."/></label>
+      <label>Número<input required value={addressDraft.number} onChange={e=>setAddressDraft(v=>({...v,number:e.target.value}))}/></label>
+      <label>Complemento<input value={addressDraft.complement} onChange={e=>setAddressDraft(v=>({...v,complement:e.target.value}))}/></label>
+      <label>Bairro<input required value={addressDraft.neighborhood} onChange={e=>setAddressDraft(v=>({...v,neighborhood:e.target.value}))}/></label>
+      <label>Cidade<input required autoComplete="address-level2" value={addressDraft.city} onChange={e=>setAddressDraft(v=>({...v,city:e.target.value}))}/></label>
+      <label>UF<input required maxLength={2} autoComplete="address-level1" value={addressDraft.state} onChange={e=>setAddressDraft(v=>({...v,state:e.target.value.toUpperCase()}))} placeholder="TO"/></label>
+      <label style={{display:"flex",flexDirection:"row",alignItems:"flex-start",gap:10,fontWeight:400,lineHeight:1.5}}><input type="checkbox" checked={marketingConsent} onChange={e=>setMarketingConsent(e.target.checked)} style={{width:18,height:18,marginTop:2,flexShrink:0}}/><span>Quero receber novidades, promoções e ofertas especiais da Violetta, incluindo uma surpresa no meu aniversário. Posso cancelar esse recebimento quando quiser.</span></label></>}
       {mode!=="new-password"&&<label>E-mail<input type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)} /></label>}
       {mode!=="reset"&&<label>{mode==="new-password"?"Nova senha":"Senha"}<input type="password" autoComplete={mode==="new-password"?"new-password":"current-password"} minLength={6} required value={password} onChange={e=>setPassword(e.target.value)} /></label>}
       {mode==="new-password"&&<label>Confirmar nova senha<input type="password" autoComplete="new-password" minLength={6} required value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} /></label>}
@@ -259,6 +309,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       <button className={activeTab==="overview"?"active":""} onClick={()=>setActiveTab("overview")}>Visão geral</button>
       <button className={activeTab==="orders"?"active":""} onClick={()=>setActiveTab("orders")}>Meus pedidos <b>{orders.length}</b></button>
       <button className={activeTab==="profile"?"active":""} onClick={()=>setActiveTab("profile")}>Meu perfil</button>
+      <button className={activeTab==="addresses"?"active":""} onClick={()=>setActiveTab("addresses")}>Meus endereços <b>{savedAddresses.length}</b></button>
     </div>}
 
     {selected?<div className="customer-order-detail">
@@ -285,6 +336,12 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       <div className="customer-metrics"><div><Package/><span>Pedidos</span><strong>{orders.length}</strong></div><div><Truck/><span>Em andamento</span><strong>{activeOrders.length}</strong></div><div><CreditCard/><span>Total comprado</span><strong>{money(totalSpent)}</strong></div></div>
       {latestOrder?<div className="customer-latest"><div className="customer-section-head"><div><p className="store-kicker">COMPRA MAIS RECENTE</p><h2>{latestOrder.order_number}</h2></div><button onClick={()=>setSelected(latestOrder)}>Ver pedido <Eye size={16}/></button></div><div className="customer-latest-meta"><span>{new Date(latestOrder.created_at).toLocaleDateString("pt-BR")}</span><b>{displayStatus(latestOrder.status)}</b><strong>{money(latestOrder.total_amount)}</strong></div></div>:<div className="customer-empty"><Package size={30}/><h3>Você ainda não tem pedidos.</h3><p>Faça sua primeira compra e acompanhe tudo por aqui.</p><button className="store-primary-cta" onClick={onBack}>Começar a comprar</button></div>}
     </div>
+    :activeTab==="addresses"?<div className="customer-profile-panel">
+      <div className="customer-detail-panel"><p className="store-kicker">ENTREGA</p><h2>Meus endereços</h2><p>Salve mais de um endereço e escolha qual será usado como padrão nas próximas compras.</p>
+      {!savedAddresses.length&&<div className="customer-empty"><Truck size={25}/><p>Você ainda não tem endereços salvos.</p></div>}
+      {savedAddresses.map(a=><div key={a.id} className="customer-detail-panel" style={{marginTop:12,border:"1px solid #eadfe7"}}><div style={{display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}><strong>{a.label} {a.is_default&&<span>· Padrão</span>}</strong><div style={{display:"flex",gap:10,flexWrap:"wrap"}}>{!a.is_default&&<button type="button" className="customer-text-button" onClick={()=>setDefaultAddress(a.id)}>Definir padrão</button>}<button type="button" className="customer-text-button" onClick={()=>deleteAddress(a.id)}>Excluir</button></div></div><p>{a.address}, {a.number}{a.complement?", "+a.complement:""}</p><small>{a.neighborhood} · {a.city}/{a.state} · CEP {a.postal_code}</small></div>)}
+      <h3 style={{marginTop:24}}>Adicionar endereço</h3><div className="customer-form"><label>Nome do endereço<input value={addressDraft.label} onChange={e=>setAddressDraft(v=>({...v,label:e.target.value}))} placeholder="Casa, trabalho..."/></label><label>Destinatário<input value={addressDraft.recipient} onChange={e=>setAddressDraft(v=>({...v,recipient:e.target.value}))} placeholder={profileName}/></label><label>CEP<input inputMode="numeric" maxLength={9} value={addressDraft.postal_code} onChange={e=>setAddressDraft(v=>({...v,postal_code:e.target.value.replace(/\D/g,"").slice(0,8)}))} placeholder="77001-570"/></label><label>Logradouro<input value={addressDraft.address} onChange={e=>setAddressDraft(v=>({...v,address:e.target.value}))}/></label><label>Número<input value={addressDraft.number} onChange={e=>setAddressDraft(v=>({...v,number:e.target.value}))}/></label><label>Complemento<input value={addressDraft.complement} onChange={e=>setAddressDraft(v=>({...v,complement:e.target.value}))}/></label><label>Bairro<input value={addressDraft.neighborhood} onChange={e=>setAddressDraft(v=>({...v,neighborhood:e.target.value}))}/></label><label>Cidade<input value={addressDraft.city} onChange={e=>setAddressDraft(v=>({...v,city:e.target.value}))}/></label><label>UF<input maxLength={2} value={addressDraft.state} onChange={e=>setAddressDraft(v=>({...v,state:e.target.value.toUpperCase()}))}/></label><button className="store-primary-cta" type="button" onClick={saveAddressDraft} disabled={addressBusy}><Save size={16}/>{addressBusy?"Salvando…":"Salvar endereço"}</button></div>
+      </div></div>
     :activeTab==="orders"?<div>
       <div className="customer-orders-toolbar"><input placeholder="Buscar por número do pedido..." value={search} onChange={e=>setSearch(e.target.value)}/><select value={orderFilter} onChange={e=>setOrderFilter(e.target.value)}><option value="ALL">Todos os status</option>{Object.entries(statusLabels).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></div>
       {!filteredOrders.length?<div className="customer-empty"><Package size={28}/><h3>Nenhum pedido encontrado.</h3><p>Tente alterar a busca ou o filtro.</p></div>:<div className="customer-orders-list">{filteredOrders.map(order=><button className="customer-order-row" key={order.id} onClick={()=>setSelected(order)}><span className="customer-order-icon"><Package size={19}/></span><span className="customer-order-main"><strong>{order.order_number}</strong><small>{new Date(order.created_at).toLocaleDateString("pt-BR")} · {displayStatus(order.status)}</small></span><strong>{money(order.total_amount)}</strong><span className="customer-order-arrow">›</span></button>)}</div>}
