@@ -1006,7 +1006,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   const hasCompleteShippingAddress = shipping.postal_code.replace(/\D/g, "").length === 8 && Boolean(shipping.address.trim() && shipping.number.trim() && shipping.neighborhood.trim() && shipping.city.trim() && shipping.state.trim());
   const shippingOptions: ShippingOption[] = hasCompleteShippingAddress ? (isPalmas ? [
     ...(storefrontSettings?.shipping_palmas_enabled && serverShippingQuote?.serviceable && serverShippingQuote.shipping_price !== null ? [{id:"palmas-server-quote",company:"Violetta",service:serverShippingQuote.service || (serverShippingQuote.shipping_price === 0 ? "Entrega em Palmas · frete grátis" : "Entrega em Palmas · "+distanceKmValue!.toFixed(1)+" km"),price:Number(serverShippingQuote.shipping_price),delivery_time:0}] : []),
-    ...((!storefrontSettings?.shipping_palmas_enabled || serverShippingQuote?.serviceable === false) ? [{id:"palmas-combine",company:"Violetta",service:"Frete a combinar",price:0,delivery_time:0}] : []),
+    ...((!storefrontSettings?.shipping_palmas_enabled || serverShippingQuote?.serviceable === false || Boolean(distanceError)) ? [{id:"palmas-combine",company:"Violetta",service:"Frete a combinar",price:0,delivery_time:0}] : []),
   ] : [{id:"outside-palmas",company:"Violetta",service:"Frete a combinar",price:0,delivery_time:0}]) : [];
   const shippingOption: ShippingOption | null = shippingOptions.find(option => String(option.id) === String(shipping.shipping_option?.id)) || shippingOptions[0] || null;
   const shippingPrice=shippingOption?.price||0;
