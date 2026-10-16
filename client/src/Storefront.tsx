@@ -832,7 +832,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   const [distanceRequest, setDistanceRequest] = useState(0);
   const [distanceError, setDistanceError] = useState("");
   const handleCalculateShipping = () => {
-    const cep = shipping.postal_code.replace(/\\D/g, "");
+    const cep = shipping.postal_code.replace(/\D/g, "");
     if (cep.length !== 8 || !shipping.address.trim() || !shipping.number.trim() || !shipping.neighborhood.trim() || !shipping.city.trim() || !shipping.state.trim()) {
       setDistanceKmValue(null);
       setDistanceLoading(false);
