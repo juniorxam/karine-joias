@@ -963,8 +963,12 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
         if (!cancelled) setDistanceLoading(false);
       }
     };
-    void calculate();
-    return () => { cancelled = true; };
+    // Aguarda o usuário terminar de editar o endereço antes de consultar a API externa.
+    const debounceTimer = setTimeout(() => { void calculate(); }, 700);
+    return () => {
+      cancelled = true;
+      clearTimeout(debounceTimer);
+    };
   }, [isPalmas, shipping.postal_code, shipping.address, shipping.number, shipping.neighborhood, shipping.city, shipping.state, storefrontSettings?.shipping_palmas_enabled, storefrontSettings?.shipping_origin_postal_code, distanceRequest]);
   const matchingRule=distanceKmValue===null?null:(storefrontSettings?.shipping_palmas_distance_rules||[]).find((rule,index,rules)=>{const min=Number(rule.min_km||0);const max=rule.max_km===null||rule.max_km===undefined?null:Number(rule.max_km);const isLast=index===rules.length-1;return distanceKmValue>=min&&(max===null||(isLast?distanceKmValue<=max:distanceKmValue<max));});
   const freeShippingThreshold = Number(storefrontSettings?.shipping_palmas_free_above || 0);
