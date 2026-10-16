@@ -103,7 +103,7 @@ async function geocodeAddress(parts: AddressParts, apiKey: string): Promise<[num
       "geocode"
     );
     if (response.status === 429) throw new Error("O serviço de localização atingiu o limite de consultas. Aguarde um pouco e tente novamente.");
-    if (response.status === 401 || response.status === 403) throw new Error("A configuração da API de localização precisa ser verificada.");
+    if (response.status === 401 || response.status === 403) { console.warn(JSON.stringify({ event: "shipping_geocoder_unavailable", provider: "openrouteservice", status: response.status })); break; }
     if (!response.ok) {
       if (queryIndex === queries.length - 1) throw new Error("Não foi possível localizar o endereço pelo CEP e logradouro. Confira o endereço.");
       continue;
@@ -395,12 +395,32 @@ async function getDestinationAddress(shipping: any): Promise<AddressParts> {
 }
 
 async function routeDistanceKm(destinationQuery: any) {
-  const apiKey = Deno.env.get("ORS_API_KEY");
-  if (!apiKey) throw new Error("O cálculo de rotas ainda não está configurado no servidor (ORS_API_KEY).");
   const [originAddress, destinationAddress] = await Promise.all([
     getStoreOriginAddress(),
     getDestinationAddress(destinationQuery),
   ]);
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceKey) throw new Error("Configuração do servidor indisponível.");
+  const db = createClient(url, serviceKey);
+  const normalizePart = (value: string) => value.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toLowerCase();
+  const cachePayload = [
+    originAddress.address, originAddress.neighborhood, originAddress.city, originAddress.state, originAddress.postalCode,
+    destinationAddress.address, destinationAddress.neighborhood, destinationAddress.city, destinationAddress.state, destinationAddress.postalCode,
+    "osrm-driving-v1",
+  ].map(normalizePart).join("|");
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(cachePayload));
+  const cacheKey = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  const { data: cached, error: cacheReadError } = await db.from("shipping_route_cache")
+    .select("distance_km,provider")
+    .eq("cache_key", cacheKey)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+  if (!cacheReadError && cached && Number(cached.distance_km) > 0) {
+    console.info(JSON.stringify({ event: "shipping_route_cache_hit", provider: cached.provider }));
+    return Number(Number(cached.distance_km).toFixed(1));
+  }
+  const apiKey = Deno.env.get("ORS_API_KEY") || "";
   const [origin, destination] = await Promise.all([
     geocodeAddress(originAddress, apiKey),
     geocodeAddress(destinationAddress, apiKey),
@@ -408,18 +428,33 @@ async function routeDistanceKm(destinationQuery: any) {
   if (Math.abs(origin[0] - destination[0]) < 0.00001 && Math.abs(origin[1] - destination[1]) < 0.00001) {
     throw new Error("O mapa localizou a origem e o destino no mesmo ponto. Confira o endereço de entrega para evitar um frete incorreto.");
   }
-  const response = await fetchWithTimeout("https://api.heigit.org/openrouteservice/v2/directions/driving-car", {
-    method: "POST",
-    headers: { "Authorization": apiKey, "Content-Type": "application/json", "Accept": "application/json" },
-    body: JSON.stringify({ coordinates: [origin, destination], instructions: false }),
-  }, ROUTE_TIMEOUT_MS, "directions");
+  const routeUrl = "https://router.project-osrm.org/route/v1/driving/" +
+    encodeURIComponent(origin[0] + "," + origin[1] + ";" + destination[0] + "," + destination[1]) +
+    "?overview=false&steps=false";
+  const response = await fetchWithTimeout(routeUrl, { headers: { "Accept": "application/json" } }, ROUTE_TIMEOUT_MS, "osrm_directions");
   if (response.status === 429) throw new Error("O serviço de rotas está temporariamente ocupado. Aguarde um pouco e tente novamente.");
-  if (response.status === 401 || response.status === 403) throw new Error("A configuração da API de rotas precisa ser verificada.");
-  if (!response.ok) throw new Error("Não foi possível calcular a rota pelas ruas. Tente novamente.");
+  if (!response.ok) throw new Error("Não foi possível calcular a rota pelas ruas. Tente novamente em instantes.");
   const data = await response.json();
-  const meters = Number(data?.routes?.[0]?.summary?.distance);
-  if (!Number.isFinite(meters) || meters <= 0) throw new Error("Não foi possível obter a distância da rota.");
-  return Number((meters / 1000).toFixed(1));
+  const meters = Number(data?.routes?.[0]?.distance);
+  if (data?.code !== "Ok" || !Number.isFinite(meters) || meters <= 0) {
+    throw new Error("Não foi possível obter a distância da rota pelas ruas para este endereço.");
+  }
+  const distanceKm = Number((meters / 1000).toFixed(1));
+  const now = new Date();
+  const { error: cacheWriteError } = await db.from("shipping_route_cache").upsert({
+    cache_key: cacheKey,
+    distance_km: distanceKm,
+    provider: "osrm",
+    created_at: now.toISOString(),
+    expires_at: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+  }, { onConflict: "cache_key" });
+  if (cacheWriteError) console.warn(JSON.stringify({ event: "shipping_route_cache_write_failed", message: cacheWriteError.message }));
+  else console.info(JSON.stringify({ event: "shipping_route_cache_store", provider: "osrm" }));
+  // Opportunistic cleanup; cache validity is always checked by expires_at.
+  await db.from("shipping_route_cache").delete().lt("expires_at", now.toISOString()).then(({ error }) => {
+    if (error) console.warn(JSON.stringify({ event: "shipping_route_cache_cleanup_failed" }));
+  });
+  return distanceKm;
 }
 
 Deno.serve(async (req: Request) => {
@@ -429,17 +464,61 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.json();
     const shipping = body?.shipping || {};
-    const city = String(shipping.city || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+    const city = String(shipping.city || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toUpperCase();
     const state = String(shipping.state || "").trim().toUpperCase();
-    const postalCode = String(shipping.postal_code || "").replace(/\D/g, "");
+    const postalCode = String(shipping.postal_code || "").replace(/\\D/g, "");
     if (city !== "PALMAS" || state !== "TO") throw new Error("O cálculo automático por rota está disponível somente para Palmas-TO.");
-    if (!/^\d{8}$/.test(postalCode)) throw new Error("CEP inválido.");
+    if (!/^\\d{8}$/.test(postalCode)) throw new Error("CEP inválido.");
     if (!String(shipping.address || "").trim() || !String(shipping.number || "").trim() || !String(shipping.neighborhood || "").trim()) {
       throw new Error("Preencha logradouro, número e bairro para calcular a rota.");
     }
+    const url = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!url || !serviceKey) throw new Error("Configuração do servidor indisponível.");
+    const db = createClient(url, serviceKey);
+    const { data: settings, error: settingsError } = await db.from("storefront_settings")
+      .select("shipping_palmas_enabled,shipping_palmas_free_above,shipping_palmas_distance_rules")
+      .eq("store_slug", "violetta").maybeSingle();
+    if (settingsError || !settings) throw new Error("Não foi possível carregar as regras de frete da loja.");
+    if (settings.shipping_palmas_enabled !== true) throw new Error("O cálculo automático de frete para Palmas está desativado.");
     const distance_km = await routeDistanceKm(shipping);
-    timedLog("total", requestStartedAt, { outcome: "success" });
-    return new Response(JSON.stringify({ distance_km, method: "openrouteservice-road-route" }), { headers: JSON_HEADERS });
+    const serviceable = distance_km <= 20;
+    const subtotal = Number(body?.subtotal);
+    const validSubtotal = Number.isFinite(subtotal) && subtotal >= 0 ? subtotal : 0;
+    const threshold = Number(settings.shipping_palmas_free_above || 149);
+    const rules = Array.isArray(settings.shipping_palmas_distance_rules) ? settings.shipping_palmas_distance_rules : [
+      { min_km: 0, max_km: 5, price: 7 },
+      { min_km: 5, max_km: 10, price: 10 },
+      { min_km: 10, max_km: 20, price: 15 },
+    ];
+    let matchedRule: any = null;
+    if (serviceable) {
+      matchedRule = rules.find((rule: any) => {
+        const max = rule?.max_km === null || rule?.max_km === undefined || rule?.max_km === "" ? Infinity : Number(rule.max_km);
+        return Number.isFinite(Number(rule?.min_km)) && Number.isFinite(Number(rule?.price))
+          && distance_km <= max
+          && distance_km >= Number(rule.min_km);
+      });
+      // Inclusive upper bounds preserve the agreed prices exactly at 5 km and 10 km.
+      if (!matchedRule) {
+        if (distance_km <= 5) matchedRule = { min_km: 0, max_km: 5, price: 7 };
+        else if (distance_km <= 10) matchedRule = { min_km: 5, max_km: 10, price: 10 };
+        else matchedRule = { min_km: 10, max_km: 20, price: 15 };
+      }
+    }
+    const shipping_price = !serviceable ? null : (threshold > 0 && validSubtotal >= threshold ? 0 : Number(matchedRule.price));
+    const result = {
+      distance_km,
+      serviceable,
+      shipping_price,
+      shipping_price_formatted: shipping_price === null ? null : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(shipping_price),
+      service: serviceable ? (shipping_price === 0 ? "Entrega em Palmas · frete grátis" : "Entrega em Palmas · " + distance_km.toFixed(1) + " km") : "Frete a combinar",
+      estimated_duration_minutes: null,
+      provider: "OSRM",
+      cache: "persistent",
+    };
+    timedLog("total", requestStartedAt, { outcome: "success", serviceable, distance_km, shipping_price });
+    return new Response(JSON.stringify(result), { headers: JSON_HEADERS });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Não foi possível calcular o frete.";
     console.error(JSON.stringify({ event: "shipping_calculation_error", message }));
