@@ -412,13 +412,13 @@ async function routeDistanceKm(destinationQuery: any) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(cachePayload));
   const cacheKey = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
   const { data: cached, error: cacheReadError } = await db.from("shipping_route_cache")
-    .select("distance_km,provider")
+    .select("distance_km,duration_minutes,provider")
     .eq("cache_key", cacheKey)
     .gt("expires_at", new Date().toISOString())
     .maybeSingle();
   if (!cacheReadError && cached && Number(cached.distance_km) > 0) {
     console.info(JSON.stringify({ event: "shipping_route_cache_hit", provider: cached.provider }));
-    return Number(Number(cached.distance_km).toFixed(1));
+    return { distanceKm: Number(Number(cached.distance_km).toFixed(2)), durationMinutes: cached.duration_minutes === null ? null : Number(cached.duration_minutes) };
   }
   const apiKey = Deno.env.get("ORS_API_KEY") || "";
   const [origin, destination] = await Promise.all([
@@ -440,10 +440,13 @@ async function routeDistanceKm(destinationQuery: any) {
     throw new Error("Não foi possível obter a distância da rota pelas ruas para este endereço.");
   }
   const distanceKm = Number((meters / 1000).toFixed(2));
+  const routeSeconds = Number(data?.routes?.[0]?.duration);
+  const durationMinutes = Number.isFinite(routeSeconds) && routeSeconds > 0 ? Math.max(1, Math.round(routeSeconds / 60)) : null;
   const now = new Date();
   const { error: cacheWriteError } = await db.from("shipping_route_cache").upsert({
     cache_key: cacheKey,
     distance_km: distanceKm,
+    duration_minutes: durationMinutes,
     provider: "osrm",
     created_at: now.toISOString(),
     expires_at: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -454,7 +457,7 @@ async function routeDistanceKm(destinationQuery: any) {
   await db.from("shipping_route_cache").delete().lt("expires_at", now.toISOString()).then(({ error }) => {
     if (error) console.warn(JSON.stringify({ event: "shipping_route_cache_cleanup_failed" }));
   });
-  return distanceKm;
+  return { distanceKm, durationMinutes };
 }
 
 Deno.serve(async (req: Request) => {
@@ -481,7 +484,8 @@ Deno.serve(async (req: Request) => {
       .eq("store_slug", "violetta").maybeSingle();
     if (settingsError || !settings) throw new Error("Não foi possível carregar as regras de frete da loja.");
     if (settings.shipping_palmas_enabled !== true) throw new Error("O cálculo automático de frete para Palmas está desativado.");
-    const distance_km = await routeDistanceKm(shipping);
+    const route = await routeDistanceKm(shipping);
+    const distance_km = route.distanceKm;
     const serviceable = distance_km <= 20;
     const subtotal = Number(body?.subtotal);
     const validSubtotal = Number.isFinite(subtotal) && subtotal >= 0 ? subtotal : 0;
@@ -513,7 +517,7 @@ Deno.serve(async (req: Request) => {
       shipping_price,
       shipping_price_formatted: shipping_price === null ? null : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(shipping_price),
       service: serviceable ? (shipping_price === 0 ? "Entrega em Palmas · frete grátis" : "Entrega em Palmas · " + distance_km.toFixed(1) + " km") : "Frete a combinar",
-      estimated_duration_minutes: null,
+      estimated_duration_minutes: route.durationMinutes,
       provider: "OSRM",
       cache: "persistent",
     };
