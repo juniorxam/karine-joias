@@ -53,6 +53,23 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   const [savedAddresses,setSavedAddresses]=useState<SavedAddress[]>([]);
   const [addressDraft,setAddressDraft]=useState<Omit<SavedAddress,"id"|"is_default">>({label:"Casa",recipient:"",postal_code:"",address:"",number:"",complement:"",neighborhood:"",city:"",state:""});
   const [addressBusy,setAddressBusy]=useState(false);
+  const [cepLookupBusy,setCepLookupBusy]=useState(false);
+
+  const lookupAddressByCep=async(value:string)=>{
+    const cep=value.replace(/\D/g,"");
+    if(cep.length!==8)return;
+    setCepLookupBusy(true);
+    try{
+      const response=await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      if(!response.ok)throw new Error("Não foi possível consultar o serviço de CEP.");
+      const result=await response.json();
+      if(result.erro){toast.error("CEP não encontrado. Confira os números ou preencha o endereço manualmente.");return;}
+      setAddressDraft(current=>({...current,postal_code:cep,address:result.logradouro||current.address,neighborhood:result.bairro||current.neighborhood,city:result.localidade||current.city,state:result.uf||current.state}));
+      toast.success("Endereço localizado pelo CEP");
+    }catch(error){
+      toast.error("Não foi possível localizar o CEP agora. Confira sua conexão ou preencha o endereço manualmente.");
+    }finally{setCepLookupBusy(false);}
+  };
 
   const recoveryLink = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("type") === "recovery";
 
@@ -273,7 +290,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
     <form onSubmit={submitAuth} className="customer-form">
       {mode==="signup"&&<><label>Nome completo<input type="text" autoComplete="name" required value={profileName} onChange={e=>setProfileName(e.target.value)} placeholder="Seu nome completo" /></label><label>WhatsApp<input type="tel" autoComplete="tel" required value={profilePhone} onChange={e=>setProfilePhone(e.target.value)} placeholder="(63) 99999-9999" /></label><label>Data de nascimento<input type="date" autoComplete="bday" required value={profileBirthday} onChange={e=>setProfileBirthday(e.target.value)} /></label>
       <p className="store-kicker" style={{gridColumn:"1 / -1",marginTop:8}}>ENDEREÇO PADRÃO DE ENTREGA</p>
-      <label>CEP<input required inputMode="numeric" maxLength={9} autoComplete="postal-code" value={addressDraft.postal_code} onChange={e=>setAddressDraft(v=>({...v,postal_code:e.target.value.replace(/\D/g,"").slice(0,8)}))} placeholder="77001-570"/></label>
+      <label>CEP<input required inputMode="numeric" maxLength={9} autoComplete="postal-code" value={addressDraft.postal_code} onChange={e=>setAddressDraft(v=>({...v,postal_code:e.target.value.replace(/\D/g,"").slice(0,8)}))} onBlur={e=>lookupAddressByCep(e.target.value)} placeholder="77001-570"/>{cepLookupBusy&&<small>Localizando endereço…</small>}</label>
       <label className="wide">Logradouro<input required autoComplete="street-address" value={addressDraft.address} onChange={e=>setAddressDraft(v=>({...v,address:e.target.value}))} placeholder="Rua, avenida..."/></label>
       <label>Número<input required value={addressDraft.number} onChange={e=>setAddressDraft(v=>({...v,number:e.target.value}))}/></label>
       <label>Complemento<input value={addressDraft.complement} onChange={e=>setAddressDraft(v=>({...v,complement:e.target.value}))}/></label>
@@ -340,7 +357,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       <div className="customer-detail-panel"><p className="store-kicker">ENTREGA</p><h2>Meus endereços</h2><p>Salve mais de um endereço e escolha qual será usado como padrão nas próximas compras.</p>
       {!savedAddresses.length&&<div className="customer-empty"><Truck size={25}/><p>Você ainda não tem endereços salvos.</p></div>}
       {savedAddresses.map(a=><div key={a.id} className="customer-detail-panel" style={{marginTop:12,border:"1px solid #eadfe7"}}><div style={{display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}><strong>{a.label} {a.is_default&&<span>· Padrão</span>}</strong><div style={{display:"flex",gap:10,flexWrap:"wrap"}}>{!a.is_default&&<button type="button" className="customer-text-button" onClick={()=>setDefaultAddress(a.id)}>Definir padrão</button>}<button type="button" className="customer-text-button" onClick={()=>deleteAddress(a.id)}>Excluir</button></div></div><p>{a.address}, {a.number}{a.complement?", "+a.complement:""}</p><small>{a.neighborhood} · {a.city}/{a.state} · CEP {a.postal_code}</small></div>)}
-      <h3 style={{marginTop:24}}>Adicionar endereço</h3><div className="customer-form"><label>Nome do endereço<input value={addressDraft.label} onChange={e=>setAddressDraft(v=>({...v,label:e.target.value}))} placeholder="Casa, trabalho..."/></label><label>Destinatário<input value={addressDraft.recipient} onChange={e=>setAddressDraft(v=>({...v,recipient:e.target.value}))} placeholder={profileName}/></label><label>CEP<input inputMode="numeric" maxLength={9} value={addressDraft.postal_code} onChange={e=>setAddressDraft(v=>({...v,postal_code:e.target.value.replace(/\D/g,"").slice(0,8)}))} placeholder="77001-570"/></label><label>Logradouro<input value={addressDraft.address} onChange={e=>setAddressDraft(v=>({...v,address:e.target.value}))}/></label><label>Número<input value={addressDraft.number} onChange={e=>setAddressDraft(v=>({...v,number:e.target.value}))}/></label><label>Complemento<input value={addressDraft.complement} onChange={e=>setAddressDraft(v=>({...v,complement:e.target.value}))}/></label><label>Bairro<input value={addressDraft.neighborhood} onChange={e=>setAddressDraft(v=>({...v,neighborhood:e.target.value}))}/></label><label>Cidade<input value={addressDraft.city} onChange={e=>setAddressDraft(v=>({...v,city:e.target.value}))}/></label><label>UF<input maxLength={2} value={addressDraft.state} onChange={e=>setAddressDraft(v=>({...v,state:e.target.value.toUpperCase()}))}/></label><button className="store-primary-cta" type="button" onClick={saveAddressDraft} disabled={addressBusy}><Save size={16}/>{addressBusy?"Salvando…":"Salvar endereço"}</button></div>
+      <h3 style={{marginTop:24}}>Adicionar endereço</h3><div className="customer-form"><label>Nome do endereço<input value={addressDraft.label} onChange={e=>setAddressDraft(v=>({...v,label:e.target.value}))} placeholder="Casa, trabalho..."/></label><label>Destinatário<input value={addressDraft.recipient} onChange={e=>setAddressDraft(v=>({...v,recipient:e.target.value}))} placeholder={profileName}/></label><label>CEP<input inputMode="numeric" maxLength={9} value={addressDraft.postal_code} onChange={e=>setAddressDraft(v=>({...v,postal_code:e.target.value.replace(/\D/g,"").slice(0,8)}))} onBlur={e=>lookupAddressByCep(e.target.value)} placeholder="77001-570"/>{cepLookupBusy&&<small>Localizando endereço…</small>}</label><label>Logradouro<input value={addressDraft.address} onChange={e=>setAddressDraft(v=>({...v,address:e.target.value}))}/></label><label>Número<input value={addressDraft.number} onChange={e=>setAddressDraft(v=>({...v,number:e.target.value}))}/></label><label>Complemento<input value={addressDraft.complement} onChange={e=>setAddressDraft(v=>({...v,complement:e.target.value}))}/></label><label>Bairro<input value={addressDraft.neighborhood} onChange={e=>setAddressDraft(v=>({...v,neighborhood:e.target.value}))}/></label><label>Cidade<input value={addressDraft.city} onChange={e=>setAddressDraft(v=>({...v,city:e.target.value}))}/></label><label>UF<input maxLength={2} value={addressDraft.state} onChange={e=>setAddressDraft(v=>({...v,state:e.target.value.toUpperCase()}))}/></label><button className="store-primary-cta" type="button" onClick={saveAddressDraft} disabled={addressBusy}><Save size={16}/>{addressBusy?"Salvando…":"Salvar endereço"}</button></div>
       </div></div>
     :activeTab==="orders"?<div>
       <div className="customer-orders-toolbar"><input placeholder="Buscar por número do pedido..." value={search} onChange={e=>setSearch(e.target.value)}/><select value={orderFilter} onChange={e=>setOrderFilter(e.target.value)}><option value="ALL">Todos os status</option>{Object.entries(statusLabels).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></div>
