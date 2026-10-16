@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Check, Clock3, CreditCard, Eye, LogOut, Package, ShieldCheck, Truck, UserRound, X, Save, LockKeyhole } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "./lib/supabase";
+import { customerSupabase } from "./lib/supabase";
 
 type StatusHistory = { id:string; status:string; note?:string|null; created_at:string };
 type Order = {
@@ -53,10 +53,10 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   const recoveryLink = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("type") === "recovery";
 
   useEffect(()=>{
-    if(!supabase){setLoading(false);return;}
+    if(!customerSupabase){setLoading(false);return;}
     let mounted=true;
     if(recoveryLink)setMode("new-password");
-    supabase.auth.getSession().then(({data})=>{
+    customerSupabase.auth.getSession().then(({data})=>{
       if(!mounted)return;
       setSession(data.session);
       if(data.session?.user?.email)setEmail(data.session.user.email);
@@ -66,7 +66,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       setMarketingConsent(data.session?.user?.user_metadata?.marketing_consent===true);
       setLoading(false);
     });
-    const {data:{subscription}}=supabase.auth.onAuthStateChange((event,next)=>{
+    const {data:{subscription}}=customerSupabase.auth.onAuthStateChange((event,next)=>{
       if(!mounted)return;
       setSession(next);
       if(next?.user?.email)setEmail(next.user.email);
@@ -84,15 +84,15 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
 
   useEffect(()=>{
     const user=session?.user;
-    if(!supabase||!user?.id||!user.user_metadata?.welcome_email_pending||user.user_metadata?.welcome_email_sent)return;
+    if(!customerSupabase||!user?.id||!user.user_metadata?.welcome_email_pending||user.user_metadata?.welcome_email_sent)return;
     void sendWelcomeEmail(user,String(user.user_metadata?.full_name||user.email?.split("@")[0]||"cliente"));
   },[session?.user?.id,session?.user?.user_metadata?.welcome_email_pending,session?.user?.user_metadata?.welcome_email_sent]);
 
   useEffect(()=>{
-    if(!session?.user?.id||!supabase){setOrders([]);return;}
+    if(!session?.user?.id||!customerSupabase){setOrders([]);return;}
     let cancelled=false;
     (async()=>{
-      const {data,error}=await supabase.from("orders")
+      const {data,error}=await customerSupabase.from("orders")
         .select("id,order_number,total_amount,subtotal_amount,shipping_amount,discount_amount,payment_status,status,created_at,payment_url,shipping_address,order_items(id,product_name,quantity,unit_price,total_price),shipments(carrier,service,tracking_code,tracking_url,shipping_status),order_status_history(id,status,note,created_at)")
         .eq("customer_user_id",session.user.id)
         .order("created_at",{ascending:false});
@@ -112,11 +112,11 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   const totalSpent=orders.reduce((sum,o)=>sum+Number(o.total_amount||0),0);
 
   const submitAuth=async(e:React.FormEvent)=>{
-    e.preventDefault(); if(!supabase)return;
+    e.preventDefault(); if(!customerSupabase)return;
     setBusy(true);
     try{
       if(mode==="reset"){
-        const {error}=await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(),{redirectTo:"https://violetta.com.br/minha-conta"});
+        const {error}=await customerSupabase.auth.resetPasswordForEmail(email.trim().toLowerCase(),{redirectTo:"https://violetta.com.br/minha-conta"});
         if(error)throw error;
         toast.success("E-mail de recuperação enviado",{description:"Confira sua caixa de entrada e abra o link para criar uma nova senha."});
         setMode("login"); return;
@@ -124,7 +124,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       if(mode==="new-password"){
         if(password.length<6)throw new Error("A nova senha deve ter pelo menos 6 caracteres.");
         if(password!==confirmPassword)throw new Error("As senhas não conferem.");
-        const {error}=await supabase.auth.updateUser({password});
+        const {error}=await customerSupabase.auth.updateUser({password});
         if(error)throw error;
         setPassword("");setConfirmPassword("");setMode("login");
         toast.success("Senha atualizada com sucesso");
@@ -136,7 +136,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
         if(!profileBirthday)throw new Error("Informe sua data de nascimento.");
         if(!isValidBirthday(profileBirthday))throw new Error("Informe uma data de nascimento válida, que não seja futura.");
         if(password.length<6)throw new Error("A senha deve ter pelo menos 6 caracteres.");
-        const {data,error}=await supabase.auth.signUp({
+        const {data,error}=await customerSupabase.auth.signUp({
           email:email.trim().toLowerCase(),
           password,
           options:{emailRedirectTo:window.location.origin+"/minha-conta",data:{full_name:profileName.trim(),phone:profilePhone.replace(/\D/g,""),birthday:profileBirthday,marketing_consent:marketingConsent,marketing_consent_updated_at:new Date().toISOString(),welcome_email_pending:true}}
@@ -162,7 +162,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
           toast.success("Conta criada com sucesso!",{description:"Enviamos um e-mail de confirmação. Depois de confirmar, você já poderá acessar sua conta."});
         }
       }else{
-        const {error}=await supabase.auth.signInWithPassword({email:email.trim().toLowerCase(),password});
+        const {error}=await customerSupabase.auth.signInWithPassword({email:email.trim().toLowerCase(),password});
         if(error){
           const message=error.message.toLowerCase();
           if(message.includes("email not confirmed")||message.includes("email not verified")||message.includes("email confirmation")){
@@ -179,10 +179,10 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   };
 
   const resendConfirmation=async()=>{
-    if(!supabase||!email.trim())return;
+    if(!customerSupabase||!email.trim())return;
     setBusy(true);
     try{
-      const {error}=await supabase.auth.resend({
+      const {error}=await customerSupabase.auth.resend({
         type:"signup",
         email:email.trim().toLowerCase(),
         options:{emailRedirectTo:window.location.origin+"/minha-conta"}
@@ -195,7 +195,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   };
 
   const sendWelcomeEmail=async(user:any,name:string)=>{
-    const client=supabase;
+    const client=customerSupabase;
     if(!client||!user?.email||user.user_metadata?.welcome_email_sent)return;
     try{
       const {data:{session:currentSession}}=await client.auth.getSession();
@@ -207,13 +207,13 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   };
 
   const saveProfile=async()=>{
-    if(!supabase||!session?.user)return;
+    if(!customerSupabase||!session?.user)return;
     if(profileName.trim().length<2)return toast.error("Informe seu nome completo.");
     if(profilePhone.replace(/\D/g,"").length>0&&profilePhone.replace(/\D/g,"").length<10)return toast.error("Informe um WhatsApp válido ou deixe o campo vazio.");
     if(profileBirthday&&!isValidBirthday(profileBirthday))return toast.error("Informe uma data de nascimento válida, que não seja futura.");
     setProfileBusy(true);
     try{
-      const {data,error}=await supabase.auth.updateUser({data:{full_name:profileName.trim(),phone:profilePhone.replace(/\D/g,""),birthday:profileBirthday,marketing_consent:marketingConsent,marketing_consent_updated_at:new Date().toISOString()}});
+      const {data,error}=await customerSupabase.auth.updateUser({data:{full_name:profileName.trim(),phone:profilePhone.replace(/\D/g,""),birthday:profileBirthday,marketing_consent:marketingConsent,marketing_consent_updated_at:new Date().toISOString()}});
       if(error)throw error;
       setSession((current:any)=>current?{...current,user:data.user}:current);
       toast.success("Perfil atualizado");
@@ -253,7 +253,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   </section></main>;
 
   return <main className="customer-account-page"><section className="customer-card customer-account-shell">
-    <div className="customer-account-topbar"><button className="customer-back" onClick={onBack}><ArrowLeft size={16}/> Voltar à loja</button><button className="customer-logout" onClick={async()=>{await supabase?.auth.signOut();setSelected(null);}}><LogOut size={16}/> Sair da conta</button></div>
+    <div className="customer-account-topbar"><button className="customer-back" onClick={onBack}><ArrowLeft size={16}/> Voltar à loja</button><button className="customer-logout" onClick={async()=>{await customerSupabase?.auth.signOut();setSelected(null);}}><LogOut size={16}/> Sair da conta</button></div>
     <div className="customer-profile-hero"><div className="customer-avatar"><UserRound size={26}/></div><div className="customer-profile-copy"><p className="store-kicker">MINHA CONTA</p><h1>Olá, {profileName||session.user.email?.split("@")[0]||"cliente"} ✨</h1><span>{session.user.email}</span></div><div className="customer-trust"><ShieldCheck size={18}/><span>Conta protegida</span></div></div>
     {!selected&&<div className="customer-tabs">
       <button className={activeTab==="overview"?"active":""} onClick={()=>setActiveTab("overview")}>Visão geral</button>
@@ -289,6 +289,6 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       <div className="customer-orders-toolbar"><input placeholder="Buscar por número do pedido..." value={search} onChange={e=>setSearch(e.target.value)}/><select value={orderFilter} onChange={e=>setOrderFilter(e.target.value)}><option value="ALL">Todos os status</option>{Object.entries(statusLabels).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></div>
       {!filteredOrders.length?<div className="customer-empty"><Package size={28}/><h3>Nenhum pedido encontrado.</h3><p>Tente alterar a busca ou o filtro.</p></div>:<div className="customer-orders-list">{filteredOrders.map(order=><button className="customer-order-row" key={order.id} onClick={()=>setSelected(order)}><span className="customer-order-icon"><Package size={19}/></span><span className="customer-order-main"><strong>{order.order_number}</strong><small>{new Date(order.created_at).toLocaleDateString("pt-BR")} · {displayStatus(order.status)}</small></span><strong>{money(order.total_amount)}</strong><span className="customer-order-arrow">›</span></button>)}</div>}
     </div>
-    :<div className="customer-profile-panel"><div className="customer-detail-panel"><p className="store-kicker">DADOS DA CONTA</p><h2>Meu perfil</h2><div className="customer-form"><label>Nome completo<input value={profileName} onChange={e=>setProfileName(e.target.value)} autoComplete="name"/></label><label>WhatsApp<input value={profilePhone} onChange={e=>setProfilePhone(e.target.value)} autoComplete="tel"/></label><label>Data de nascimento<input type="date" value={profileBirthday} onChange={e=>setProfileBirthday(e.target.value)} autoComplete="bday"/></label><label>E-mail<input value={session.user.email||""} readOnly/></label><label style={{display:"flex",flexDirection:"row",alignItems:"flex-start",gap:10,fontWeight:400,lineHeight:1.5}}><input type="checkbox" checked={marketingConsent} onChange={e=>setMarketingConsent(e.target.checked)} style={{width:18,height:18,marginTop:2,flexShrink:0}}/><span>Quero receber novidades, promoções e ofertas especiais da Violetta, incluindo uma surpresa no meu aniversário. Posso cancelar esse recebimento quando quiser.</span></label><button className="store-primary-cta" onClick={saveProfile} disabled={profileBusy}><Save size={16}/>{profileBusy?"Salvando…":"Salvar dados"}</button></div></div><div className="customer-detail-panel"><p className="store-kicker">SEGURANÇA</p><h2>Sua conta</h2><p>Você pode sair da conta a qualquer momento ou usar a recuperação de senha na tela de login.</p><div className="customer-security-badge"><LockKeyhole size={17}/><span>Autenticação por e-mail e senha</span></div><button className="customer-logout customer-logout-wide" onClick={async()=>{await supabase?.auth.signOut();setSelected(null);}}><LogOut size={16}/> Sair da conta</button></div></div>}
+    :<div className="customer-profile-panel"><div className="customer-detail-panel"><p className="store-kicker">DADOS DA CONTA</p><h2>Meu perfil</h2><div className="customer-form"><label>Nome completo<input value={profileName} onChange={e=>setProfileName(e.target.value)} autoComplete="name"/></label><label>WhatsApp<input value={profilePhone} onChange={e=>setProfilePhone(e.target.value)} autoComplete="tel"/></label><label>Data de nascimento<input type="date" value={profileBirthday} onChange={e=>setProfileBirthday(e.target.value)} autoComplete="bday"/></label><label>E-mail<input value={session.user.email||""} readOnly/></label><label style={{display:"flex",flexDirection:"row",alignItems:"flex-start",gap:10,fontWeight:400,lineHeight:1.5}}><input type="checkbox" checked={marketingConsent} onChange={e=>setMarketingConsent(e.target.checked)} style={{width:18,height:18,marginTop:2,flexShrink:0}}/><span>Quero receber novidades, promoções e ofertas especiais da Violetta, incluindo uma surpresa no meu aniversário. Posso cancelar esse recebimento quando quiser.</span></label><button className="store-primary-cta" onClick={saveProfile} disabled={profileBusy}><Save size={16}/>{profileBusy?"Salvando…":"Salvar dados"}</button></div></div><div className="customer-detail-panel"><p className="store-kicker">SEGURANÇA</p><h2>Sua conta</h2><p>Você pode sair da conta a qualquer momento ou usar a recuperação de senha na tela de login.</p><div className="customer-security-badge"><LockKeyhole size={17}/><span>Autenticação por e-mail e senha</span></div><button className="customer-logout customer-logout-wide" onClick={async()=>{await customerSupabase?.auth.signOut();setSelected(null);}}><LogOut size={16}/> Sair da conta</button></div></div>}
   </section></main>;
 }
