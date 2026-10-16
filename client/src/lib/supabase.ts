@@ -16,12 +16,32 @@ export const MANAGEMENT_RECOVERY_URL = `${PRODUCTION_SITE_URL}/gestao?type=recov
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
+/**
+ * Sessão exclusiva da gestão. Não consome callbacks de autenticação da conta
+ * do cliente quando a URL atual é /minha-conta.
+ */
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl!, supabaseAnonKey!, {
       auth: {
+        storageKey: "violetta-management-auth",
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true,
+        detectSessionInUrl: !window.location.pathname.startsWith("/minha-conta"),
+      },
+    })
+  : null;
+
+/**
+ * Cliente Supabase com armazenamento de sessão independente para clientes.
+ * As permissões de gestão continuam sendo verificadas pelas memberships.
+ */
+export const customerSupabase = isSupabaseConfigured
+  ? createClient(supabaseUrl!, supabaseAnonKey!, {
+      auth: {
+        storageKey: "violetta-customer-auth",
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: window.location.pathname.startsWith("/minha-conta"),
       },
     })
   : null;
