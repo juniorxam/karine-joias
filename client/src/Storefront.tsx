@@ -104,8 +104,11 @@ export default function Storefront() {
     }
   };
 
-  const refreshStorefrontSettings = async () => {
-    if (!supabase) return;
+  const refreshStorefrontSettings = async (): Promise<StorefrontSettings | null> => {
+    if (!supabase) {
+      console.error("Cliente Supabase indisponível ao carregar configurações da vitrine.");
+      return null;
+    }
     const { data, error } = await supabase.from("storefront_settings")
       .select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled,collection_enabled,collection_title,collection_subtitle,collection_image_url,collection_cta,shipping_palmas_enabled,shipping_palmas_min_subtotal,shipping_palmas_free_above,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_origin_draft_street,shipping_origin_draft_number,shipping_origin_draft_neighborhood,shipping_origin_draft_city,shipping_origin_draft_state,shipping_palmas_distance_rules,top_banner_enabled,top_banner_text,top_banner_message,top_banner_cta,top_banner_cta_url,quick_categories,home_section_order")
       .eq("store_slug","violetta")
@@ -113,9 +116,15 @@ export default function Storefront() {
       .maybeSingle();
     if (error) {
       console.error("Falha ao sincronizar configurações da vitrine", error);
-      return;
+      return null;
     }
-    if (data) setStorefrontSettings(data as StorefrontSettings);
+    if (data) {
+      const settings = data as StorefrontSettings;
+      setStorefrontSettings(settings);
+      return settings;
+    }
+    console.error("Nenhuma configuração pública encontrada para a loja Violetta.");
+    return null;
   };
 
   useEffect(() => {
@@ -160,8 +169,7 @@ export default function Storefront() {
     // automaticamente sem depender de o cliente apertar F5.
     const fallbackTimer = window.setInterval(() => {
       void refreshPublicCatalog();
-      const ownerId = products[0]?.ownerId;
-      if (ownerId) void refreshStorefrontSettings();
+      void refreshStorefrontSettings();
     }, 120000);
 
     return () => {
@@ -831,7 +839,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   const [distanceLoading, setDistanceLoading] = useState(false);
   const [distanceRequest, setDistanceRequest] = useState(0);
   const [distanceError, setDistanceError] = useState("");
-  const handleCalculateShipping = () => {
+  const handleCalculateShipping = async () => {
     const cep = shipping.postal_code.replace(/\D/g, "");
     if (cep.length !== 8 || !shipping.address.trim() || !shipping.number.trim() || !shipping.neighborhood.trim() || !shipping.city.trim() || !shipping.state.trim()) {
       setDistanceKmValue(null);
@@ -845,14 +853,19 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
       setDistanceError("O cálculo automático por distância está disponível para endereços em Palmas/TO. Para outras cidades, o frete será combinado com a loja.");
       return;
     }
-    if (!storefrontSettings) {
+    let settings = storefrontSettings;
+    if (!settings) {
+      setDistanceLoading(true);
+      setDistanceError("");
+      settings = await refreshStorefrontSettings();
+    }
+    if (!settings) {
       setDistanceKmValue(null);
       setDistanceLoading(false);
-      setDistanceError("As configurações da loja ainda não foram carregadas. Aguarde alguns segundos e clique em Calcular frete novamente.");
-      void refreshStorefrontSettings();
+      setDistanceError("Não foi possível carregar as configurações da loja. Verifique sua conexão e tente novamente.");
       return;
     }
-    if (!storefrontSettings.shipping_palmas_enabled) {
+    if (!settings.shipping_palmas_enabled) {
       setDistanceKmValue(null);
       setDistanceLoading(false);
       setDistanceError("O cálculo automático de frete para Palmas está desativado nas configurações da loja. Confira a opção de entrega em Palmas no painel de gestão.");
