@@ -845,10 +845,17 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
       setDistanceError("O cálculo automático por distância está disponível para endereços em Palmas/TO. Para outras cidades, o frete será combinado com a loja.");
       return;
     }
-    if (!storefrontSettings?.shipping_palmas_enabled) {
+    if (!storefrontSettings) {
       setDistanceKmValue(null);
       setDistanceLoading(false);
-      setDistanceError("O cálculo automático de frete para Palmas está desativado nas configurações da loja.");
+      setDistanceError("As configurações da loja ainda não foram carregadas. Aguarde alguns segundos e clique em Calcular frete novamente.");
+      void refreshStorefrontSettings();
+      return;
+    }
+    if (!storefrontSettings.shipping_palmas_enabled) {
+      setDistanceKmValue(null);
+      setDistanceLoading(false);
+      setDistanceError("O cálculo automático de frete para Palmas está desativado nas configurações da loja. Confira a opção de entrega em Palmas no painel de gestão.");
       return;
     }
     setDistanceKmValue(null);
