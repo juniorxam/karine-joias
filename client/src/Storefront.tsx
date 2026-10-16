@@ -936,7 +936,9 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
       setDistanceLoading(true);
       setDistanceError("");
       try {
-        const { data, error } = await supabase.functions.invoke("calculate-shipping", {
+        const invokeStartedAt = Date.now();
+        console.info("[Violetta frete] Iniciando cálculo de distância", { city: shipping.city, state: shipping.state, cep: cep.slice(0, 5) + "***" });
+        const invokePromise = supabase.functions.invoke("calculate-shipping", {
           body: {
             origin_postal_code: storefrontSettings.shipping_origin_postal_code,
             shipping: {
@@ -950,6 +952,11 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
             },
           },
         });
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error("O cálculo de frete demorou mais de 25 segundos. Confira sua conexão e tente novamente.")), 25_000);
+        });
+        const { data, error } = await Promise.race([invokePromise, timeoutPromise]);
+        console.info("[Violetta frete] Resposta do cálculo recebida", { durationMs: Date.now() - invokeStartedAt, hasError: Boolean(error), hasData: Boolean(data) });
         if (error || data?.error) throw new Error(data?.error || error?.message || "Não foi possível calcular a rota");
         const km = Number(data?.distance_km);
         if (!Number.isFinite(km) || km <= 0) throw new Error("O serviço de rotas retornou uma distância inválida");
