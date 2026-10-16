@@ -168,7 +168,7 @@ async function geocodeAddress(parts: AddressParts, apiKey: string): Promise<[num
         const props = item?.properties || {};
         const label = String([props.name, props.street, props.district, props.city, props.state, props.country].filter(Boolean).join(", "));
         const normalizedLabel = normalize(label);
-        const resultCity = normalize(String(props.city || props.district || ""));
+        const resultCity = normalize(String(props.city || ""));
         const resultState = normalize(String(props.state || ""));
         const resultPostal = String(props.postcode || "").replace(/\D/g, "");
         const resultAlameda = normalizedLabel.match(/\balameda\s+(\d+)\b/)?.[1] || null;
@@ -311,8 +311,8 @@ async function geocodeAddress(parts: AddressParts, apiKey: string): Promise<[num
       postal_code: parts.postalCode,
       address: parts.address,
       candidate_labels: allFeatures.slice(0, 12).map((item: any) => ({
-        label: String(item?.properties?.label || ""),
-        layer: String(item?.properties?.layer || ""),
+        label: String(item?.properties?.label || [item?.properties?.name, item?.properties?.street, item?.properties?.district, item?.properties?.city, item?.properties?.state, item?.properties?.country].filter(Boolean).join(", ")),
+        layer: String(item?.properties?.layer || item?.properties?.type || ""),
       })),
     }));
     throw new Error("O mapa não encontrou uma correspondência confiável para o logradouro e número informados. Confira o endereço ou CEP.");
