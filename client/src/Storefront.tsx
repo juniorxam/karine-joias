@@ -832,7 +832,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
   useEffect(() => {
     let cancelled = false;
     const calculate = async () => {
-      const cep = shipping.postal_code.replace(/\\D/g, "");
+      const cep = shipping.postal_code.replace(/\D/g, "");
       if (!isPalmas || cep.length !== 8 || !storefrontSettings?.shipping_palmas_enabled) {
         setDistanceKmValue(null);
         setDistanceError("");
