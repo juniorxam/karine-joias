@@ -926,12 +926,14 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
       }
       if (!shipping.address.trim() || !shipping.number.trim() || !shipping.neighborhood.trim() || !shipping.city.trim() || !shipping.state.trim()) {
         setDistanceKmValue(null);
+        setServerShippingQuote(null);
         setDistanceError("");
         setDistanceLoading(false);
         return;
       }
       if (!supabase) {
         setDistanceKmValue(null);
+        setServerShippingQuote(null);
         setDistanceError("Serviço de cálculo de rota indisponível no momento");
         return;
       }
@@ -1001,9 +1003,6 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
       setDistanceLoading(false);
     };
   }, [isPalmas, shipping.postal_code, shipping.address, shipping.number, shipping.neighborhood, shipping.city, shipping.state, storefrontSettings?.shipping_palmas_enabled, storefrontSettings?.shipping_origin_postal_code, distanceRequest, subtotal]);
-  const matchingRule=distanceKmValue===null?null:(storefrontSettings?.shipping_palmas_distance_rules||[]).find((rule,index,rules)=>{const min=Number(rule.min_km||0);const max=rule.max_km===null||rule.max_km===undefined?null:Number(rule.max_km);const isLast=index===rules.length-1;return distanceKmValue>=min&&(max===null||(isLast?distanceKmValue<=max:distanceKmValue<max));});
-  const freeShippingThreshold = Number(storefrontSettings?.shipping_palmas_free_above || 0);
-  const hasFreePalmasShipping = isPalmas && freeShippingThreshold > 0 && subtotal >= freeShippingThreshold;
   const hasCompleteShippingAddress = shipping.postal_code.replace(/\D/g, "").length === 8 && Boolean(shipping.address.trim() && shipping.number.trim() && shipping.neighborhood.trim() && shipping.city.trim() && shipping.state.trim());
   const shippingOptions: ShippingOption[] = hasCompleteShippingAddress ? (isPalmas ? [
     ...(storefrontSettings?.shipping_palmas_enabled && serverShippingQuote?.serviceable && serverShippingQuote.shipping_price !== null ? [{id:"palmas-server-quote",company:"Violetta",service:serverShippingQuote.service || (serverShippingQuote.shipping_price === 0 ? "Entrega em Palmas · frete grátis" : "Entrega em Palmas · "+distanceKmValue!.toFixed(1)+" km"),price:Number(serverShippingQuote.shipping_price),delivery_time:0}] : []),
