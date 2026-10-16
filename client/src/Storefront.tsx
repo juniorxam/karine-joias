@@ -969,9 +969,15 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onFinish, onCh
         if (!Number.isFinite(km) || km <= 0) throw new Error("O serviço de rotas retornou uma distância inválida");
         if (!cancelled) setDistanceKmValue(km);
       } catch (error) {
+        const message = await getFunctionErrorMessage(
+          error,
+          undefined,
+          "Não foi possível calcular a rota pelas ruas. Confira o CEP e o endereço."
+        );
+        console.error("[Violetta frete] Falha no cálculo da distância", { message });
         if (!cancelled) {
           setDistanceKmValue(null);
-          setDistanceError(error instanceof Error ? error.message : "Não foi possível calcular a rota pelas ruas");
+          setDistanceError(message);
         }
       } finally {
         if (!cancelled) setDistanceLoading(false);
