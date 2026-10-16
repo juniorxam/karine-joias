@@ -35,24 +35,187 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
   }
 }
 
-async function geocodeAddress(query: string, apiKey: string): Promise<[number, number]> {
-  const cacheKey = query.trim().toLowerCase();
+type AddressParts = {
+  address: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  postalCode: string;
+};
+
+async function resolvePostalCode(postalCode: string) {
+  const cep = postalCode.replace(/\D/g, "");
+  if (!/^\d{8}$/.test(cep)) throw new Error("CEP inválido para localizar o endereço.");
+  const response = await fetchWithTimeout(
+    "https://viacep.com.br/ws/" + cep + "/json/",
+    { headers: { "Accept": "application/json" } },
+    GEOCODE_TIMEOUT_MS,
+    "postal_lookup"
+  );
+  if (!response.ok) throw new Error("Não foi possível consultar o CEP informado.");
+  const data = await response.json();
+  if (data?.erro || !data?.localidade || !data?.uf || !data?.logradouro) {
+    throw new Error("O CEP não retornou um logradouro válido. Confira o CEP e o endereço.");
+  }
+  return {
+    address: String(data.logradouro).trim(),
+    neighborhood: String(data.bairro || "").trim(),
+    city: String(data.localidade).trim(),
+    state: String(data.uf).trim().toUpperCase(),
+    postalCode: cep,
+  } satisfies AddressParts;
+}
+
+async function geocodeAddress(parts: AddressParts, apiKey: string): Promise<[number, number]> {
+  const cacheKey = [parts.address, parts.neighborhood, parts.city, parts.state, parts.postalCode]
+    .join("|").toLowerCase();
   const cached = geocodeCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.coordinates;
-  const url = "https://api.openrouteservice.org/geocode/search?text=" + encodeURIComponent(query) + "&boundary.country=BR&size=1";
-  const response = await fetchWithTimeout(url, { headers: { "Authorization": apiKey, "Accept": "application/json" } }, GEOCODE_TIMEOUT_MS, "geocode");
-  if (response.status === 429) throw new Error("O serviço de localização atingiu o limite de consultas. Aguarde um pouco e tente novamente.");
-  if (response.status === 401 || response.status === 403) throw new Error("A configuração da API de localização precisa ser verificada.");
-  if (!response.ok) throw new Error("Não foi possível localizar um dos endereços no mapa. Confira o CEP e o endereço.");
-  const data = await response.json();
-  const coordinates = data?.features?.[0]?.geometry?.coordinates;
-  if (!Array.isArray(coordinates) || coordinates.length < 2) throw new Error("O mapa não encontrou coordenadas para este endereço. Confira o CEP e o endereço.");
-  const lon = Number(coordinates[0]);
-  const lat = Number(coordinates[1]);
-  if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-    throw new Error("O mapa retornou coordenadas inválidas para este endereço.");
+
+  // Try a full query first, then progressively simpler street-focused queries.
+  // ORS can rank a similarly named street (e.g. Alameda 43) above the requested
+  // one (e.g. Alameda 4), so a city/street layer alone is not sufficient.
+  const queries = [
+    [parts.address, parts.neighborhood, parts.city, parts.state, parts.postalCode, "Brasil"].filter(Boolean).join(", "),
+    [parts.address, parts.city, parts.state, "Brasil"].filter(Boolean).join(", "),
+    [parts.address, parts.neighborhood, parts.city, parts.state].filter(Boolean).join(", "),
+  ];
+  const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const requestedAddress = normalize(parts.address);
+  const alamedaMatch = requestedAddress.match(/\balameda\s+(\d+)\b/);
+  const requestedAlamedaNumber = alamedaMatch?.[1] || null;
+  let allFeatures: any[] = [];
+  let feature: any = null;
+  for (const [queryIndex, textQuery] of queries.entries()) {
+    const params = new URLSearchParams({
+      text: textQuery,
+      "boundary.country": "BR",
+      "boundary.rect.min_lon": "-48.60",
+      "boundary.rect.min_lat": "-10.60",
+      "boundary.rect.max_lon": "-48.00",
+      "boundary.rect.max_lat": "-9.70",
+      size: "10",
+    });
+    const response = await fetchWithTimeout(
+      "https://api.openrouteservice.org/geocode/search?" + params.toString(),
+      { headers: { "Authorization": apiKey, "Accept": "application/json" } },
+      GEOCODE_TIMEOUT_MS,
+      "geocode"
+    );
+    if (response.status === 429) throw new Error("O serviço de localização atingiu o limite de consultas. Aguarde um pouco e tente novamente.");
+    if (response.status === 401 || response.status === 403) throw new Error("A configuração da API de localização precisa ser verificada.");
+    if (!response.ok) {
+      if (queryIndex === queries.length - 1) throw new Error("Não foi possível localizar o endereço pelo CEP e logradouro. Confira o endereço.");
+      continue;
+    }
+    const data = await response.json();
+    const features = Array.isArray(data?.features) ? data.features : [];
+    allFeatures = allFeatures.concat(features);
+    const candidates = features.filter((item: any) => {
+      const point = item?.geometry?.coordinates;
+      if (!Array.isArray(point) || point.length < 2) return false;
+      const lon = Number(point[0]);
+      const lat = Number(point[1]);
+      const props = item?.properties || {};
+      const layer = String(props.layer || "").toLowerCase();
+      const label = String(props.label || "");
+      const normalizedLabel = normalize(label);
+      const resultCity = normalize(String(props.locality || props.localadmin || props.city || ""));
+      const resultRegion = String(props.region_a || props.region || "").toUpperCase();
+      const resultPostal = String(props.postalcode || "").replace(/\D/g, "");
+      const isGenericPlace = ["locality", "localadmin", "county", "region", "country"].includes(layer)
+        || /^palmas,\s*to,\s*brazil$/i.test(label);
+      // Prevent matching "Alameda 4" to "Alameda 43" and similar false positives.
+      const resultAlameda = normalizedLabel.match(/\balameda\s+(\d+)\b/)?.[1] || null;
+      if (requestedAlamedaNumber && resultAlameda !== requestedAlamedaNumber) return false;
+      const addressWords = requestedAddress.split(/[^a-z0-9]+/).filter((word) => word.length >= 4 && !/^\d+$/.test(word));
+      const hasStreetNameEvidence = addressWords.some((word) => normalizedLabel.includes(word));
+      return Number.isFinite(lon) && Number.isFinite(lat)
+        && lon >= -48.60 && lon <= -48.00 && lat >= -10.60 && lat <= -9.70
+        && !isGenericPlace
+        && (!resultCity || resultCity.includes("palmas"))
+        && (!resultRegion || resultRegion === "TO" || resultRegion.includes("TOCANTINS"))
+        && (!resultPostal || resultPostal === parts.postalCode)
+        && hasStreetNameEvidence;
+    });
+    feature = candidates[0] || null;
+    if (feature) break;
   }
-  const result: [number, number] = [lon, lat];
+  // Fallback to Photon (OpenStreetMap-based) when ORS returns only a wrong street.
+  // Keep the same strict street-number checks to avoid calculating a false route.
+  if (!feature) {
+    const photonQueries = [
+      [parts.address, parts.neighborhood, parts.city, parts.state, parts.postalCode, "Brasil"].filter(Boolean).join(", "),
+      [parts.address, parts.neighborhood, parts.city, parts.state, "Brasil"].filter(Boolean).join(", "),
+    ];
+    for (const textQuery of photonQueries) {
+      const params = new URLSearchParams({ q: textQuery, limit: "10", lat: "-10.20", lon: "-48.35", lang: "en" });
+      const response = await fetchWithTimeout(
+        "https://photon.komoot.io/api/?" + params.toString(),
+        { headers: { "Accept": "application/json" } },
+        GEOCODE_TIMEOUT_MS,
+        "photon_geocode"
+      );
+      if (!response.ok) continue;
+      const data = await response.json();
+      const features = Array.isArray(data?.features) ? data.features : [];
+      allFeatures = allFeatures.concat(features);
+      const candidates = features.filter((item: any) => {
+        const point = item?.geometry?.coordinates;
+        if (!Array.isArray(point) || point.length < 2) return false;
+        const lon = Number(point[0]);
+        const lat = Number(point[1]);
+        const props = item?.properties || {};
+        const label = String([props.name, props.street, props.district, props.city, props.state, props.country].filter(Boolean).join(", "));
+        const normalizedLabel = normalize(label);
+        const resultCity = normalize(String(props.city || props.district || ""));
+        const resultState = normalize(String(props.state || ""));
+        const resultPostal = String(props.postcode || "").replace(/\D/g, "");
+        const resultAlameda = normalizedLabel.match(/\balameda\s+(\d+)\b/)?.[1] || null;
+        const addressWords = requestedAddress.split(/[^a-z0-9]+/).filter((word) => word.length >= 4 && !/^\d+$/.test(word));
+        const hasStreetNameEvidence = addressWords.some((word) => normalizedLabel.includes(word));
+        return Number.isFinite(lon) && Number.isFinite(lat)
+          && lon >= -48.60 && lon <= -48.00 && lat >= -10.60 && lat <= -9.70
+          && (!resultCity || resultCity.includes("palmas"))
+          && (!resultState || resultState.includes("tocantins") || resultState === "to")
+          && (!resultPostal || resultPostal === parts.postalCode)
+          && (!requestedAlamedaNumber || resultAlameda === requestedAlamedaNumber)
+          && hasStreetNameEvidence;
+      });
+      if (candidates.length) {
+        const picked = candidates[0];
+        feature = {
+          geometry: picked.geometry,
+          properties: {
+            label: String([picked.properties?.name, picked.properties?.street, picked.properties?.district, picked.properties?.city, picked.properties?.state, picked.properties?.country].filter(Boolean).join(", ")),
+            layer: "photon",
+          },
+        };
+        break;
+      }
+    }
+  }
+  const coordinates = feature?.geometry?.coordinates;
+  if (!Array.isArray(coordinates) || coordinates.length < 2) {
+    console.warn(JSON.stringify({
+      event: "shipping_geocode_no_address_match",
+      postal_code: parts.postalCode,
+      address: parts.address,
+      candidate_labels: allFeatures.slice(0, 12).map((item: any) => ({
+        label: String(item?.properties?.label || ""),
+        layer: String(item?.properties?.layer || ""),
+      })),
+    }));
+    throw new Error("O mapa não encontrou uma correspondência confiável para o logradouro e número informados. Confira o endereço ou CEP.");
+  }
+  const result: [number, number] = [Number(coordinates[0]), Number(coordinates[1])];
+  console.info(JSON.stringify({
+    event: "shipping_geocode_match",
+    postal_code: parts.postalCode,
+    result_label: String(feature?.properties?.label || ""),
+    result_layer: String(feature?.properties?.layer || ""),
+    coordinates: result,
+  }));
   if (geocodeCache.size > 200) {
     for (const [key, value] of geocodeCache) if (value.expiresAt <= Date.now()) geocodeCache.delete(key);
     if (geocodeCache.size > 200) geocodeCache.clear();
@@ -61,13 +224,7 @@ async function geocodeAddress(query: string, apiKey: string): Promise<[number, n
   return result;
 }
 
-function buildOriginQuery(postalCode: string) {
-  const cep = postalCode.replace(/\D/g, "");
-  if (!/^\d{8}$/.test(cep)) throw new Error("O CEP de origem da loja não está configurado corretamente.");
-  return cep + ", Palmas, Tocantins, Brasil";
-}
-
-async function getStoreOriginQuery() {
+async function getStoreOriginAddress(): Promise<AddressParts> {
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !key) throw new Error("Configuração do servidor indisponível.");
@@ -78,34 +235,70 @@ async function getStoreOriginQuery() {
   if (error) throw new Error("Não foi possível carregar a origem de entrega da loja.");
   if (data?.shipping_origin_address_confirmed === true) {
     const postalCode = String(data.shipping_origin_draft_postal_code || "").replace(/\D/g, "");
-    const street = String(data.shipping_origin_draft_street || "").trim();
-    const number = String(data.shipping_origin_draft_number || "").trim();
     const city = String(data.shipping_origin_draft_city || "").trim();
     const state = String(data.shipping_origin_draft_state || "").trim().toUpperCase();
-    if (!street || !number || !city || !/^[A-Z]{2}$/.test(state) || !/^\d{8}$/.test(postalCode)) {
+    const street = String(data.shipping_origin_draft_street || "").trim();
+    const neighborhood = String(data.shipping_origin_draft_neighborhood || "").trim();
+    if (!street || !city || !/^[A-Z]{2}$/.test(state) || !/^\d{8}$/.test(postalCode)) {
       throw new Error("O endereço de origem ativado está incompleto. Revise as configurações de entrega.");
     }
-    return [street, number, data.shipping_origin_draft_neighborhood, city, state, postalCode, "Brasil"]
-      .map((v) => String(v ?? "").trim()).filter(Boolean).join(", ");
+    const postal = await resolvePostalCode(postalCode);
+    if (postal.city.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() !== city.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase()
+      || postal.state !== state) {
+      throw new Error("O CEP cadastrado para a origem não corresponde à cidade/UF configurada. Revise o endereço de entrega.");
+    }
+    // Use the configured storefront street, number and neighborhood for geocoding.
+    // CEP is used to validate city/state, not to replace the actual storefront address.
+    const number = String(data.shipping_origin_draft_number || "").trim();
+    return {
+      ...postal,
+      address: [street, number].filter(Boolean).join(", "),
+      neighborhood: neighborhood || postal.neighborhood,
+    };
   }
-  return buildOriginQuery(String(data?.shipping_origin_postal_code || ""));
+  const postalCode = String(data?.shipping_origin_postal_code || "").replace(/\D/g, "");
+  const postal = await resolvePostalCode(postalCode);
+  if (postal.city !== "Palmas" || postal.state !== "TO") {
+    throw new Error("O CEP de origem da loja não corresponde a Palmas/TO.");
+  }
+  return postal;
 }
 
-function buildDestinationQuery(shipping: any) {
-  const cep = String(shipping.postal_code || "").replace(/\D/g, "");
-  const parts = [shipping.address, shipping.number, shipping.neighborhood, shipping.city, shipping.state, cep, "Brasil"]
-    .map((value) => String(value || "").trim()).filter(Boolean);
-  if (parts.length < 5) throw new Error("Endereço incompleto para calcular a rota.");
-  return parts.join(", ");
+async function getDestinationAddress(shipping: any): Promise<AddressParts> {
+  const postalCode = String(shipping.postal_code || "").replace(/\D/g, "");
+  const postal = await resolvePostalCode(postalCode);
+  const city = String(shipping.city || "").trim();
+  const state = String(shipping.state || "").trim().toUpperCase();
+  const normalizedCity = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  if (normalizedCity(postal.city) !== normalizedCity(city) || postal.state !== state) {
+    throw new Error("O CEP informado não corresponde à cidade e ao estado do endereço. Confira os dados de entrega.");
+  }
+  // Geocode the actual address typed by the customer. The previous code used only
+  // ViaCEP's street, so different delivery addresses could resolve to the same point.
+  const street = String(shipping.address || "").trim();
+  const number = String(shipping.number || "").trim();
+  const neighborhood = String(shipping.neighborhood || "").trim();
+  return {
+    ...postal,
+    address: [street, number].filter(Boolean).join(", "),
+    neighborhood: neighborhood || postal.neighborhood,
+  };
 }
 
-async function routeDistanceKm(originQuery: string, destinationQuery: string) {
+async function routeDistanceKm(destinationQuery: any) {
   const apiKey = Deno.env.get("ORS_API_KEY");
   if (!apiKey) throw new Error("O cálculo de rotas ainda não está configurado no servidor (ORS_API_KEY).");
-  const [origin, destination] = await Promise.all([
-    geocodeAddress(originQuery, apiKey),
-    geocodeAddress(destinationQuery, apiKey),
+  const [originAddress, destinationAddress] = await Promise.all([
+    getStoreOriginAddress(),
+    getDestinationAddress(destinationQuery),
   ]);
+  const [origin, destination] = await Promise.all([
+    geocodeAddress(originAddress, apiKey),
+    geocodeAddress(destinationAddress, apiKey),
+  ]);
+  if (Math.abs(origin[0] - destination[0]) < 0.00001 && Math.abs(origin[1] - destination[1]) < 0.00001) {
+    throw new Error("O mapa localizou a origem e o destino no mesmo ponto. Confira o endereço de entrega para evitar um frete incorreto.");
+  }
   const response = await fetchWithTimeout("https://api.heigit.org/openrouteservice/v2/directions/driving-car", {
     method: "POST",
     headers: { "Authorization": apiKey, "Content-Type": "application/json", "Accept": "application/json" },
@@ -135,13 +328,13 @@ Deno.serve(async (req: Request) => {
     if (!String(shipping.address || "").trim() || !String(shipping.number || "").trim() || !String(shipping.neighborhood || "").trim()) {
       throw new Error("Preencha logradouro, número e bairro para calcular a rota.");
     }
-    const originQuery = await getStoreOriginQuery();
-    const distance_km = await routeDistanceKm(originQuery, buildDestinationQuery({ ...shipping, postal_code: postalCode }));
+    const distance_km = await routeDistanceKm(shipping);
     timedLog("total", requestStartedAt, { outcome: "success" });
     return new Response(JSON.stringify({ distance_km, method: "openrouteservice-road-route" }), { headers: JSON_HEADERS });
   } catch (error) {
-    timedLog("total", requestStartedAt, { outcome: "error" });
     const message = error instanceof Error ? error.message : "Não foi possível calcular o frete.";
+    console.error(JSON.stringify({ event: "shipping_calculation_error", message }));
+    timedLog("total", requestStartedAt, { outcome: "error", message });
     return new Response(JSON.stringify({ error: message }), { status: 400, headers: JSON_HEADERS });
   }
 });
