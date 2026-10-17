@@ -10,5 +10,4 @@ Disallow: /promocoes
 Disallow: /relatorios
 Disallow: /loja/checkout
 Disallow: /loja/pedido
-
-Sitemap: https://karine-joias.vercel.app/sitemap.xml
+Sitemap: https://violetta.com.br/sitemap.xml
