@@ -487,6 +487,12 @@ function Reports({sales,clients,products,ownerId}:any){
  const newOnlineCustomers=channel==="PRESENCIAL"?0:new Set(onlineOrders.map((o:any)=>String(o.customer_email||o.customer_phone||o.customer_name||o.id).toLowerCase())).size;
 
  const esc=(v:any)=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+ const dashboardTrend=Array.from({length:7},(_,i)=>{const d=new Date(to+"T12:00:00");d.setDate(d.getDate()-(6-i));const date=d.toISOString().slice(0,10);const manual=channel==="SITE"?0:sales.filter((s:Sale)=>s.date===date).reduce((sum:number,s:Sale)=>sum+Number(s.amount||0),0);const online=channel==="PRESENCIAL"?0:onlineOrders.filter((o:any)=>String(o.created_at||"").slice(0,10)===date).reduce((sum:number,o:any)=>sum+Number(o.total_amount||0),0);return {date,label:date.slice(5).replace("-","/"),value:manual+online};}).filter(x=>x.date>=from&&x.date<=to);
+ const trendMax=Math.max(1,...dashboardTrend.map(x=>x.value));
+ const channelTotal=visibleManualRevenue+visibleOnlineRevenue;
+ const productBars=productPerformance.slice(0,5);
+ const productBarMax=Math.max(1,...productBars.map((p:any)=>p.value));
+ const paymentTotal=pay.reduce((sum:number,p:any)=>sum+p.value,0);
  const exportExcel=()=>{
    const rows=[
      ["Violetta Joias - Relatório gerencial"],
@@ -532,6 +538,46 @@ function Reports({sales,clients,products,ownerId}:any){
    <Stat icon={<ShoppingBag/>} label="Vendas pelo site" value={money(visibleOnlineRevenue)} note={visibleOrderCount+" pedidos pagos"}/>
    <Stat icon={<TrendingUp/>} label="Lucro bruto estimado" value={money(grossProfit)} note={grossMargin.toFixed(1)+"% de margem"}/>
    <Stat icon={<Users/>} label="Clientes compradores" value={topClients.length} note={newOnlineCustomers+" compradores online"}/>
+  </div>
+  <div className="report-grid" style={{marginTop:18,marginBottom:18,gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))"}}>
+   <section className="panel" style={{margin:0}}>
+    <p className="eyebrow">TENDÊNCIA</p><h3>Faturamento diário</h3>
+    <p style={{color:"var(--muted)",fontSize:12,marginTop:0}}>Últimos dias até a data final selecionada · valores de vendas registradas e pedidos pagos.</p>
+    <div style={{height:170,display:"flex",alignItems:"end",gap:8,paddingTop:12}}>
+     {dashboardTrend.map((d:any)=><div key={d.date} title={d.date+": "+money(d.value)} style={{flex:1,minWidth:0,height:"100%",display:"flex",flexDirection:"column",justifyContent:"end",alignItems:"center",gap:6}}>
+      <span style={{fontSize:10,color:"var(--muted)",whiteSpace:"nowrap"}}>{d.value>0?money(d.value):""}</span>
+      <div style={{width:"100%",maxWidth:34,height:Math.max(4,(d.value/trendMax)*112),borderRadius:"5px 5px 0 0",background:"var(--accent,#9b6b82)",opacity:d.value?1:.25}}/>
+      <span style={{fontSize:10,color:"var(--muted)"}}>{d.label}</span>
+     </div>)}
+    </div>
+   </section>
+   <section className="panel" style={{margin:0}}>
+    <p className="eyebrow">CANAIS</p><h3>Origem do faturamento</h3>
+    <p style={{color:"var(--muted)",fontSize:12,marginTop:0}}>Comparação entre vendas presenciais e pedidos pagos pelo site.</p>
+    <div style={{marginTop:22}}>
+     <div style={{display:"flex",justifyContent:"space-between",gap:8,fontSize:13,marginBottom:7}}><span>Presencial</span><strong>{money(visibleManualRevenue)}</strong></div>
+     <div style={{height:10,background:"var(--border,#eee)",borderRadius:99,overflow:"hidden"}}><div style={{height:"100%",width:(channelTotal?visibleManualRevenue/channelTotal*100:0)+"%",background:"var(--accent,#9b6b82)",borderRadius:99}}/></div>
+    </div>
+    <div style={{marginTop:20}}>
+     <div style={{display:"flex",justifyContent:"space-between",gap:8,fontSize:13,marginBottom:7}}><span>Site</span><strong>{money(visibleOnlineRevenue)}</strong></div>
+     <div style={{height:10,background:"var(--border,#eee)",borderRadius:99,overflow:"hidden"}}><div style={{height:"100%",width:(channelTotal?visibleOnlineRevenue/channelTotal*100:0)+"%",background:"var(--success,#4f8b73)",borderRadius:99}}/></div>
+    </div>
+    <p style={{fontSize:12,color:"var(--muted)",marginTop:18}}>Total no período: <strong>{money(channelTotal)}</strong></p>
+   </section>
+   <section className="panel" style={{margin:0}}>
+    <p className="eyebrow">PRODUTOS</p><h3>Top 5 por faturamento</h3>
+    {productBars.length?productBars.map((p:any)=><div key={p.name} style={{marginTop:14}}>
+     <div style={{display:"flex",justifyContent:"space-between",gap:8,fontSize:12,marginBottom:5}}><span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</span><strong style={{whiteSpace:"nowrap"}}>{money(p.value)}</strong></div>
+     <div style={{height:8,background:"var(--border,#eee)",borderRadius:99,overflow:"hidden"}}><div style={{height:"100%",width:(p.value/productBarMax*100)+"%",background:"var(--accent,#9b6b82)",borderRadius:99}}/></div>
+    </div>):<p style={{fontSize:13,color:"var(--muted)"}}>Não há vendas de produtos no período selecionado.</p>}
+   </section>
+   <section className="panel" style={{margin:0}}>
+    <p className="eyebrow">PAGAMENTOS</p><h3>Distribuição por forma</h3>
+    {pay.length?pay.slice(0,5).map((p:any)=><div key={p.payment} style={{marginTop:14}}>
+     <div style={{display:"flex",justifyContent:"space-between",gap:8,fontSize:12,marginBottom:5}}><span>{p.payment}</span><strong style={{whiteSpace:"nowrap"}}>{money(p.value)}</strong></div>
+     <div style={{height:8,background:"var(--border,#eee)",borderRadius:99,overflow:"hidden"}}><div style={{height:"100%",width:(paymentTotal?p.value/paymentTotal*100:0)+"%",background:"var(--accent,#9b6b82)",borderRadius:99}}/></div>
+    </div>):<p style={{fontSize:13,color:"var(--muted)"}}>Não há pagamentos registrados no período.</p>}
+   </section>
   </div>
   <section className="panel" style={{marginTop:18,marginBottom:18}}>
    <p className="eyebrow">ESTOQUE E REINVESTIMENTO · {from} A {to}</p><h3>Desempenho dos produtos</h3>
