@@ -255,7 +255,7 @@ function StoreSettings({ownerId,accessRole}:{ownerId?:string;accessRole?:"owner"
  const defaults={
    shipping_palmas_enabled:true,
    shipping_palmas_min_subtotal:50,
-   shipping_palmas_free_above:149,
+   shipping_palmas_free_above:149.90,
    shipping_palmas_pickup_enabled:true,
    top_banner_enabled:true,
    top_banner_text:"FRETE GRÁTIS",
@@ -326,7 +326,7 @@ setOriginBusy(true);try{if(!currentlyActive){const postal=String(settings.shippi
   <label>CEP de origem<input inputMode="numeric" maxLength={8} value={settings.shipping_origin_postal_code} onChange={e=>u("shipping_origin_postal_code",e.target.value.replace(/\D/g,""))}/><small>Usado como ponto de partida para calcular a distância.</small></label>
   <label className="settings-toggle"><input type="checkbox" checked={settings.shipping_palmas_pickup_enabled} onChange={e=>u("shipping_palmas_pickup_enabled",e.target.checked)}/> Permitir retirada no local</label>
   <label>Frete automático a partir de<input type="number" min="0" step=".01" value={settings.shipping_palmas_min_subtotal} onChange={e=>u("shipping_palmas_min_subtotal",e.target.value)}/><small>Subtotal mínimo para usar o cálculo automático.</small></label>
-  <label>Frete grátis a partir de<input type="number" min="0" step=".01" value={settings.shipping_palmas_free_above} onChange={e=>u("shipping_palmas_free_above",e.target.value)}/><small>Use 0 para desativar a regra.</small></label>
+  <label>Frete grátis a partir de<input type="number" min="0" step=".01" value={settings.shipping_palmas_free_above} onChange={e=>u("shipping_palmas_free_above",e.target.value)}/><small>Valor mínimo do subtotal para liberar frete grátis. Você pode trocar quando fizer promoções.</small><div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}><button className="secondary" type="button" onClick={()=>u("shipping_palmas_free_above","149.90")}>Padrão · R$ 149,90</button><button className="secondary" type="button" onClick={()=>u("shipping_palmas_free_above","99.99")}>Promoção · R$ 99,99</button><button className="secondary" type="button" onClick={()=>u("shipping_palmas_free_above","0")}>Desativar</button></div></label>
  </div>
  <div style={{marginTop:22}}><div className="panel-title"><div><p className="eyebrow">FAIXAS DE DISTÂNCIA</p><h3>Valores do frete</h3><p>Exemplo: 0–5 km = R$ 7. A última faixa deve terminar em 20 km.</p></div><button className="secondary" type="button" onClick={addRule}><Plus size={16}/> Adicionar faixa</button></div>
  <div style={{display:"grid",gap:10}}>{rules.map((r:any,i:number)=><div key={i} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr auto",gap:10,alignItems:"end",padding:12,border:"1px solid rgba(0,0,0,.08)",borderRadius:12}}>
