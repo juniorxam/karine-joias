@@ -643,3 +643,67 @@
 .store-empty-state h2{margin:0 auto 12px;font-family:var(--display);font-size:clamp(28px,4vw,46px);font-weight:500}
 .store-empty-state>p:not(.store-kicker){max-width:540px;margin:0 auto 20px;color:var(--muted);line-height:1.7}
 .store-empty-state .store-text-link{justify-content:center}
+
+
+/* Painel de vendas: ajustes responsivos para evitar sobreposição em celulares */
+.seller-sales,.seller-sales *{min-width:0}
+.seller-sales .sales-page-head>div{min-width:0}
+.seller-sales .sales-page-head h2{overflow-wrap:anywhere}
+.seller-sales .sales-period-switch{max-width:100%;flex-wrap:wrap}
+.seller-sales .sales-metrics-grid>div{min-width:0}
+.seller-sales .sales-metrics-grid strong{overflow-wrap:anywhere;word-break:break-word;font-size:clamp(20px,2.1vw,25px)}
+.seller-sales .sales-charts-grid>section{min-width:0}
+.seller-sales .sales-filter-row{padding-left:22px;padding-right:22px}
+.seller-sales .sales-order-row>div{min-width:0}
+.seller-sales .sales-order-row>div:nth-child(2){overflow-wrap:anywhere}
+.seller-sales .sales-order-row>div:nth-child(2) span{white-space:normal;line-height:1.35}
+.seller-sales .sales-order-details{overflow-wrap:anywhere}
+.seller-sales input{box-sizing:border-box;max-width:100%}
+@media(max-width:760px){
+ .seller-sales{padding:22px 12px 40px}
+ .seller-sales .sales-page-head{gap:14px;margin-bottom:20px!important}
+ .seller-sales .sales-page-head h2{font-size:27px;line-height:1.15}
+ .seller-sales .sales-page-head>button{width:100%;justify-content:center}
+ .seller-sales .sales-period-switch{width:100%;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))}
+ .seller-sales .sales-period-switch button{padding:9px 5px!important;font-size:11px!important;white-space:normal;line-height:1.2}
+ .seller-sales .sales-metrics-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important}
+ .seller-sales .sales-metrics-grid>div{padding:13px!important;border-radius:14px!important}
+ .seller-sales .sales-metrics-grid>div>div:first-child{align-items:flex-start!important}
+ .seller-sales .sales-metrics-grid>div>div:first-child>span{font-size:11px!important;line-height:1.35}
+ .seller-sales .sales-metrics-grid>div>div:first-child>div{width:32px!important;height:32px!important;border-radius:10px!important}
+ .seller-sales .sales-metrics-grid>div>div:first-child svg{width:17px;height:17px}
+ .seller-sales .sales-metrics-grid strong{font-size:clamp(17px,4.5vw,22px)!important;letter-spacing:-.4px!important;line-height:1.2}
+ .seller-sales .sales-metrics-grid>div>div:last-child{font-size:10px!important;line-height:1.4}
+ .seller-sales .sales-charts-grid{grid-template-columns:minmax(0,1fr)!important;gap:12px!important}
+ .seller-sales .sales-charts-grid>section{padding:15px!important}
+ .seller-sales .sales-charts-grid h3{font-size:15px!important;line-height:1.35}
+ .seller-sales .sales-charts-grid section>div[style*="height: 245px"]{height:210px!important}
+ .seller-sales section[style*="overflow: hidden"]>div:first-child{padding:16px!important}
+ .seller-sales section[style*="overflow: hidden"]>div:first-child>div:last-child{flex:1 1 100%;min-width:0}
+ .seller-sales .sales-filter-row{padding:12px 14px!important;flex-wrap:nowrap!important;overflow-x:auto;scrollbar-width:thin}
+ .seller-sales .sales-filter-row button{flex:0 0 auto;white-space:nowrap}
+ .seller-sales .sales-order-row{grid-template-columns:minmax(0,1fr) auto 20px!important;gap:8px!important;padding:13px 12px!important}
+ .seller-sales .sales-order-row>div:first-child{gap:8px!important}
+ .seller-sales .sales-order-row>div:first-child>div:first-child{width:32px!important;height:32px!important}
+ .seller-sales .sales-order-row>div:first-child>div:first-child svg{width:16px;height:16px}
+ .seller-sales .sales-order-row>div:first-child strong{font-size:12px!important;overflow-wrap:anywhere}
+ .seller-sales .sales-order-row>div:first-child span{font-size:11px!important}
+ .seller-sales .sales-order-row>div:nth-child(2){grid-column:1;grid-row:2;margin-left:40px;margin-top:-3px}
+ .seller-sales .sales-order-row>div:nth-child(3){grid-column:2;grid-row:1 / span 2;text-align:right!important;max-width:120px}
+ .seller-sales .sales-order-row>div:nth-child(3)>strong{font-size:12px!important;overflow-wrap:anywhere}
+ .seller-sales .sales-order-row>div:nth-child(3)>span{font-size:10px!important;white-space:normal;line-height:1.25;overflow-wrap:anywhere}
+ .seller-sales .sales-order-row>span:last-child{grid-column:3;grid-row:1 / span 2}
+ .seller-sales .sales-order-details{margin:0 10px 14px!important;padding:13px!important}
+ .seller-sales .sales-order-details>div:first-child{grid-template-columns:minmax(0,1fr)!important;gap:12px!important}
+ .seller-sales .sales-order-details p{overflow-wrap:anywhere}
+ .seller-sales .sales-order-details>div:last-child button{flex:1 1 100%;justify-content:center}
+ .seller-sales section[style*="overflow: hidden"]>div:last-child{padding:12px!important;font-size:10px!important}
+}
+@media(max-width:380px){
+ .seller-sales{padding-left:9px;padding-right:9px}
+ .seller-sales .sales-metrics-grid{grid-template-columns:minmax(0,1fr)!important}
+ .seller-sales .sales-metrics-grid>div{padding:15px!important}
+ .seller-sales .sales-metrics-grid strong{font-size:22px!important}
+ .seller-sales .sales-order-row>div:nth-child(3){max-width:100px}
+ .seller-sales .sales-charts-grid section>div[style*="height: 245px"]{height:190px!important}
+}
