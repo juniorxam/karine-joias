@@ -404,10 +404,15 @@ function Reports({sales,clients,products,ownerId}:any){
  const visibleOrderCount=channel==="PRESENCIAL"?0:orderCount;
  const transactionCount=visibleManualCount+visibleOrderCount;
  const ticket=transactionCount?revenue/transactionCount:0;
- const manualCost=sales.filter((s:Sale)=>s.date>=from&&s.date<=to).reduce((sum:number,s:Sale)=>sum+Number(products.find((p:Product)=>p.id===s.productId)?.cost||0)*Number(s.quantity||1),0);
- const onlineCost=onlineItems.reduce((sum:number,item:any)=>sum+Number(products.find((p:Product)=>p.id===Number(item.product_id))?.cost||0)*Number(item.quantity||0),0);
+ const periodManualSales=sales.filter((s:Sale)=>s.date>=from&&s.date<=to&&channel!=="SITE");
+ const manualCostKnown=periodManualSales.every((s:Sale)=>{const p=products.find((p:Product)=>p.id===s.productId);return !!p&&p.cost!==null&&p.cost!==undefined&&Number.isFinite(Number(p.cost))&&Number(p.cost)>=0;});
+ const manualCost=periodManualSales.reduce((sum:number,s:Sale)=>sum+Number(products.find((p:Product)=>p.id===s.productId)?.cost||0)*Number(s.quantity||1),0);
+ const visibleOnlineItems=channel==="PRESENCIAL"?[]:onlineItems;
+ const onlineCostKnown=visibleOnlineItems.every((item:any)=>{const p=products.find((p:Product)=>p.id===Number(item.product_id));return !!p&&p.cost!==null&&p.cost!==undefined&&Number.isFinite(Number(p.cost))&&Number(p.cost)>=0;});
+ const onlineCost=visibleOnlineItems.reduce((sum:number,item:any)=>sum+Number(products.find((p:Product)=>p.id===Number(item.product_id))?.cost||0)*Number(item.quantity||0),0);
  const visibleManualCost=channel==="SITE"?0:manualCost;
  const visibleOnlineCost=channel==="PRESENCIAL"?0:onlineCost;
+ const profitCostComplete=(channel==="SITE"||manualCostKnown)&&(channel==="PRESENCIAL"||onlineCostKnown);
  const grossProfit=revenue-visibleManualCost-visibleOnlineCost;
  const grossMargin=revenue>0?(grossProfit/revenue)*100:0;
 
@@ -536,7 +541,7 @@ function Reports({sales,clients,products,ownerId}:any){
    <Stat icon={<TrendingUp/>} label="Faturamento total" value={money(revenue)} note={transactionCount+" transações no período"} accent/><Stat icon={<ShoppingBag/>} label="Presencial" value={money(visibleManualRevenue)} note={visibleManualCount+" vendas"}/>
    <Stat icon={<CircleDollarSign/>} label="Ticket médio" value={money(ticket)} note={channel==="ALL"?"presencial + online":channel==="SITE"?"somente site":"somente presencial"}/>
    <Stat icon={<ShoppingBag/>} label="Vendas pelo site" value={money(visibleOnlineRevenue)} note={visibleOrderCount+" pedidos pagos"}/>
-   <Stat icon={<TrendingUp/>} label="Lucro bruto estimado" value={money(grossProfit)} note={grossMargin.toFixed(1)+"% de margem"}/>
+   <Stat icon={<TrendingUp/>} label="Lucro bruto estimado" value={profitCostComplete?money(grossProfit):"N/D"} note={profitCostComplete?grossMargin.toFixed(1)+"% de margem":"Cadastre o custo de todos os produtos vendidos"}/>
    <Stat icon={<Users/>} label="Clientes compradores" value={topClients.length} note={newOnlineCustomers+" compradores online"}/>
   </div>
   <div className="report-grid" style={{marginTop:18,marginBottom:18,gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))"}}>
