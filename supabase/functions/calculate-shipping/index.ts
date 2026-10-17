@@ -36,8 +36,8 @@ async function fromCep(postalCode: string): Promise<Address> {
 
 async function geocode(address: Address): Promise<[number, number]> {
   const postalReference: Record<string, [number, number]> = {
-    "77001540": [-48.32725, -10.18446],
-    "77001570": [-48.35000, -10.17987],
+    "77001540": [-48.34600, -10.16300],
+    "77001570": [-48.34920, -10.16180],
     "77015007": [-48.33366, -10.18457],
   };
   if (postalReference[address.postalCode]) return postalReference[address.postalCode];
