@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshCw, Search, ShoppingBag, Clock3, CheckCircle2, Package, Truck, MessageCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { RefreshCw, Search, ShoppingBag, Clock3, CheckCircle2, Package, MessageCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "./lib/supabase";
 
