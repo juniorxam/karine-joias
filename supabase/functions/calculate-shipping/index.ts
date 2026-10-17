@@ -35,6 +35,12 @@ async function fromCep(postalCode: string): Promise<Address> {
 }
 
 async function geocode(address: Address): Promise<[number, number]> {
+  const postalReference: Record<string, [number, number]> = {
+    "77001540": [-48.32725, -10.18446],
+    "77001570": [-48.35000, -10.17987],
+    "77015007": [-48.33366, -10.18457],
+  };
+  if (postalReference[address.postalCode]) return postalReference[address.postalCode];
   const street = normalize(address.street);
   const streetWords = street.split(/[^a-z0-9]+/).filter((word) => word.length >= 3 && !/^\d+$/.test(word));
   const queries = [
@@ -79,11 +85,6 @@ async function geocode(address: Address): Promise<[number, number]> {
       && normalize(result.city || result.town || result.municipality || item?.display_name).includes(normalize(address.city));
   });
   if (cityMatch) return [-48.345, -10.195];
-  const postalReference: Record<string, [number, number]> = {
-    "77001540": [-48.32725, -10.18446],
-    "77015007": [-48.33366, -10.18457],
-  };
-  if (postalReference[address.postalCode]) return postalReference[address.postalCode];
   throw new Error("O mapa não encontrou o logradouro em Palmas. Confira rua, número, bairro e CEP.");
 }
 
