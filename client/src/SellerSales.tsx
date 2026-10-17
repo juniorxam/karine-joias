@@ -90,10 +90,10 @@ export default function SellerSales({ ownerId }: { ownerId: string }) {
       <button className="ghost" type="button" onClick={() => void load(true)} disabled={refreshing}><RefreshCw size={16} /> {refreshing ? "Atualizando…" : "Atualizar"}</button>
     </div>
     <div className="dashboard-grid" style={{gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",marginBottom:20}}>
-      <div className="stat-card"><div className="stat-icon"><ShoppingBag size={20}/></div><span>Pedidos recebidos</span><strong>{orders.length}</strong><small>Últimos 200 pedidos</small></div>
-      <div className="stat-card"><div className="stat-icon"><Clock3 size={20}/></div><span>Em aberto</span><strong>{openCount}</strong><small>Precisam de acompanhamento</small></div>
-      <div className="stat-card"><div className="stat-icon"><CheckCircle2 size={20}/></div><span>Vendas pagas</span><strong>{money(paidTotal)}</strong><small>Valor bruto dos pedidos pagos</small></div>
-      <div className="stat-card"><div className="stat-icon"><Package size={20}/></div><span>Pagamentos pendentes</span><strong>{pendingCount}</strong><small>Aguardando confirmação</small></div>
+      <div className="stat" style={{minHeight:120}}><div className="stat-icon"><ShoppingBag size={20}/></div><span>Pedidos recebidos</span><strong>{orders.length}</strong><small>Últimos 200 pedidos</small></div>
+      <div className="stat" style={{minHeight:120}}><div className="stat-icon"><Clock3 size={20}/></div><span>Em aberto</span><strong>{openCount}</strong><small>Precisam de acompanhamento</small></div>
+      <div className="stat" style={{minHeight:120}}><div className="stat-icon"><CheckCircle2 size={20}/></div><span>Vendas pagas</span><strong>{money(paidTotal)}</strong><small>Valor bruto dos pedidos pagos</small></div>
+      <div className="stat" style={{minHeight:120}}><div className="stat-icon"><Package size={20}/></div><span>Pagamentos pendentes</span><strong>{pendingCount}</strong><small>Aguardando confirmação</small></div>
     </div>
     <div className="panel">
       <div className="panel-head" style={{gap:12,flexWrap:"wrap"}}>
