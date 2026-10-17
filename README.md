@@ -75,7 +75,7 @@ A criação do link e a confirmação do pagamento são etapas diferentes. Não 
 - `infinitepay-webhook`: valida o pagamento com a InfinitePay, registra o evento e atualiza o pedido.
 - `create-order`: cria o pedido antes do pagamento, com validações de integridade.
 
-**Código legado:** ainda existem arquivos antigos relacionados ao Mercado Pago, incluindo `create-payment` e possíveis referências a webhook/credenciais antigas. O checkout da vitrine deve usar somente InfinitePay. Antes de remover as funções antigas do Supabase, confira se há pedidos históricos pendentes vinculados ao provedor antigo; não reutilize nem gere um segundo link para esses pedidos sem reconciliar sua situação.
+**Integração antiga desativada:** os endpoints `create-payment` e `mercadopago-webhook` foram substituídos por respostas HTTP 410 (integração desativada). Eles não criam cobranças nem atualizam pedidos. O fluxo de novas compras deve usar exclusivamente InfinitePay. As funções antigas permanecem cadastradas no Supabase por não haver ação de exclusão disponível nesta integração, mas seu código operacional foi retirado.
 
 ## Segurança
 
@@ -105,7 +105,7 @@ A vitrine define metatags, canonical, Open Graph e dados estruturados de produto
 - [ ] Testar pagamento cancelado, falha de criação do link, repetição do webhook e pedido já pago.
 - [ ] Verificar no painel que cliente, endereço, itens, frete, total, provedor e status de pagamento aparecem corretamente.
 - [ ] Testar frete com CEP atendido, CEP fora da área, número do endereço e diferentes faixas de distância.
-- [ ] Revisar os avisos de segurança do Supabase e remover o código legado do Mercado Pago somente depois de reconciliar pedidos antigos.
+- [ ] Revisar os avisos de segurança do Supabase e confirmar que nenhum componente do checkout ainda chama os endpoints desativados do Mercado Pago.
 - [ ] Definir o procedimento fiscal e de atendimento da operação.
 
 ## Publicação
