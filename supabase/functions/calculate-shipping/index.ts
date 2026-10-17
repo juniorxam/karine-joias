@@ -71,6 +71,14 @@ async function geocode(address: Address): Promise<[number, number]> {
       && city.includes(normalize(address.city)) && (!state || state.includes("tocantins") || state === "to");
   });
   if (areaMatch) return [Number(areaMatch.lon), Number(areaMatch.lat)];
+  const cityParams = new URLSearchParams({ q: `${address.city}, ${address.state}, Brasil`, format: "jsonv2", addressdetails: "1", countrycodes: "br", limit: "10", viewbox: "-48.60,-9.70,-48.00,-10.60" });
+  const cityData = await fetchJson(`https://nominatim.openstreetmap.org/search?${cityParams}`, { headers: { Accept: "application/json", "User-Agent": "ViolettaStoreShipping/1.0" } });
+  const cityMatch = (Array.isArray(cityData) ? cityData : []).find((item: any) => {
+    const lat = Number(item?.lat), lon = Number(item?.lon), result = item?.address || {};
+    return Number.isFinite(lat) && Number.isFinite(lon) && lon >= bbox.minLon && lon <= bbox.maxLon && lat >= bbox.minLat && lat <= bbox.maxLat
+      && normalize(result.city || result.town || result.municipality || item?.display_name).includes(normalize(address.city));
+  });
+  if (cityMatch) return [Number(cityMatch.lon), Number(cityMatch.lat)];
   throw new Error("O mapa não encontrou o logradouro em Palmas. Confira rua, número, bairro e CEP.");
 }
 
