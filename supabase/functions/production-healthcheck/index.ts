@@ -24,15 +24,9 @@ Deno.serve(async(req)=>{
     const siteUrl=Deno.env.get("PUBLIC_SITE_URL")||"";
     add("Domínio da loja",/^https:\/\/[^\s/]+(?:\/[^\s]*)?$/.test(siteUrl),siteUrl?"PUBLIC_SITE_URL configurada":"PUBLIC_SITE_URL ausente",true);
 
-    const mpToken=Deno.env.get("MP_ACCESS_TOKEN")||"";
-    const mpWebhook=Deno.env.get("MP_WEBHOOK_KEY")||"";
-    add("Mercado Pago · access token",!!mpToken,mpToken?"Configurado":"Ausente",true);
-    add("Mercado Pago · webhook secret",!!mpWebhook,mpWebhook?"Configurado":"Ausente",true);
-
-    if(mpToken){
-      const r=await fetch("https://api.mercadopago.com/v1/payment_methods",{headers:{Authorization:`Bearer ${mpToken}`,Accept:"application/json"}});
-      add("Mercado Pago · API",r.ok,`HTTP ${r.status}`,true);
-    }else add("Mercado Pago · API",false,"Não testado",true);
+    const infinitePayHandle=(Deno.env.get("INFINITEPAY_HANDLE")||"violettaprataesemijoias").replace(/^\$/,"").trim();
+    add("InfinitePay · conta",!!infinitePayHandle,infinitePayHandle?"Identificador configurado":"Identificador ausente",true);
+    add("InfinitePay · confirmação",!!infinitePayHandle,"A confirmação real ocorre no webhook via payment_check; este diagnóstico não cria cobranças.",true);
 
     const {data:storeSettings,error:storeSettingsError}=await admin.from("storefront_settings").select("store_slug,shipping_palmas_enabled,shipping_palmas_pickup_enabled").eq("store_slug","violetta").maybeSingle();
     add("Configuração da loja",!storeSettingsError&&!!storeSettings,storeSettingsError?"Não foi possível ler a configuração da Violetta":storeSettings?"Configuração Violetta encontrada":"Configuração da loja ausente",true);
