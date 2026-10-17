@@ -419,6 +419,10 @@ function Reports({sales,clients,products,ownerId}:any){
    paymentMap.set(method,(paymentMap.get(method)||0)+Number(o.total_amount||0));
  });
  const pay=Array.from(paymentMap.entries()).map(([payment,value])=>({payment,value})).sort((a,b)=>b.value-a.value);
+ const identifiedCardSales=sales.filter((s:Sale)=>s.date>=from&&s.date<=to&&channel!=="SITE"&&/cr[eé]dito|cart[aã]o|credit|card/i.test(String(s.payment||"")));
+ const onlineCardOrders=onlineOrders.filter((o:any)=>channel!=="PRESENCIAL"&&/cr[eé]dito|credit|card/i.test(String(o.payment_method||"")));
+ const cardRevenue=identifiedCardSales.reduce((sum:number,s:Sale)=>sum+Number(s.amount||0),0)+onlineCardOrders.reduce((sum:number,o:any)=>sum+Number(o.total_amount||0),0);
+ const feeScenarios=[{label:"1x",grossFeeRate:4.39/104.39,sourceRate:"4,39%"},{label:"2x",grossFeeRate:6.49/106.49,sourceRate:"6,49%"},{label:"3x",grossFeeRate:7.54/107.54,sourceRate:"7,54%"}].map(x=>({...x,estimatedFee:cardRevenue*x.grossFeeRate,net:cardRevenue*(1-x.grossFeeRate)}));
 
  const productMap=new Map<string,{name:string,value:number,qty:number}>();
  sales.filter((s:Sale)=>s.date>=from&&s.date<=to).forEach((s:Sale)=>{
@@ -504,6 +508,16 @@ function Reports({sales,clients,products,ownerId}:any){
    <Stat icon={<TrendingUp/>} label="Lucro bruto estimado" value={money(grossProfit)} note={grossMargin.toFixed(1)+"% de margem"}/>
    <Stat icon={<Users/>} label="Clientes compradores" value={topClients.length} note={newOnlineCustomers+" compradores online"}/>
   </div>
+  <section className="panel" style={{marginTop:18,marginBottom:18}}>
+   <p className="eyebrow">ANÁLISE DE TAXAS · {from} A {to}</p>
+   <h3>Taxa de cartão recomendada</h3>
+   <p style={{color:"var(--muted)",fontSize:13,lineHeight:1.6}}>Estimativa baseada nas vendas identificadas como crédito/cartão no período selecionado. A tabela de referência informada pela loja (4,39%, 6,49% e 7,54% para receber R$ 100 líquidos) foi convertida para percentual do valor pago pelo cliente. Não são taxas reais confirmadas pela InfinitePay.</p>
+   <div className="report-grid" style={{marginTop:14}}>
+    {feeScenarios.map((scenario:any)=><div key={scenario.label} className="integration-status-card" style={{display:"block"}}><strong>{scenario.label} · referência {scenario.sourceRate}</strong><div style={{marginTop:8}}>Taxa equivalente: <b>{(scenario.grossFeeRate*100).toFixed(2).replace(".",",")}%</b></div><small>Custo estimado: {money(scenario.estimatedFee)} · líquido estimado: {money(scenario.net)}</small></div>)}
+   </div>
+   <div className="integration-note" style={{marginTop:14}}><strong>Orientação inicial: reserva de 7%</strong><span>{cardRevenue>0?("O sistema identificou "+(identifiedCardSales.length+onlineCardOrders.length)+" venda(s) de cartão/crédito, totalizando "+money(cardRevenue)+". Pela tabela informada, o custo equivalente estimado é cerca de 6,10% em 2x e 7,01% em 3x. A reserva de 7% é um ponto de partida, mas fica próxima do limite para 3x. Confirme no extrato InfinitePay, especialmente se houver antecipação."):"Não foram encontradas vendas identificadas como cartão/crédito neste recorte. Ainda não é possível recomendar uma taxa com base no histórico."} Pedidos identificados apenas como “InfinitePay” sem modalidade explícita não são presumidos como cartão parcelado, para evitar estimativas enganosas.</span></div>
+   <div style={{marginTop:12}}><button className="secondary" onClick={()=>{const rows=[["Análise de taxas - Violetta"],["Período",from,to],["Vendas identificadas como cartão/crédito",identifiedCardSales.length+onlineCardOrders.length],["Faturamento identificado",cardRevenue],["Cenário","Taxa de referência","Taxa equivalente sobre valor pago","Custo estimado","Líquido estimado"],...feeScenarios.map((x:any)=>[x.label,x.sourceRate,(x.grossFeeRate*100).toFixed(2)+"%",x.estimatedFee,x.net])];const html="<table>"+rows.map(r=>"<tr>"+r.map((v:any)=>"<td>"+esc(v)+"</td>").join("")+"</tr>").join("")+"</table>";const url=URL.createObjectURL(new Blob([html],{type:"application/vnd.ms-excel"}));const link=document.createElement("a");link.href=url;link.download="analise-taxas-violetta-"+from+"-a-"+to+".xls";link.click();URL.revokeObjectURL(url);toast.success("Análise de taxas exportada");}}>Exportar análise de taxas</button></div>
+  </section>
   <div className="report-grid">
    <section className="panel"><p className="eyebrow">VENDAS</p><h3>Por forma de pagamento</h3>{pay.length?pay.map(x=><div className="report-bar" key={x.payment}><div><span>{x.payment}</span><b>{money(x.value)}</b></div><div className="track"><i style={{width:(Math.max(5,x.value/Math.max(...pay.map((v:any)=>v.value),1)*100))+"%"}}/></div></div>):<p style={{color:"var(--muted)"}}>Nenhuma venda no período.</p>}</section>
    <section className="panel"><p className="eyebrow">PRODUTOS</p><h3>Mais vendidos</h3>{topProducts.length?topProducts.slice(0,8).map(x=><div className="ranking" key={x.name}><div className="avatar small">{initials(x.name)}</div><span>{x.name}<small style={{display:"block",color:"var(--muted)"}}>{x.qty} unidade(s)</small></span><strong>{money(x.value)}</strong></div>):<p style={{color:"var(--muted)"}}>Nenhuma venda no período.</p>}</section>
