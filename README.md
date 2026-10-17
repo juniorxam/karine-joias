@@ -5,12 +5,12 @@ Aplicação de gestão e loja virtual da Violetta Joias e Semijoias.
 ## Arquitetura
 
 - **Frontend:** React + TypeScript + Vite.
-- **Administração:** `/gestao`, com autenticação Supabase e dados sincronizados no PostgreSQL. A loja pública permanece em `/loja`; o painel não é divulgado na vitrine.
-- **Loja pública:** `/loja`, catálogo publicado, carrinho, checkout, cupons e acompanhamento do pedido.
-- **Pagamentos:** Mercado Pago Checkout Pro + webhook assinado.
-- **Frete:** cálculo próprio da Violetta para Palmas-TO e frete a combinar para demais localidades. Melhor Envio não faz parte do checkout atual.
-- **Banco:** Supabase Postgres com RLS e funções de serviço para operações sensíveis.
-- **Hospedagem planejada:** Vercel para o frontend e Edge Functions do Supabase para o backend de checkout/integrações.
+- **Administração:** `/gestao`, com autenticação Supabase e dados sincronizados no PostgreSQL. O painel não é divulgado na vitrine.
+- **Loja pública:** `/loja`, catálogo, carrinho, checkout, cupons e acompanhamento do pedido.
+- **Pagamentos online:** InfinitePay, com geração de link de checkout e confirmação do pagamento pelo endpoint oficial `payment_check`, acionado pela Edge Function `infinitepay-webhook`.
+- **Frete:** cálculo próprio da Violetta para Palmas-TO, com regras configuradas na loja; localidades fora da área atendida podem depender de confirmação manual. Melhor Envio não faz parte do checkout atual.
+- **Banco de dados:** Supabase Postgres, com RLS e funções de servidor para operações sensíveis.
+- **Hospedagem:** Vercel para o frontend e Supabase Edge Functions para checkout e integrações.
 
 ## Executar localmente
 
@@ -33,66 +33,85 @@ pnpm build
 
 ## Variáveis de ambiente
 
-Frontend:
+Variáveis públicas do frontend:
 
-```
+```env
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
 VITE_STORE_WHATSAPP=
+VITE_STORE_INSTAGRAM=
 ```
 
-Segredos de backend devem ficar somente nas Edge Functions/Supabase, nunca no frontend:
+Configuração do servidor / Supabase Edge Functions:
 
-```
-SUPABASE_SERVICE_ROLE_KEY=
-MP_ACCESS_TOKEN=
-MP_WEBHOOK_KEY=
+```env
 PUBLIC_SITE_URL=https://violetta.com.br
+INFINITEPAY_HANDLE=violettaprataesemijoias
 ```
 
-## Fluxo da loja
+O checkout atual usa o identificador da conta InfinitePay (`INFINITEPAY_HANDLE`) para criar links. Confirme no painel da InfinitePay que o identificador corresponde à conta que receberá as vendas. A integração atual não usa `MP_ACCESS_TOKEN` nem `MP_WEBHOOK_KEY`.
 
-1. Cliente escolhe uma peça em `/loja`.
-2. Produto é adicionado ao carrinho.
-3. Checkout coleta dados do cliente e endereço.
-4. A Violetta calcula o frete de Palmas-TO por distância ou apresenta frete a combinar.
-5. O pedido é criado no Supabase com validação de estoque, frete e cupom.
-6. Mercado Pago gera o Checkout Pro.
-7. O webhook assinado reconcilia o pagamento.
-8. A proprietária acompanha o pedido no painel.
-9. A equipe acompanha o pedido e, quando aplicável, registra o envio/rastreamento pelo painel.
+As funções de servidor também precisam das credenciais internas do Supabase disponibilizadas pelo ambiente, como `SUPABASE_URL` e uma chave de serviço com privilégios adequados. Essas chaves devem ficar exclusivamente no ambiente seguro do Supabase; nunca use prefixo `VITE_` para segredos e nunca os envie ao navegador ou ao GitHub.
+
+Use os arquivos `.env.example` e `supabase/functions/.env.example` como referência. Eles são modelos, não devem conter credenciais reais.
+
+## Fluxo de compra
+
+1. O cliente seleciona os produtos na rota `/loja`.
+2. O checkout coleta os dados do cliente e o endereço de entrega.
+3. A Edge Function `create-order` cria o pedido e valida itens, estoque, frete, cupom e total.
+4. A Edge Function `create-infinitepay-payment` consulta o pedido salvo, valida novamente o total e cria o link de pagamento InfinitePay.
+5. O cliente é redirecionado ao checkout hospedado pela InfinitePay.
+6. A InfinitePay envia uma notificação para `infinitepay-webhook`.
+7. O webhook consulta o endpoint oficial `payment_check`; a notificação recebida, sozinha, não é considerada prova de pagamento.
+8. O sistema confere se o pagamento foi confirmado e se o valor recebido corresponde ao total do pedido antes de marcar o pedido como pago.
+9. A proprietária acompanha o pedido e a situação do pagamento em `/gestao`.
+
+A criação do link e a confirmação do pagamento são etapas diferentes. Não marque um pedido como pago com base apenas no retorno do navegador ou em uma notificação sem validação no servidor.
+
+## Funções de pagamento
+
+- `create-infinitepay-payment`: gera ou reutiliza o link de pagamento de um pedido pendente.
+- `infinitepay-webhook`: valida o pagamento com a InfinitePay, registra o evento e atualiza o pedido.
+- `create-order`: cria o pedido antes do pagamento, com validações de integridade.
+
+**Código legado:** ainda existem arquivos antigos relacionados ao Mercado Pago, incluindo `create-payment` e possíveis referências a webhook/credenciais antigas. O checkout da vitrine deve usar somente InfinitePay. Antes de remover as funções antigas do Supabase, confira se há pedidos históricos pendentes vinculados ao provedor antigo; não reutilize nem gere um segundo link para esses pedidos sem reconciliar sua situação.
 
 ## Segurança
 
-A aplicação usa RLS, autenticação e funções de banco para operações sensíveis. O frontend nunca deve receber `SUPABASE_SERVICE_ROLE_KEY` nem o token do Mercado Pago.
+- Nunca exponha a chave de serviço do Supabase, credenciais privadas ou segredos em variáveis `VITE_*`.
+- Mantenha RLS e políticas de acesso coerentes com o papel de cada tabela. Não torne tabelas administrativas públicas apenas para eliminar avisos do Security Advisor.
+- Valide valores e estados do pedido no servidor; não confie no preço, frete, desconto ou status enviado pelo navegador.
+- Confirme pagamentos no servidor com a InfinitePay antes de atualizar o status do pedido.
+- Preserve idempotência na criação do pedido e do checkout para evitar duplicidade em cliques repetidos ou novas tentativas.
+- Restrinja o acesso ao painel `/gestao` por autenticação e autorização, independentemente de a rota ser conhecida ou não.
 
-O projeto também possui o Edge Function `production-healthcheck`, acessível para usuário autenticado no painel, para verificar a configuração de produção e conectividade com o Mercado Pago.
+## SEO e domínio
 
-### Atenção aos avisos do Supabase
+A vitrine define metatags, canonical, Open Graph e dados estruturados de produto/loja. O arquivo `robots.txt` deve permitir a indexação das páginas públicas e evitar indexação de checkout e acompanhamento de pedidos.
 
-Os avisos do Security Advisor precisam ser tratados conforme o modelo de acesso da aplicação. Em especial, tabelas administrativas não devem ser tornadas públicas apenas para eliminar um alerta. O catálogo `public_products` é intencionalmente consultável por visitantes da loja; já dados administrativos devem permanecer protegidos por autenticação/RLS.
+- Domínio de produção: `https://violetta.com.br`
+- `PUBLIC_SITE_URL` deve corresponder ao domínio de produção.
+- Verifique se sitemap, canonical e redirecionamento de `www.violetta.com.br` permanecem corretos após cada publicação.
 
-## SEO
+## Antes de abrir ou retomar vendas reais
 
-A vitrine define metatags, canonical, Open Graph e dados estruturados de produto/loja em runtime. O arquivo `robots.txt` permite indexação da vitrine e bloqueia checkout e acompanhamento de pedidos.
-
-O domínio definitivo é `https://violetta.com.br`; `PUBLIC_SITE_URL` deve permanecer apontando para ele.
-
-## Antes de abrir vendas reais
-
-- Configurar domínio próprio e HTTPS.
-- Configurar `PUBLIC_SITE_URL` com o domínio definitivo.
-- Usar credenciais de produção do Mercado Pago.
-- Configurar e testar o webhook de pagamentos.
-- Executar o diagnóstico de produção no painel.
-- Fazer um pedido controlado ponta a ponta.
-- Confirmar estoque, pagamento, frete e rastreamento.
-- Definir o procedimento fiscal da operação.
-
+- [ ] Confirmar o `INFINITEPAY_HANDLE` da conta correta no ambiente de produção do Supabase.
+- [ ] Confirmar `PUBLIC_SITE_URL=https://violetta.com.br`.
+- [ ] Confirmar que as Edge Functions `create-order`, `create-infinitepay-payment` e `infinitepay-webhook` estão implantadas na versão atual.
+- [ ] Configurar na InfinitePay a URL de notificação exigida pela integração: `https://<PROJECT_REF>.supabase.co/functions/v1/infinitepay-webhook`.
+- [ ] Fazer um pedido controlado e conferir o redirecionamento ao checkout InfinitePay.
+- [ ] Confirmar que o webhook valida o pagamento pelo `payment_check`, confere o valor e atualiza o pedido uma única vez.
+- [ ] Testar pagamento cancelado, falha de criação do link, repetição do webhook e pedido já pago.
+- [ ] Verificar no painel que cliente, endereço, itens, frete, total, provedor e status de pagamento aparecem corretamente.
+- [ ] Testar frete com CEP atendido, CEP fora da área, número do endereço e diferentes faixas de distância.
+- [ ] Revisar os avisos de segurança do Supabase e remover o código legado do Mercado Pago somente depois de reconciliar pedidos antigos.
+- [ ] Definir o procedimento fiscal e de atendimento da operação.
 
 ## Publicação
-- Marca: Violetta Joias e Semijoias
-- Domínio definitivo: `violetta.com.br`
-- Ambiente: Vercel (produção)
-- Diretório de saída do Vercel: `dist/public`
-- Rotas públicas: `/loja` para clientes e `/gestao` para a proprietária
+
+- **Marca:** Violetta Joias e Semijoias
+- **Domínio:** `violetta.com.br`
+- **Hospedagem:** Vercel (produção)
+- **Diretório de saída:** `dist/public`
+- **Rotas:** `/loja` para clientes e `/gestao` para administração
