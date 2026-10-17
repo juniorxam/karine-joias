@@ -235,10 +235,10 @@ function ReceivingAccounts({ownerId}:{ownerId?:string}){
 
 function OnlinePaymentsStatus({check,healthBusy,checkIntegrations}:{check:(name:string)=>any;healthBusy:boolean;checkIntegrations:()=>void}){
  const mp=check("InfinitePay · configuração");
- return <section className="panel" style={{marginBottom:20}}><div className="panel-title"><div><p className="eyebrow">PAGAMENTOS ONLINE</p><h3>InfinitePay</h3><p>O cadastro da conta e a integração do checkout são coisas diferentes. Aqui você acompanha a conexão real do pagamento online.</p></div><CreditCard size={20} className="gold-icon"/></div>
+ return <section className="panel" style={{marginBottom:20}}><div className="panel-title"><div><p className="eyebrow">PAGAMENTOS ONLINE</p><h3>InfinitePay</h3><p>Aqui você confere se a conta está configurada. A confirmação do funcionamento exige um pedido de teste de ponta a ponta.</p></div><CreditCard size={20} className="gold-icon"/></div>
  <div className="integration-status-grid">
-  <div className="integration-status-card"><div><strong>API do InfinitePay</strong><span>{mp?mp.ok?"Conectado":"Atenção necessária":"Não verificado"}</span>{mp&&<small>{mp.detail}</small>}</div><b className={mp?.ok?"status-ok":"status-muted"}>{mp?.ok?"●":"○"}</b></div>
-  <div className="integration-status-card"><div><strong>Checkout online</strong><span>{mp?.ok?"Disponível para uso":"Depende da configuração da API"}</span><small>As credenciais privadas permanecem no ambiente seguro do servidor.</small></div><b className={mp?.ok?"status-ok":"status-muted"}>{mp?.ok?"●":"○"}</b></div>
+  <div className="integration-status-card"><div><strong>Configuração da conta InfinitePay</strong><span>{mp?mp.ok?"Configurado":"Atenção necessária":"Não verificado"}</span>{mp&&<small>{mp.detail}</small>}</div><b className={mp?.ok?"status-ok":"status-muted"}>{mp?.ok?"●":"○"}</b></div>
+  <div className="integration-status-card"><div><strong>Checkout online</strong><span>{mp?.ok?"Conta configurada — teste de pagamento pendente":"Configure a conta no Supabase"}</span><small>As credenciais privadas permanecem no ambiente seguro do servidor.</small></div><b className={mp?.ok?"status-ok":"status-muted"}>{mp?.ok?"●":"○"}</b></div>
  </div>
  <div className="integration-note"><strong>Não coloque credenciais aqui</strong><span>O identificador da conta InfinitePay e as configurações do checkout devem ser definidos no ambiente seguro do Supabase, nunca no navegador. A verificação abaixo confere a configuração do servidor.</span></div>
  <div className="modal-actions"><button className="secondary" onClick={checkIntegrations} disabled={healthBusy}>{healthBusy?"Verificando…":"Verificar conexão do InfinitePay"}</button></div></section>;
