@@ -407,7 +407,7 @@ async function routeDistanceKm(destinationQuery: any) {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !serviceKey) throw new Error("Configuração do servidor indisponível.");
   const db = createClient(url, serviceKey);
-  const normalizePart = (value: string) => value.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toLowerCase();
+  const normalizePart = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
   const cachePayload = [
     originAddress.address, originAddress.neighborhood, originAddress.city, originAddress.state, originAddress.postalCode,
     destinationAddress.address, destinationAddress.neighborhood, destinationAddress.city, destinationAddress.state, destinationAddress.postalCode,

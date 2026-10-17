@@ -23,13 +23,19 @@ async function geocodePostalCode(postalCode: string) {
   return { lat: Number(data[0].lat), lon: Number(data[0].lon) };
 }
 
-function distanceKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
-  const rad = (value: number) => value * Math.PI / 180;
-  const dLat = rad(b.lat - a.lat);
-  const dLon = rad(b.lon - a.lon);
-  const h = Math.sin(dLat / 2) ** 2 +
-    Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
-  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+async function routeDistanceKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
+  const coordinates = encodeURIComponent(`${a.lon},${a.lat};${b.lon},${b.lat}`);
+  const response = await fetch(
+    `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=false&steps=false`,
+    { headers: { Accept: "application/json" } },
+  );
+  if (!response.ok) throw new Error("Não foi possível calcular a rota pelas ruas");
+  const data = await response.json();
+  const meters = Number(data?.routes?.[0]?.distance);
+  if (data?.code !== "Ok" || !Number.isFinite(meters) || meters <= 0) {
+    throw new Error("Não foi possível obter a distância da rota pelas ruas");
+  }
+  return meters / 1000;
 }
 
 Deno.serve(async (req) => {
@@ -90,7 +96,7 @@ Deno.serve(async (req) => {
       if (!/^\d{8}$/.test(originCep)) throw new Error("CEP de origem da loja não configurado");
       const origin = await geocodePostalCode(originCep);
       const destination = await geocodePostalCode(postalCode);
-      const distance = Number(distanceKm(origin, destination).toFixed(1));
+      const distance = Number((await routeDistanceKm(origin, destination)).toFixed(1));
       const rules = Array.isArray(settings.shipping_palmas_distance_rules) ? settings.shipping_palmas_distance_rules : [];
       const rule = rules.find((item: any, index: number) => {
         const min = Number(item?.min_km);
