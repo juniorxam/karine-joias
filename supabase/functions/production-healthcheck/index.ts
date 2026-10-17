@@ -25,7 +25,7 @@ Deno.serve(async(req)=>{
     add("Domínio da loja",/^https:\/\/[^\s/]+(?:\/[^\s]*)?$/.test(siteUrl),siteUrl?"PUBLIC_SITE_URL configurada":"PUBLIC_SITE_URL ausente",true);
 
     const infinitePayHandle=(Deno.env.get("INFINITEPAY_HANDLE")||"violettaprataesemijoias").replace(/^\$/,"").trim();
-    add("InfinitePay · conta",!!infinitePayHandle,infinitePayHandle?"Identificador configurado":"Identificador ausente",true);
+    add("InfinitePay · configuração",!!infinitePayHandle,infinitePayHandle?"Identificador da conta configurado":"Identificador da conta ausente",true);
     add("InfinitePay · confirmação",!!infinitePayHandle,"A confirmação real ocorre no webhook via payment_check; este diagnóstico não cria cobranças.",true);
 
     const {data:storeSettings,error:storeSettingsError}=await admin.from("storefront_settings").select("store_slug,shipping_palmas_enabled,shipping_palmas_pickup_enabled").eq("store_slug","violetta").maybeSingle();
