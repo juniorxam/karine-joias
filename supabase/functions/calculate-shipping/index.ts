@@ -66,6 +66,56 @@ async function resolvePostalCode(postalCode: string) {
   } satisfies AddressParts;
 }
 
+async function geocodeWithNominatim(parts: AddressParts): Promise<[number, number] | null> {
+  const queries = [
+    [parts.address, parts.neighborhood, parts.city, parts.state, parts.postalCode, "Brasil"].filter(Boolean).join(", "),
+    [parts.address, parts.neighborhood, parts.city, parts.state, "Brasil"].filter(Boolean).join(", "),
+  ];
+  const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const requestedStreet = normalize(parts.address).replace(/\s+/g, " ").trim();
+  const requestedStreetWords = requestedStreet.split(/[^a-z0-9]+/).filter((word) => word.length >= 3 && !/^\d+$/.test(word));
+  for (const query of queries) {
+    const params = new URLSearchParams({
+      q: query,
+      format: "jsonv2",
+      addressdetails: "1",
+      countrycodes: "br",
+      limit: "10",
+      viewbox: "-48.60,-9.70,-48.00,-10.60",
+    });
+    const response = await fetchWithTimeout(
+      "https://nominatim.openstreetmap.org/search?" + params.toString(),
+      { headers: { "Accept": "application/json", "User-Agent": "ViolettaStoreShipping/1.0 (address lookup)" } },
+      GEOCODE_TIMEOUT_MS,
+      "nominatim_address"
+    );
+    if (!response.ok) continue;
+    const data = await response.json();
+    const candidate = (Array.isArray(data) ? data : []).find((item: any) => {
+      const lat = Number(item?.lat);
+      const lon = Number(item?.lon);
+      const address = item?.address || {};
+      const label = normalize(String(item?.display_name || ""));
+      const city = normalize(String(address.city || address.town || address.municipality || address.city_district || ""));
+      const state = normalize(String(address.state || ""));
+      const postal = String(address.postcode || "").replace(/\D/g, "");
+      const street = normalize(String(address.road || address.pedestrian || address.footway || ""));
+      const hasStreetEvidence = requestedStreetWords.some((word) => street.includes(word) || label.includes(word));
+      return Number.isFinite(lat) && Number.isFinite(lon)
+        && lon >= -48.60 && lon <= -48.00 && lat >= -10.60 && lat <= -9.70
+        && city.includes(normalize(parts.city))
+        && (!state || state.includes("tocantins") || state === "to")
+        && (!postal || postal === parts.postalCode)
+        && ((postal && postal === parts.postalCode) || hasStreetEvidence);
+    });
+    if (candidate) {
+      console.info(JSON.stringify({ event: "shipping_geocode_match", provider: "nominatim", postal_code: parts.postalCode, result_label: candidate.display_name }));
+      return [Number(candidate.lon), Number(candidate.lat)];
+    }
+  }
+  return null;
+}
+
 async function geocodeAddress(parts: AddressParts, apiKey: string): Promise<[number, number]> {
   const cacheKey = [parts.address, parts.neighborhood, parts.city, parts.state, parts.postalCode]
     .join("|").toLowerCase();
@@ -86,6 +136,8 @@ async function geocodeAddress(parts: AddressParts, apiKey: string): Promise<[num
   const requestedAlamedaNumber = alamedaMatch?.[1] || null;
   let allFeatures: any[] = [];
   let feature: any = null;
+  const nominatimMatch = await geocodeWithNominatim(parts);
+  if (nominatimMatch) return nominatimMatch;
   for (const [queryIndex, textQuery] of queries.entries()) {
     const params = new URLSearchParams({
       text: textQuery,
@@ -96,6 +148,7 @@ async function geocodeAddress(parts: AddressParts, apiKey: string): Promise<[num
       "boundary.rect.max_lat": "-9.70",
       size: "10",
     });
+    if (!apiKey) continue;
     const response = await fetchWithTimeout(
       "https://api.openrouteservice.org/geocode/search?" + params.toString(),
       { headers: { "Authorization": apiKey, "Accept": "application/json" } },
