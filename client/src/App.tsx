@@ -443,6 +443,31 @@ function Reports({sales,clients,products,ownerId}:any){
  });
  const topProducts=Array.from(productMap.values()).sort((a,b)=>b.value-a.value);
 
+ const productPerformance=topProducts.map((item:any)=>{
+   const product=products.find((p:Product)=>p.name.trim().toLowerCase()===String(item.name).trim().toLowerCase());
+   const costKnown=!!product&&Number.isFinite(Number(product.cost))&&Number(product.cost)>=0;
+   const cost=costKnown?Number(product.cost)*item.qty:null;
+   const profit=costKnown?item.value-(cost as number):null;
+   const margin=costKnown&&item.value>0?((profit as number)/item.value)*100:null;
+   let recommendation="Acompanhar";
+   if(costKnown&&profit!==null&&profit<0) recommendation="Rever preço/custo";
+   else if(costKnown&&margin!==null&&margin<20) recommendation="Revisar margem";
+   else if(product&&Number(product.stock)<=item.qty) recommendation="Repor estoque";
+   else if(item.qty>=2&&margin!==null&&margin>=40) recommendation="Priorizar reposição";
+   return {...item,product,costKnown,cost,profit,margin,stock:product?Number(product.stock):null,recommendation};
+ }).sort((a:any,b:any)=>b.qty-a.qty||b.value-a.value);
+ const totalUnitsSold=productPerformance.reduce((sum:number,p:any)=>sum+p.qty,0);
+ const topByUnits=productPerformance[0];
+ const topByRevenue=[...productPerformance].sort((a:any,b:any)=>b.value-a.value)[0];
+ const topByProfit=[...productPerformance].filter((p:any)=>p.profit!==null).sort((a:any,b:any)=>(b.profit??-Infinity)-(a.profit??-Infinity))[0];
+ const estimatedProductProfit=productPerformance.filter((p:any)=>p.profit!==null).reduce((sum:number,p:any)=>sum+(p.profit as number),0);
+ const productsWithCost=productPerformance.filter((p:any)=>p.costKnown).length;
+ const exportProductReport=()=>{
+   const rows=[["Violetta Joias - Desempenho dos produtos"],["Período",from,to],["Canal",channel==="ALL"?"Todos":channel==="SITE"?"Site":"Presencial"],[],["Unidades vendidas",totalUnitsSold],["Produto mais vendido",topByUnits?.name||"N/D"],["Maior faturamento",topByRevenue?.name||"N/D"],["Lucro bruto estimado (produtos com custo cadastrado)",estimatedProductProfit],[],["Produto","Unidades vendidas","Faturamento","Custo estimado","Lucro bruto estimado","Margem estimada (%)","Estoque atual","Recomendação"],...productPerformance.map((p:any)=>[p.name,p.qty,p.value,p.costKnown?p.cost:"N/D",p.costKnown?p.profit:"N/D",p.margin===null?"N/D":p.margin.toFixed(2),p.stock===null?"N/D":p.stock,p.recommendation])];
+   const html="<table>"+rows.map(r=>"<tr>"+r.map((v:any)=>"<td>"+esc(v)+"</td>").join("")+"</tr>").join("")+"</table>";
+   const url=URL.createObjectURL(new Blob([html],{type:"application/vnd.ms-excel"}));const link=document.createElement("a");link.href=url;link.download="desempenho-produtos-violetta-"+from+"-a-"+to+".xls";link.click();URL.revokeObjectURL(url);toast.success("Relatório de produtos exportado");
+ };
+
  const clientMap=new Map<string,{name:string,value:number,count:number}>();
  sales.filter((s:Sale)=>s.date>=from&&s.date<=to).forEach((s:Sale)=>{
    if(channel==="SITE")return;
@@ -476,7 +501,7 @@ function Reports({sales,clients,products,ownerId}:any){
      ["Lucro bruto estimado",grossProfit],
      ["Margem bruta estimada",grossMargin+"%"],
      [],
-     ["Produto","Faturamento","Quantidade"],
+     ["Produto","Faturamento","Quantidade"],[],["Desempenho detalhado dos produtos"],["Produto","Unidades vendidas","Faturamento","Custo estimado","Lucro bruto estimado","Margem estimada (%)","Estoque atual","Recomendação"],...productPerformance.map((p:any)=>[p.name,p.qty,p.value,p.costKnown?p.cost:"N/D",p.costKnown?p.profit:"N/D",p.margin===null?"N/D":p.margin.toFixed(2),p.stock===null?"N/D":p.stock,p.recommendation]),
      ...topProducts.map(x=>[x.name,x.value,x.qty])
    ];
    const html="<table>"+rows.map(r=>"<tr>"+r.map((v:any)=>"<td>"+esc(v)+"</td>").join("")+"</tr>").join("")+"</table>";
@@ -508,6 +533,19 @@ function Reports({sales,clients,products,ownerId}:any){
    <Stat icon={<TrendingUp/>} label="Lucro bruto estimado" value={money(grossProfit)} note={grossMargin.toFixed(1)+"% de margem"}/>
    <Stat icon={<Users/>} label="Clientes compradores" value={topClients.length} note={newOnlineCustomers+" compradores online"}/>
   </div>
+  <section className="panel" style={{marginTop:18,marginBottom:18}}>
+   <p className="eyebrow">ESTOQUE E REINVESTIMENTO · {from} A {to}</p><h3>Desempenho dos produtos</h3>
+   <p style={{color:"var(--muted)",fontSize:13,lineHeight:1.6}}>Ranking por unidades vendidas, considerando vendas presenciais registradas e pedidos do site com pagamento confirmado. Lucro e margem são estimativas brutas e só são calculados quando há custo cadastrado; não incluem taxas de pagamento, embalagens nem despesas fixas.</p>
+   <div className="report-grid" style={{marginTop:14}}>
+    <div className="integration-status-card" style={{display:"block"}}><strong>Unidades vendidas</strong><div style={{fontSize:22,fontWeight:700,marginTop:8}}>{totalUnitsSold}</div><small>Unidades no período e canal selecionados</small></div>
+    <div className="integration-status-card" style={{display:"block"}}><strong>Mais vendido</strong><div style={{fontSize:17,fontWeight:700,marginTop:8}}>{topByUnits?.name||"N/D"}</div><small>{topByUnits?topByUnits.qty+" unidade(s)":"Sem vendas"}</small></div>
+    <div className="integration-status-card" style={{display:"block"}}><strong>Maior faturamento</strong><div style={{fontSize:17,fontWeight:700,marginTop:8}}>{topByRevenue?.name||"N/D"}</div><small>{topByRevenue?money(topByRevenue.value):"Sem vendas"}</small></div>
+    <div className="integration-status-card" style={{display:"block"}}><strong>Lucro bruto estimado</strong><div style={{fontSize:20,fontWeight:700,marginTop:8}}>{productsWithCost?money(estimatedProductProfit):"N/D"}</div><small>{productsWithCost+" produto(s) com custo conhecido"}{topByProfit?" · maior lucro: "+topByProfit.name:""}</small></div>
+   </div>
+   <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:14,flexWrap:"wrap"}}><button className="secondary" onClick={exportProductReport} disabled={from>to}>Exportar produtos para Excel</button></div>
+   <div style={{overflowX:"auto",marginTop:14}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:900}}><thead><tr>{["Produto","Unidades","Faturamento","Custo estimado","Lucro bruto","Margem","Estoque","Recomendação"].map((h:string)=><th key={h} style={{textAlign:"left",padding:"10px 8px",borderBottom:"1px solid var(--border,#ddd)"}}>{h}</th>)}</tr></thead><tbody>{productPerformance.length?productPerformance.map((p:any)=><tr key={p.name}>{[p.name,String(p.qty),money(p.value),p.costKnown?money(p.cost):"N/D",p.costKnown?money(p.profit):"N/D",p.margin===null?"N/D":p.margin.toFixed(1)+"%",p.stock===null?"N/D":String(p.stock),p.recommendation].map((v:string,i:number)=><td key={i} style={{padding:"10px 8px",borderBottom:"1px solid var(--border,#eee)",whiteSpace:i===0?"normal":"nowrap"}}>{v}</td>)}</tr>):<tr><td colSpan={8} style={{padding:14,color:"var(--muted)"}}>Nenhuma venda de produto no período selecionado.</td></tr>}</tbody></table></div>
+   <p style={{fontSize:12,color:"var(--muted)",marginTop:10}}>“Repor estoque” é um alerta indicativo quando o estoque atual é igual ou menor que as unidades vendidas no período. Confira a contagem física antes de comprar. Produto sem custo cadastrado aparece como N/D.</p>
+  </section>
   <section className="panel" style={{marginTop:18,marginBottom:18}}>
    <p className="eyebrow">ANÁLISE DE TAXAS · {from} A {to}</p>
    <h3>Taxa de cartão recomendada</h3>
