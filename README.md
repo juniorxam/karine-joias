@@ -8,7 +8,7 @@ Aplicação de gestão e loja virtual da Violetta Joias e Semijoias.
 - **Administração:** `/gestao`, com autenticação Supabase e dados sincronizados no PostgreSQL. O painel não é divulgado na vitrine.
 - **Loja pública:** `/loja`, catálogo, carrinho, checkout, cupons e acompanhamento do pedido.
 - **Pagamentos online:** InfinitePay, com geração de link de checkout e confirmação do pagamento pelo endpoint oficial `payment_check`, acionado pela Edge Function `infinitepay-webhook`.
-- **Frete:** cálculo próprio da Violetta para Palmas-TO, com regras configuradas na loja; localidades fora da área atendida podem depender de confirmação manual. Melhor Envio não faz parte do checkout atual.
+- **Frete:** cálculo próprio da Violetta para Palmas-TO, com regras configuradas na loja. Localidades fora da área atendida podem depender de confirmação manual. Melhor Envio não faz parte do checkout atual.
 - **Banco de dados:** Supabase Postgres, com RLS e funções de servidor para operações sensíveis.
 - **Hospedagem:** Vercel para o frontend e Supabase Edge Functions para checkout e integrações.
 
