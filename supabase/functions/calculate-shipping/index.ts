@@ -60,6 +60,17 @@ async function geocode(address: Address): Promise<[number, number]> {
     });
     if (match) return [Number(match.lon), Number(match.lat)];
   }
+  const areaQuery = [address.neighborhood, address.city, address.state, "Brasil"].filter(Boolean).join(", ");
+  const areaParams = new URLSearchParams({ q: areaQuery, format: "jsonv2", addressdetails: "1", countrycodes: "br", limit: "10", viewbox: "-48.60,-9.70,-48.00,-10.60" });
+  const areaData = await fetchJson(`https://nominatim.openstreetmap.org/search?${areaParams}`, { headers: { Accept: "application/json", "User-Agent": "ViolettaStoreShipping/1.0" } });
+  const areaMatch = (Array.isArray(areaData) ? areaData : []).find((item: any) => {
+    const lat = Number(item?.lat), lon = Number(item?.lon), result = item?.address || {};
+    const city = normalize(result.city || result.town || result.municipality || result.city_district || "");
+    const state = normalize(result.state || "");
+    return Number.isFinite(lat) && Number.isFinite(lon) && lon >= bbox.minLon && lon <= bbox.maxLon && lat >= bbox.minLat && lat <= bbox.maxLat
+      && city.includes(normalize(address.city)) && (!state || state.includes("tocantins") || state === "to");
+  });
+  if (areaMatch) return [Number(areaMatch.lon), Number(areaMatch.lat)];
   throw new Error("O mapa não encontrou o logradouro em Palmas. Confira rua, número, bairro e CEP.");
 }
 
