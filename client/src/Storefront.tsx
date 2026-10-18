@@ -698,7 +698,7 @@ export default function Storefront() {
 
 function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false, isTopSeller = false }: { product: CatalogProduct; onAdd: (product: CatalogProduct) => void; onBuyNow: (product: CatalogProduct) => void; onAsk: (product: CatalogProduct) => void; onOpen: (product: CatalogProduct) => void; featured?: boolean; isTopSeller?: boolean }) {
   const [isImageHovered, setIsImageHovered] = useState(false);
-  const badges = product.isBestSeller || isTopSeller ? ["MAIS VENDIDO"] : product.isNew ? ["NOVO"] : product.stock !== undefined && product.stock > 0 && product.stock <= 3 ? ["ÚLTIMAS UNIDADES"] : [];
+  const badges = product.isBestSeller || isTopSeller ? ["MAIS VENDIDO"] : product.isNew ? ["NOVO"] : [];
   const compareAtPrice = Number(product.compareAtPrice ?? 0);
   const hasDiscount = compareAtPrice > product.price;
   const discountPercent = Number(product.discountPercent ?? (hasDiscount ? Math.round((1 - product.price / compareAtPrice) * 100) : 0));
@@ -726,7 +726,7 @@ function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false
           <span className="product-installments">{installmentNote}</span><span className="product-installments">No Pix: <b>{formatMoney(pixDisplayPrice)}</b> (5% de desconto)</span>
           {hasDiscount && <span className="product-discount">-{discountPercent}% OFF</span>}
         </div>
-        {Number(product.stock ?? 0) > 0 && Number(product.stock ?? 0) <= 3 && <small className="product-low-stock">Últimas unidades</small>}
+        
         <div className="product-actions" onClick={event => event.stopPropagation()}>
           <button className="product-interest" onClick={() => onAsk(product)} aria-label={`Tenho interesse em ${product.name} pelo WhatsApp`}><MessageCircle size={15} /><span>WhatsApp</span></button>
           <button className="product-add-cart" onClick={() => onAdd(product)} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Adicionar ao carrinho" : "Esgotado"}</button>
@@ -754,7 +754,7 @@ function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNow, onCh
       </div>
       <div className="product-detail-copy">
         <p className="store-kicker">{product.category}</p><p className="product-material">{product.material}</p><h1>{product.name}</h1>
-        <strong className="product-detail-price">{formatMoney(product.price)}</strong><span className="product-installment-note">No Pix: <b>{formatMoney(Number(product.pixPrice || (Number(product.price) * 0.95)))}</b> (5% de desconto)</span><span className="product-installment-note">Até {Number(product.installmentCount || (Number(product.price) < 150 ? 2 : 3))}x sem juros, conforme opções disponíveis no InfinitePay</span><span className="product-detail-payment-note"><ShieldCheck size={14}/> Pagamento seguro pelo InfinitePay</span><span className={available ? "product-stock-note" : "product-stock-note sold-out"}>{available ? (Number(product.stock) <= 3 ? "Últimas unidades disponíveis" : "Disponível para envio") : "Produto temporariamente esgotado"}</span>
+        <strong className="product-detail-price">{formatMoney(product.price)}</strong><span className="product-installment-note">No Pix: <b>{formatMoney(Number(product.pixPrice || (Number(product.price) * 0.95)))}</b> (5% de desconto)</span><span className="product-installment-note">Até {Number(product.installmentCount || (Number(product.price) < 150 ? 2 : 3))}x sem juros, conforme opções disponíveis no InfinitePay</span><span className="product-detail-payment-note"><ShieldCheck size={14}/> Pagamento seguro pelo InfinitePay</span><span className={available ? "product-stock-note" : "product-stock-note sold-out"}>{available ? "Disponível para envio" : "Produto temporariamente esgotado"}</span>
         <p className="product-detail-description">{product.description || "Uma peça escolhida para trazer delicadeza, presença e brilho aos seus momentos."}</p>
         <div className="product-detail-meta">
           <div><Gem size={17}/><span><b>Material</b><small>{product.material}</small></span></div>
