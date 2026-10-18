@@ -767,14 +767,15 @@
   border-radius: 16px;
   overflow: hidden;
   background: var(--store-surface);
-  border: 1px solid rgba(80,55,65,.09);
-  box-shadow: 0 4px 18px rgba(63,39,48,.035);
+  /* Bordas um pouco mais definidas para separar visualmente cada produto */
+  border: 1px solid #e7cbd6;
+  box-shadow: 0 4px 16px rgba(110,55,77,.07);
   transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
 }
 .store-product-card:hover {
   transform: translateY(-3px);
-  border-color: rgba(163,79,112,.24);
-  box-shadow: 0 12px 30px rgba(63,39,48,.08);
+  border-color: #c7839d;
+  box-shadow: 0 12px 30px rgba(110,55,77,.12);
 }
 .store-product-art { background: #faf5f4; }
 .store-product-info { padding: 15px 15px 16px; }
