@@ -964,3 +964,15 @@
   .product-detail-image { cursor: default; }
   .product-detail-image::after { content: "Foto do produto"; }
 }
+
+/* Regras de entrega e atendimento Violetta */
+.store-delivery-policy{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(0,1.5fr);gap:26px;align-items:start;padding:clamp(26px,4vw,48px);margin:34px 0 52px;border:1px solid #eadde2;border-radius:18px;background:linear-gradient(135deg,#fffafc 0%,#fff 72%)}
+.store-delivery-policy-heading h2{margin:7px 0 10px;font-family:inherit;font-size:clamp(23px,3vw,34px);line-height:1.16;color:#49333e}
+.store-delivery-policy-heading>p:last-child{margin:0;color:#765e68;line-height:1.6}
+.store-delivery-policy-grid{display:grid;gap:12px}
+.store-delivery-policy-grid article{display:flex;align-items:flex-start;gap:13px;padding:15px 16px;border:1px solid #eee3e8;border-radius:12px;background:#fff}
+.store-delivery-policy-icon{display:grid;place-items:center;flex:0 0 40px;width:40px;height:40px;border-radius:11px;background:#f8edf2;color:#8a536a}
+.store-delivery-policy-grid article strong{display:block;margin:1px 0 4px;color:#49333e;font-size:14px}
+.store-delivery-policy-grid article p{margin:0;color:#765e68;font-size:13px;line-height:1.55}
+.store-delivery-policy-footnote{grid-column:2;margin:0;color:#846f78;font-size:12px;line-height:1.6}
+@media(max-width:760px){.store-delivery-policy{grid-template-columns:1fr;gap:20px;padding:23px 18px;margin:26px 0 38px}.store-delivery-policy-footnote{grid-column:1}}
