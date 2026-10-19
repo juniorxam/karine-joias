@@ -339,12 +339,18 @@ export default function Storefront() {
   }), [category, products, query]);
 
   const topSoldQuantity = Math.max(0, ...products.map(product => product.soldQuantity ?? 0));
-  const featured = products.filter((product) => product.featured).sort((a,b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 4);
-  const bestSellers = [...products].filter(product => product.isBestSeller || (product.soldQuantity ?? 0) > 0).sort((a,b) => (b.soldQuantity ?? 0) - (a.soldQuantity ?? 0)).slice(0, 8);
+  // Na fase inicial, evite repetir as mesmas peças em várias vitrines da página inicial.
   const launches = [...products].filter(product => product.isNew).sort((a,b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 8);
-  const latest = [...products].sort((a,b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0) || (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 8);
-  const gifts = [...products].filter(product => /presente|kit|mix|conjunto/i.test(product.name)).slice(0, 8);
-  const giftProducts = gifts.length ? gifts : latest.slice(0, 4);
+  const launchIds = new Set(launches.map(product => String(product.id)));
+  const bestSellers = [...products].filter(product => !launchIds.has(String(product.id)) && (product.isBestSeller || (product.soldQuantity ?? 0) > 0)).sort((a,b) => (b.soldQuantity ?? 0) - (a.soldQuantity ?? 0)).slice(0, 8);
+  const bestSellerIds = new Set(bestSellers.map(product => String(product.id)));
+  const featured = products.filter(product => product.featured && !launchIds.has(String(product.id)) && !bestSellerIds.has(String(product.id))).sort((a,b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 4);
+  const featuredIds = new Set(featured.map(product => String(product.id)));
+  const gifts = [...products].filter(product => /presente|kit|mix|conjunto/i.test(product.name) && !launchIds.has(String(product.id)) && !bestSellerIds.has(String(product.id)) && !featuredIds.has(String(product.id))).slice(0, 8);
+  const giftProducts = gifts;
+  const giftIds = new Set(giftProducts.map(product => String(product.id)));
+  const usedHomeProductIds = new Set([...launchIds, ...bestSellerIds, ...featuredIds, ...giftIds]);
+  const latest = [...products].filter(product => !usedHomeProductIds.has(String(product.id))).sort((a,b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0) || (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 8);
   const categoryCards = [
     { name: "Joias", label: "Joias", icon: "✦", imageUrl: products.find(product => product.category === "Joias" && product.imageUrl)?.imageUrl },
     { name: "Semi-joias", label: "Semi-joias", icon: "◇", imageUrl: products.find(product => product.category === "Semi-joias" && product.imageUrl)?.imageUrl },
@@ -610,9 +616,9 @@ export default function Storefront() {
           <p className="store-kicker"><Sparkles size={13} /> NOVA COLEÇÃO VIOLETTA JOIAS</p>
           <h1>{storefrontSettings?.hero_title || "Seu brilho, seu momento."}</h1>
           <p className="store-hero-text">{storefrontSettings?.hero_subtitle || "Descubra peças escolhidas para valorizar cada detalhe. Elegância, delicadeza e personalidade em uma só vitrine."}</p>
-          <div className="store-hero-actions"><a className="store-primary-cta" href={products.length ? "#novidades" : "#em-breve"}>{products.length ? (storefrontSettings?.hero_cta || "Comprar agora") : "Em breve"} <ArrowRight size={16} /></a><a className="store-text-link" href="#categorias">Ver categorias</a></div>
+          <div className="store-hero-actions"><a className="store-primary-cta" href={products.length ? (launches.length ? "#lancamentos" : "#colecao") : "#em-breve"}>{products.length ? (storefrontSettings?.hero_cta || "Comprar agora") : "Em breve"} <ArrowRight size={16} /></a><a className="store-text-link" href="#categorias">Ver categorias</a></div>
         </div>
-        <div className="store-hero-art" style={storefrontSettings?.hero_image_url ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${storefrontSettings.hero_image_url})` } : latest[0]?.imageUrl ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${latest[0].imageUrl})` } : undefined}>
+        <div className="store-hero-art" style={storefrontSettings?.hero_image_url ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${storefrontSettings.hero_image_url})` } : (latest[0]?.imageUrl || launches[0]?.imageUrl) ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${latest[0]?.imageUrl || launches[0]?.imageUrl})` } : undefined}>
           {!storefrontSettings?.hero_image_url && !latest[0]?.imageUrl && <><div className="hero-orbit orbit-one" /><div className="hero-orbit orbit-two" /><div className="hero-gem"><Gem size={82} strokeWidth={1} /></div></>}
           <span className="hero-stamp"><Heart size={18} strokeWidth={1.5} /><strong>Violetta</strong><b>PRATA 925 · SEMIJOIAS</b></span>
         </div>
@@ -644,9 +650,9 @@ export default function Storefront() {
 
       <div className="store-home-sections">
       {products.length ? <>
-      {(storefrontSettings?.latest_enabled ?? true) ? (<section className="store-latest" id="lancamentos" style={sectionStyle("launches")}>
+      {(storefrontSettings?.latest_enabled ?? true) && launches.length > 0 ? (<section className="store-latest" id="lancamentos" style={sectionStyle("launches")}>
         <div className="store-section-heading"><div><p className="store-kicker">COLEÇÃO EM DESTAQUE</p><h2>Lançamentos</h2></div><a href="#colecao">Ver todos <ArrowRight size={15} /></a></div>
-        <div className="store-product-grid">{(launches.length ? launches : latest).map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
+        <div className="store-product-grid">{launches.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
       </section>) : null}
 
       <section className="store-quick-categories" aria-labelledby="subcategorias-title" style={sectionStyle("quick_categories")}>
@@ -664,8 +670,8 @@ export default function Storefront() {
         {!storefrontSettings?.collection_image_url && <div className="collection-art"><Gem size={88} strokeWidth={1}/></div>}
       </section>) : null}
 
-      {(storefrontSettings?.latest_enabled ?? true) ? (<section className="store-latest store-latest-after-promo" id="novidades" style={sectionStyle("latest")}>
-        <div className="store-section-heading"><div><p className="store-kicker">RECÉM-CHEGARAM</p><h2>Novidades</h2></div><a href="#colecao">Ver todos <ArrowRight size={15} /></a></div>
+      {(storefrontSettings?.latest_enabled ?? true) && latest.length > 0 ? (<section className="store-latest store-latest-after-promo" id="novidades" style={sectionStyle("latest")}>
+        <div className="store-section-heading"><div><p className="store-kicker">MAIS PARA DESCOBRIR</p><h2>Explore mais peças</h2></div><a href="#colecao">Ver todos <ArrowRight size={15} /></a></div>
         <div className="store-product-grid">{latest.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} isTopSeller={topSoldQuantity > 0 && (product.soldQuantity ?? 0) === topSoldQuantity} />)}</div>
       </section>) : null}
 
