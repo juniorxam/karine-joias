@@ -345,7 +345,7 @@ export default function Storefront() {
   const bestSellers = [...products].filter(product => !launchIds.has(String(product.id)) && (product.isBestSeller || (product.soldQuantity ?? 0) > 0)).sort((a,b) => (b.soldQuantity ?? 0) - (a.soldQuantity ?? 0)).slice(0, 8);
   const bestSellerIds = new Set(bestSellers.map(product => String(product.id)));
   const featured = products.filter(product => product.featured && !launchIds.has(String(product.id)) && !bestSellerIds.has(String(product.id))).sort((a,b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 4);
-  const featuredIds = new Set(featured.map(product => String(product.id)));
+  const featuredIds = new Set((bestSellers.length ? [] : featured).map(product => String(product.id)));
   const gifts = [...products].filter(product => /presente|kit|mix|conjunto/i.test(product.name) && !launchIds.has(String(product.id)) && !bestSellerIds.has(String(product.id)) && !featuredIds.has(String(product.id))).slice(0, 8);
   const giftProducts = gifts;
   const giftIds = new Set(giftProducts.map(product => String(product.id)));
