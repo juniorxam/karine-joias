@@ -976,3 +976,13 @@
 .store-delivery-policy-grid article p{margin:0;color:#765e68;font-size:13px;line-height:1.55}
 .store-delivery-policy-footnote{grid-column:2;margin:0;color:#846f78;font-size:12px;line-height:1.6}
 @media(max-width:760px){.store-delivery-policy{grid-template-columns:1fr;gap:20px;padding:23px 18px;margin:26px 0 38px}.store-delivery-policy-footnote{grid-column:1}}
+
+
+/* Formas de pagamento no rodapé */
+.store-footer .footer-payment{min-width:0;align-self:start}
+.store-footer .footer-payment-options{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0 9px}
+.store-footer .footer-payment-options>span{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:9px 12px;border:1px solid rgba(255,255,255,.22);border-radius:10px;color:inherit;font-size:12px;font-weight:600;white-space:nowrap}
+.store-footer .footer-payment-pix b{font-size:14px;letter-spacing:.04em;color:#9ee5c4}
+.store-footer .footer-payment-options svg{flex-shrink:0}
+.store-footer .footer-payment>small{display:block;max-width:260px;opacity:.78;font-size:11px;line-height:1.55}
+@media(max-width:760px){.store-footer .footer-payment-options{gap:7px}.store-footer .footer-payment-options>span{padding:8px 10px}}
