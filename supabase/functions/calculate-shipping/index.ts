@@ -186,6 +186,7 @@ async function route(origin: GeoPoint, destination: GeoPoint) {
     straight_line_km: Number(directKm.toFixed(2)),
     min: Number.isFinite(seconds) && seconds > 0 ? Math.max(1, Math.round(seconds / 60)) : null,
     route_ratio: Number(routeRatio.toFixed(2)),
+    provider,
     origin_geocoder: origin.source,
     destination_geocoder: destination.source,
   };
@@ -277,7 +278,7 @@ Deno.serve(async (request: Request) => {
           ? "Entrega em Palmas · frete grátis"
           : `Entrega em Palmas · ${distance.km.toFixed(1)} km`,
       estimated_duration_minutes: distance.min,
-    provider,
+      provider: distance.provider,
       geocoder: `${distance.origin_geocoder} → ${distance.destination_geocoder}`,
     });
   } catch (error) {
