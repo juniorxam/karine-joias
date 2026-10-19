@@ -250,10 +250,10 @@ Deno.serve(async (request: Request) => {
       ? settings.shipping_palmas_distance_rules
       : [
           { min_km: 0, max_km: 2, price: 7 },
-          { min_km: 2, max_km: 3, price: 8 },
-          { min_km: 3, max_km: 5, price: 9 },
-          { min_km: 5, max_km: 6, price: 10 },
-          { min_km: 6, max_km: 6.9, price: 11 },
+          { min_km: 2.1, max_km: 3, price: 8 },
+          { min_km: 3.1, max_km: 5, price: 9 },
+          { min_km: 5.1, max_km: 6, price: 10 },
+          { min_km: 6.1, max_km: 6.9, price: 11 },
           { min_km: 7, max_km: 7.9, price: 12 },
           { min_km: 8, max_km: 8.9, price: 13 },
           { min_km: 9, max_km: 9.9, price: 14 },
@@ -266,11 +266,10 @@ Deno.serve(async (request: Request) => {
           { min_km: 16, max_km: 16.9, price: 26 },
           { min_km: 17, max_km: 17.9, price: 28 },
         ];
-    const rule = rules.find((item: any, index: number) => {
+    const rule = rules.find((item: any) => {
       const min = Number(item?.min_km);
       const max = item?.max_km == null || item?.max_km === "" ? Infinity : Number(item.max_km);
-      const aboveMin = index === 0 ? distance.km >= min : distance.km > min;
-      return Number.isFinite(min) && Number.isFinite(Number(item?.price)) && aboveMin && distance.km <= max;
+      return Number.isFinite(min) && Number.isFinite(Number(item?.price)) && distance.km >= min && distance.km <= max;
     });
     const serviceable = Boolean(rule);
     const subtotal = Math.max(0, Number(body?.subtotal) || 0);
