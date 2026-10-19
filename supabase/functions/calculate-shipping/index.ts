@@ -131,21 +131,45 @@ function straightLineKm(origin: GeoPoint, destination: GeoPoint) {
   return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)));
 }
 
+async function routeWithOsrm(origin: GeoPoint, destination: GeoPoint) {
+  const coordinates = encodeURIComponent(`${origin.lon},${origin.lat};${destination.lon},${destination.lat}`);
+  const data = await get(`https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=false&steps=false`, { headers: { Accept: "application/json" } });
+  const meters = Number(data?.routes?.[0]?.distance);
+  if (data?.code !== "Ok" || !Number.isFinite(meters) || meters <= 0) throw new Error("Não foi possível calcular a rota pelas ruas. Tente novamente.");
+  return { routeKm: meters / 1000, seconds: Number(data?.routes?.[0]?.duration), provider: "OSRM" };
+}
+
 async function route(origin: GeoPoint, destination: GeoPoint) {
   const directKm = straightLineKm(origin, destination);
   if (!Number.isFinite(directKm) || directKm < 0.01) {
     throw new Error("A localização do endereço não parece válida. Confira o endereço informado.");
   }
-  const coordinates = encodeURIComponent(`${origin.lon},${origin.lat};${destination.lon},${destination.lat}`);
-  const data = await get(
-    `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=false&steps=false`,
-    { headers: { Accept: "application/json" } },
-  );
-  const meters = Number(data?.routes?.[0]?.distance);
-  if (data?.code !== "Ok" || !Number.isFinite(meters) || meters <= 0) {
-    throw new Error("Não foi possível calcular a rota pelas ruas. Tente novamente.");
+  const mapsKey = Deno.env.get("GOOGLE_MAPS_API_KEY")?.trim();
+  let routeKm: number;
+  let seconds: number;
+  let provider: string;
+  if (mapsKey) {
+    const data = await get("https://routes.googleapis.com/directions/v2:computeRoutes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Goog-Api-Key": mapsKey, "X-Goog-FieldMask": "routes.distanceMeters,routes.duration" },
+      body: JSON.stringify({
+        origin: { location: { latLng: { latitude: origin.lat, longitude: origin.lon } } },
+        destination: { location: { latLng: { latitude: destination.lat, longitude: destination.lon } } },
+        travelMode: "DRIVE", routingPreference: "TRAFFIC_AWARE", units: "METRIC",
+      }),
+    });
+    const meters = Number(data?.routes?.[0]?.distanceMeters);
+    const duration = Number(String(data?.routes?.[0]?.duration || "").replace(/s$/, ""));
+    if (Number.isFinite(meters) && meters > 0) {
+      routeKm = meters / 1000; seconds = duration; provider = "Google Routes API";
+    } else {
+      const fallback = await routeWithOsrm(origin, destination);
+      routeKm = fallback.routeKm; seconds = fallback.seconds; provider = fallback.provider;
+    }
+  } else {
+    const fallback = await routeWithOsrm(origin, destination);
+    routeKm = fallback.routeKm; seconds = fallback.seconds; provider = fallback.provider;
   }
-  const routeKm = meters / 1000;
   // A rota não pode ser significativamente menor que a linha reta.
   // A tolerância considera o ajuste (snap) dos pontos para as vias do roteador.
   const toleranceKm = Math.max(0.25, directKm * 0.03);
@@ -157,7 +181,6 @@ async function route(origin: GeoPoint, destination: GeoPoint) {
   if (!Number.isFinite(routeRatio) || routeRatio < 0.97) {
     throw new Error("Não foi possível validar a distância deste endereço. Confira os dados ou fale com a Violetta.");
   }
-  const seconds = Number(data?.routes?.[0]?.duration);
   return {
     km: Number(routeKm.toFixed(2)),
     straight_line_km: Number(directKm.toFixed(2)),
@@ -254,7 +277,7 @@ Deno.serve(async (request: Request) => {
           ? "Entrega em Palmas · frete grátis"
           : `Entrega em Palmas · ${distance.km.toFixed(1)} km`,
       estimated_duration_minutes: distance.min,
-      provider: "OSRM",
+    provider,
       geocoder: `${distance.origin_geocoder} → ${distance.destination_geocoder}`,
     });
   } catch (error) {
