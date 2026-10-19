@@ -246,19 +246,33 @@ Deno.serve(async (request: Request) => {
     const originPoint = await geo(origin);
     const destinationPoint = await geo(destination);
     const distance = await route(originPoint, destinationPoint);
-    const serviceable = distance.km <= 20;
     const rules = Array.isArray(settings.shipping_palmas_distance_rules)
       ? settings.shipping_palmas_distance_rules
       : [
-          { min_km: 0, max_km: 5, price: 7 },
-          { min_km: 5, max_km: 10, price: 10 },
-          { min_km: 10, max_km: 20, price: 15 },
+          { min_km: 0, max_km: 2, price: 7 },
+          { min_km: 2, max_km: 3, price: 8 },
+          { min_km: 3, max_km: 5, price: 9 },
+          { min_km: 5, max_km: 6, price: 10 },
+          { min_km: 6, max_km: 6.9, price: 11 },
+          { min_km: 7, max_km: 7.9, price: 12 },
+          { min_km: 8, max_km: 8.9, price: 13 },
+          { min_km: 9, max_km: 9.9, price: 14 },
+          { min_km: 10, max_km: 10.9, price: 15 },
+          { min_km: 11, max_km: 11.9, price: 16 },
+          { min_km: 12, max_km: 12.9, price: 18 },
+          { min_km: 13, max_km: 13.9, price: 20 },
+          { min_km: 14, max_km: 14.9, price: 22 },
+          { min_km: 15, max_km: 15.9, price: 24 },
+          { min_km: 16, max_km: 16.9, price: 26 },
+          { min_km: 17, max_km: 17.9, price: 28 },
         ];
-    const rule = rules.find((item: any) => {
+    const rule = rules.find((item: any, index: number) => {
       const min = Number(item?.min_km);
       const max = item?.max_km == null || item?.max_km === "" ? Infinity : Number(item.max_km);
-      return Number.isFinite(min) && Number.isFinite(Number(item?.price)) && distance.km >= min && distance.km <= max;
+      const aboveMin = index === 0 ? distance.km >= min : distance.km > min;
+      return Number.isFinite(min) && Number.isFinite(Number(item?.price)) && aboveMin && distance.km <= max;
     });
+    const serviceable = Boolean(rule);
     const subtotal = Math.max(0, Number(body?.subtotal) || 0);
     const freeAbove = Number(settings.shipping_palmas_free_above) || 0;
     const price = !serviceable ? null : freeAbove > 0 && subtotal >= freeAbove ? 0 : Number(rule?.price ?? 0);
