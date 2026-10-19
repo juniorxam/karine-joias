@@ -9,35 +9,93 @@ const cors = {
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors });
 
-async function geocodePostalCode(postalCode: string) {
+function straightLineKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
+  const radians = (degrees: number) => degrees * Math.PI / 180;
+  const lat1 = radians(a.lat), lat2 = radians(b.lat);
+  const deltaLat = lat2 - lat1, deltaLon = radians(b.lon - a.lon);
+  const h = Math.sin(deltaLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(Math.max(0, 1 - h)));
+}
+
+async function geocodePostalCode(postalCode: string, city: string, state: string) {
+  const key = Deno.env.get("GOOGLE_MAPS_API_KEY")?.trim();
+  if (!key) throw new Error("Google Maps não está configurado no servidor. O frete não foi calculado.");
   const cep = postalCode.replace(/\D/g, "");
-  const response = await fetch(
-    "https://nominatim.openstreetmap.org/search?format=jsonv2&postalcode=" +
-      encodeURIComponent(cep) +
-      "&country=Brazil&limit=1",
-    { headers: { Accept: "application/json", "User-Agent": "Violetta-Store/1.0" } },
-  );
-  if (!response.ok) throw new Error("Não foi possível localizar o CEP");
+  const params = new URLSearchParams({
+    address: `${cep}, ${city}, ${state}, Brasil`,
+    components: `country:BR|postal_code:${cep}`,
+    key,
+    language: "pt-BR",
+    region: "br",
+  });
+  const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
+  if (!response.ok) throw new Error("O Google Maps não conseguiu localizar o CEP.");
   const data = await response.json();
-  if (!Array.isArray(data) || !data[0]) throw new Error("CEP não localizado");
-  return { lat: Number(data[0].lat), lon: Number(data[0].lon) };
+  if (data?.status !== "OK" || !Array.isArray(data.results) || !data.results[0]) {
+    throw new Error("O Google Maps não localizou este CEP. Confira o endereço antes de calcular o frete.");
+  }
+  const candidates = data.results.map((item: any) => {
+    const components = Array.isArray(item.address_components) ? item.address_components : [];
+    const get = (type: string, short = false) => {
+      const c = components.find((part: any) => part.types?.includes(type));
+      return c ? (short ? c.short_name : c.long_name) : "";
+    };
+    return {
+      lat: Number(item.geometry?.location?.lat),
+      lon: Number(item.geometry?.location?.lng),
+      city: String(get("locality") || get("postal_town") || get("administrative_area_level_2")).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(),
+      state: String(get("administrative_area_level_1", true) || get("administrative_area_level_1")).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(),
+      country: String(get("country", true) || get("country")).toLowerCase(),
+      postalCode: String(get("postal_code")).replace(/\D/g, ""),
+    };
+  });
+  const normalizedCity = city.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const match = candidates.find((c: any) =>
+    Number.isFinite(c.lat) && Number.isFinite(c.lon) &&
+    c.city.includes(normalizedCity) &&
+    (c.state === "to" || c.state.includes("tocantins")) &&
+    (c.country === "br" || c.country.includes("brasil")) &&
+    (!c.postalCode || c.postalCode === cep) &&
+    c.lon >= -48.6 && c.lon <= -48 && c.lat >= -10.6 && c.lat <= -9.7
+  );
+  if (!match) throw new Error("O Google Maps retornou uma localização que não corresponde com segurança a Palmas-TO e ao CEP informado.");
+  return { lat: match.lat, lon: match.lon };
 }
 
 async function routeDistanceKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
-  const coordinates = encodeURIComponent(`${a.lon},${a.lat};${b.lon},${b.lat}`);
-  const response = await fetch(
-    `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=false&steps=false`,
-    { headers: { Accept: "application/json" } },
-  );
-  if (!response.ok) throw new Error("Não foi possível calcular a rota pelas ruas");
+  const key = Deno.env.get("GOOGLE_MAPS_API_KEY")?.trim();
+  if (!key) throw new Error("Google Maps não está configurado no servidor. O frete não foi calculado.");
+  const directKm = straightLineKm(a, b);
+  if (!Number.isFinite(directKm) || directKm < 0.01) throw new Error("A localização retornada não parece válida.");
+  const response = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": key,
+      "X-Goog-FieldMask": "routes.distanceMeters,routes.duration",
+    },
+    body: JSON.stringify({
+      origin: { location: { latLng: { latitude: a.lat, longitude: a.lon } } },
+      destination: { location: { latLng: { latitude: b.lat, longitude: b.lon } } },
+      travelMode: "DRIVE",
+      routingPreference: "TRAFFIC_UNAWARE",
+      units: "METRIC",
+    }),
+  });
+  if (!response.ok) throw new Error("O Google Maps não conseguiu calcular a rota. O frete não foi definido.");
   const data = await response.json();
-  const meters = Number(data?.routes?.[0]?.distance);
-  if (data?.code !== "Ok" || !Number.isFinite(meters) || meters <= 0) {
-    throw new Error("Não foi possível obter a distância da rota pelas ruas");
+  const meters = Number(data?.routes?.[0]?.distanceMeters);
+  if (data?.routes?.[0]?.distanceMeters == null || !Number.isFinite(meters) || meters <= 0) {
+    throw new Error("O Google Maps retornou uma rota inválida. O frete não foi calculado.");
   }
-  return meters / 1000;
+  const distanceKm = meters / 1000;
+  const toleranceKm = Math.max(0.2, directKm * 0.03);
+  const ratio = distanceKm / directKm;
+  if (distanceKm + toleranceKm < directKm || !Number.isFinite(ratio) || ratio < 0.97 || ratio > 4.5) {
+    throw new Error("A distância da rota não passou pela validação. O frete não foi calculado para evitar cobrança incorreta.");
+  }
+  return Number(distanceKm.toFixed(2));
 }
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
@@ -94,8 +152,8 @@ Deno.serve(async (req) => {
     if (isPalmas && settings?.shipping_palmas_enabled) {
       const originCep = String(settings.shipping_origin_postal_code || "").replace(/\D/g, "");
       if (!/^\d{8}$/.test(originCep)) throw new Error("CEP de origem da loja não configurado");
-      const origin = await geocodePostalCode(originCep);
-      const destination = await geocodePostalCode(postalCode);
+      const origin = await geocodePostalCode(originCep, "Palmas", "TO");
+      const destination = await geocodePostalCode(postalCode, city, state);
       const distance = Number((await routeDistanceKm(origin, destination)).toFixed(1));
       const rules = Array.isArray(settings.shipping_palmas_distance_rules) ? settings.shipping_palmas_distance_rules : [];
       const rule = rules.find((item: any, index: number) => {
