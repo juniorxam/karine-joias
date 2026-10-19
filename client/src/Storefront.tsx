@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { toast } from "sonner";
-import { ArrowRight, ArrowLeft, Check, CreditCard, Gem, Heart, Instagram, Menu, Search, ShoppingBag, Sparkles, X, User, Truck, Tag, ShieldCheck, Star, MessageCircle } from "lucide-react";
+import { ArrowRight, ArrowLeft, CalendarDays, Check, CreditCard, Gem, Heart, Instagram, Menu, Search, ShoppingBag, Sparkles, X, User, Truck, Tag, ShieldCheck, Star, MessageCircle } from "lucide-react";
 import { formatMoney, type CatalogProduct } from "./lib/catalog";
 type ShippingDistanceRule = { min_km:number; max_km:number|null; price:number };
 type ProductReview = { id:string; product_id:number; rating:number; comment:string; display_name:string; created_at:string };
