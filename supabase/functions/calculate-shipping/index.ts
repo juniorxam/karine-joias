@@ -54,72 +54,24 @@ async function cep(value: string): Promise<Address> {
 
 // Referências manuais mantidas apenas para CEPs previamente conferidos.
 async function geo(address: Address): Promise<GeoPoint> {
-  const references: Record<string, [number, number]> = {
-    "77001540": [-48.346, -10.163],
-    "77001570": [-48.3492, -10.1618],
-    "77015007": [-48.33366, -10.18457],
-  };
-  const reference = references[address.postalCode];
-  if (reference) {
-    return { lon: reference[0], lat: reference[1], source: "referência de CEP validada" };
-  }
-
-  const streetWords = norm(address.street).split(/[^a-z0-9]+/).filter((word) => word.length >= 3 && !/^\d+$/.test(word));
-  if (!streetWords.length) {
-    throw new Error("Não foi possível identificar o logradouro deste endereço. Confira o CEP e o nome da rua.");
-  }
-
-  const queries = [
-    [address.street, address.number, address.neighborhood, address.city, address.state, address.postalCode, "Brasil"],
-    [address.street, address.neighborhood, address.city, address.state, address.postalCode, "Brasil"],
-    [address.street, address.neighborhood, address.city, address.state, "Brasil"],
-  ].map((parts) => parts.filter(Boolean).join(", "));
-
-  for (const query of queries) {
-    const params = new URLSearchParams({
-      q: query,
-      format: "jsonv2",
-      addressdetails: "1",
-      countrycodes: "br",
-      limit: "10",
-      viewbox: "-48.60,-9.70,-48.00,-10.60",
-      bounded: "1",
-    });
-    const data = await get(`https://nominatim.openstreetmap.org/search?${params}`, {
-      headers: { Accept: "application/json", "User-Agent": "ViolettaStoreShipping/1.1" },
-    });
-    const results = Array.isArray(data) ? data : [];
-    const match = results.find((item: any) => {
-      const lat = Number(item?.lat);
-      const lon = Number(item?.lon);
-      const resultAddress = item?.address || {};
-      const resultCity = norm(
-        resultAddress.city || resultAddress.town || resultAddress.municipality ||
-        resultAddress.city_district || resultAddress.village || "",
-      );
-      const resultState = norm(resultAddress.state || "");
-      const resultPostalCode = dig(resultAddress.postcode);
-      const resultLabel = norm(item?.display_name || "");
-      const resultRoad = norm(
-        resultAddress.road || resultAddress.pedestrian || resultAddress.footway || resultAddress.residential || "",
-      );
-      const hasStreetMatch = streetWords.some((word) => resultRoad.includes(word) || resultLabel.includes(word));
-      const cityMatches = resultCity === norm(address.city) || resultCity.includes(norm(address.city));
-      const stateMatches = !resultState || resultState.includes("tocantins") || resultState === "to";
-      const postalMatches = !resultPostalCode || resultPostalCode === address.postalCode;
-      return Number.isFinite(lat) && Number.isFinite(lon) &&
-        lon >= box.minLon && lon <= box.maxLon && lat >= box.minLat && lat <= box.maxLat &&
-        cityMatches && stateMatches && postalMatches && hasStreetMatch;
-    });
-    if (match) {
-      return { lon: Number(match.lon), lat: Number(match.lat), source: "OpenStreetMap/Nominatim" };
-    }
-  }
-
-  // Nunca substituir um endereço não localizado por coordenadas genéricas.
-  throw new Error("Não conseguimos localizar este endereço com segurança. Confira rua, bairro e CEP ou fale com a Violetta para confirmar o frete.");
+  const key=Deno.env.get("GOOGLE_MAPS_API_KEY")?.trim();
+  if(!key) throw new Error("Google Maps não está configurado no servidor. O frete não foi calculado.");
+  const full=[address.street,address.number,address.neighborhood,address.city,address.state,address.postalCode,"Brasil"].filter(Boolean).join(", ");
+  const p=new URLSearchParams({address:full,components:`country:BR|postal_code:${address.postalCode}`,key,language:"pt-BR",region:"br"});
+  const response=await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${p}`);
+  if(!response.ok) throw new Error("O Google Maps não conseguiu localizar o endereço.");
+  const data=await response.json();
+  if(data?.status!=="OK"||!Array.isArray(data.results)) throw new Error(data?.status==="REQUEST_DENIED"?"A chave ou as permissões da API do Google Maps precisam ser verificadas.":"O Google Maps não localizou o endereço. Confira os dados.");
+  const candidates=data.results.map((item:any)=>{
+    const cs=Array.isArray(item.address_components)?item.address_components:[];
+    const get=(type:string,short=false)=>{const x=cs.find((z:any)=>z.types?.includes(type));return x?(short?x.short_name:x.long_name):"";};
+    return {lat:Number(item.geometry?.location?.lat),lon:Number(item.geometry?.location?.lng),city:norm(get("locality")||get("postal_town")||get("administrative_area_level_2")),state:norm(get("administrative_area_level_1",true)||get("administrative_area_level_1")),country:norm(get("country",true)||get("country")),postal:dig(get("postal_code")),label:norm(item.formatted_address||"")};
+  });
+  const words=norm(address.street).split(/[^a-z0-9]+/).filter((w)=>w.length>=3&&!/^\d+$/.test(w));
+  const found=candidates.find((x:any)=>Number.isFinite(x.lat)&&Number.isFinite(x.lon)&&x.lon>=box.minLon&&x.lon<=box.maxLon&&x.lat>=box.minLat&&x.lat<=box.maxLat&&(x.city===norm(address.city)||x.city.includes(norm(address.city)))&&(x.state==="to"||x.state.includes("tocantins"))&&(x.country==="br"||x.country.includes("brasil"))&&(!x.postal||x.postal===address.postalCode)&&(words.length===0||words.some((w:string)=>x.label.includes(w))));
+  if(!found) throw new Error("O resultado do Google Maps não corresponde com segurança ao CEP, logradouro e município. O frete não foi calculado.");
+  return {lon:found.lon,lat:found.lat,source:"Google Maps Geocoding API"};
 }
-
 function straightLineKm(origin: GeoPoint, destination: GeoPoint) {
   const radians = (degrees: number) => degrees * Math.PI / 180;
   const lat1 = radians(origin.lat);
@@ -131,67 +83,20 @@ function straightLineKm(origin: GeoPoint, destination: GeoPoint) {
   return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)));
 }
 
-async function routeWithOsrm(origin: GeoPoint, destination: GeoPoint) {
-  const coordinates = encodeURIComponent(`${origin.lon},${origin.lat};${destination.lon},${destination.lat}`);
-  const data = await get(`https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=false&steps=false`, { headers: { Accept: "application/json" } });
-  const meters = Number(data?.routes?.[0]?.distance);
-  if (data?.code !== "Ok" || !Number.isFinite(meters) || meters <= 0) throw new Error("Não foi possível calcular a rota pelas ruas. Tente novamente.");
-  return { routeKm: meters / 1000, seconds: Number(data?.routes?.[0]?.duration), provider: "OSRM" };
-}
 
 async function route(origin: GeoPoint, destination: GeoPoint) {
-  const directKm = straightLineKm(origin, destination);
-  if (!Number.isFinite(directKm) || directKm < 0.01) {
-    throw new Error("A localização do endereço não parece válida. Confira o endereço informado.");
-  }
-  const mapsKey = Deno.env.get("GOOGLE_MAPS_API_KEY")?.trim();
-  let routeKm: number;
-  let seconds: number;
-  let provider: string;
-  if (mapsKey) {
-    const data = await get("https://routes.googleapis.com/directions/v2:computeRoutes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Goog-Api-Key": mapsKey, "X-Goog-FieldMask": "routes.distanceMeters,routes.duration" },
-      body: JSON.stringify({
-        origin: { location: { latLng: { latitude: origin.lat, longitude: origin.lon } } },
-        destination: { location: { latLng: { latitude: destination.lat, longitude: destination.lon } } },
-        travelMode: "DRIVE", routingPreference: "TRAFFIC_AWARE", units: "METRIC",
-      }),
-    });
-    const meters = Number(data?.routes?.[0]?.distanceMeters);
-    const duration = Number(String(data?.routes?.[0]?.duration || "").replace(/s$/, ""));
-    if (Number.isFinite(meters) && meters > 0) {
-      routeKm = meters / 1000; seconds = duration; provider = "Google Routes API";
-    } else {
-      const fallback = await routeWithOsrm(origin, destination);
-      routeKm = fallback.routeKm; seconds = fallback.seconds; provider = fallback.provider;
-    }
-  } else {
-    const fallback = await routeWithOsrm(origin, destination);
-    routeKm = fallback.routeKm; seconds = fallback.seconds; provider = fallback.provider;
-  }
-  // A rota não pode ser significativamente menor que a linha reta.
-  // A tolerância considera o ajuste (snap) dos pontos para as vias do roteador.
-  const toleranceKm = Math.max(0.25, directKm * 0.03);
-  if (routeKm + toleranceKm < directKm) {
-    throw new Error("O cálculo da rota retornou uma distância inconsistente. Não calculamos o frete para evitar cobrar um valor incorreto. Tente novamente ou fale com a Violetta.");
-  }
-  // Sinaliza rotas suspeitamente próximas à linha reta para não subestimar trajetos.
-  const routeRatio = routeKm / directKm;
-  if (!Number.isFinite(routeRatio) || routeRatio < 0.97) {
-    throw new Error("Não foi possível validar a distância deste endereço. Confira os dados ou fale com a Violetta.");
-  }
-  return {
-    km: Number(routeKm.toFixed(2)),
-    straight_line_km: Number(directKm.toFixed(2)),
-    min: Number.isFinite(seconds) && seconds > 0 ? Math.max(1, Math.round(seconds / 60)) : null,
-    route_ratio: Number(routeRatio.toFixed(2)),
-    provider,
-    origin_geocoder: origin.source,
-    destination_geocoder: destination.source,
-  };
+  const directKm=straightLineKm(origin,destination);
+  if(!Number.isFinite(directKm)||directKm<0.01) throw new Error("A localização do endereço não parece válida.");
+  const key=Deno.env.get("GOOGLE_MAPS_API_KEY")?.trim();
+  if(!key) throw new Error("Google Maps não está configurado no servidor. O frete não foi calculado.");
+  const response=await fetch("https://routes.googleapis.com/directions/v2:computeRoutes",{method:"POST",headers:{"Content-Type":"application/json","X-Goog-Api-Key":key,"X-Goog-FieldMask":"routes.distanceMeters,routes.duration"},body:JSON.stringify({origin:{location:{latLng:{latitude:origin.lat,longitude:origin.lon}}},destination:{location:{latLng:{latitude:destination.lat,longitude:destination.lon}}},travelMode:"DRIVE",routingPreference:"TRAFFIC_UNAWARE",units:"METRIC"})});
+  if(!response.ok) throw new Error("O Google Maps não conseguiu calcular a rota. O frete não foi definido.");
+  const data=await response.json(), meters=Number(data?.routes?.[0]?.distanceMeters), seconds=Number(String(data?.routes?.[0]?.duration||"").replace(/s$/,""));
+  if(!Number.isFinite(meters)||meters<=0||!Number.isFinite(seconds)||seconds<=0) throw new Error("O Google Maps retornou uma rota incompleta. O frete não foi calculado.");
+  const routeKm=meters/1000,tolerance=Math.max(0.2,directKm*0.03),ratio=routeKm/directKm;
+  if(routeKm+tolerance<directKm||!Number.isFinite(ratio)||ratio<0.97||ratio>4.5) throw new Error("A rota não passou pela validação da distância em linha reta. O frete não foi calculado.");
+  return {km:Number(routeKm.toFixed(2)),straight_line_km:Number(directKm.toFixed(2)),min:Math.max(1,Math.round(seconds/60)),route_ratio:Number(ratio.toFixed(2)),provider:"Google Routes API",origin_geocoder:origin.source,destination_geocoder:destination.source};
 }
-
 Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (request.method !== "POST") return json({ error: "Método não permitido." }, 405);
