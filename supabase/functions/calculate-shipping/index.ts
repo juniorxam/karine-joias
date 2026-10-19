@@ -7,129 +7,256 @@ const cors = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json",
 };
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors });
-const normalize = (value: unknown) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
-const digits = (value: unknown) => String(value ?? "").replace(/\D/g, "");
-const bbox = { minLon: -48.6, maxLon: -48.0, minLat: -10.6, maxLat: -9.7 };
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: cors });
+const norm = (v: unknown) => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+const dig = (v: unknown) => String(v ?? "").replace(/\D/g, "");
+const box = { minLon: -48.6, maxLon: -48, minLat: -10.6, maxLat: -9.7 };
 
-type Address = { street: string; number: string; neighborhood: string; city: string; state: string; postalCode: string };
+type Address = {
+  street: string;
+  number: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  postalCode: string;
+};
+type GeoPoint = { lon: number; lat: number; source: string };
 
-async function fetchJson(url: string, init: RequestInit = {}) {
+async function get(url: string, init: RequestInit = {}) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12000);
+  const timeout = setTimeout(() => controller.abort(), 12000);
   try {
     const response = await fetch(url, { ...init, signal: controller.signal });
     if (!response.ok) return null;
     return await response.json();
   } finally {
-    clearTimeout(timer);
+    clearTimeout(timeout);
   }
 }
 
-async function fromCep(postalCode: string): Promise<Address> {
-  const cep = digits(postalCode);
-  if (!/^\d{8}$/.test(cep)) throw new Error("CEP inválido para localizar o endereço.");
-  const data = await fetchJson(`https://viacep.com.br/ws/${cep}/json/`, { headers: { Accept: "application/json" } });
-  if (!data || data.erro || !data.localidade || !data.uf) throw new Error("Não foi possível consultar o CEP informado.");
-  return { street: String(data.logradouro || ""), number: "", neighborhood: String(data.bairro || ""), city: String(data.localidade), state: String(data.uf).toUpperCase(), postalCode: cep };
+async function cep(value: string): Promise<Address> {
+  const postalCode = dig(value);
+  if (!/^\d{8}$/.test(postalCode)) throw new Error("CEP inválido.");
+  const data = await get(`https://viacep.com.br/ws/${postalCode}/json/`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!data || data.erro) throw new Error("Não foi possível consultar o CEP informado.");
+  return {
+    street: String(data.logradouro || ""),
+    number: "",
+    neighborhood: String(data.bairro || ""),
+    city: String(data.localidade || ""),
+    state: String(data.uf || "").toUpperCase(),
+    postalCode,
+  };
 }
 
-async function geocode(address: Address): Promise<[number, number]> {
-  const postalReference: Record<string, [number, number]> = {
-    "77001540": [-48.34600, -10.16300],
-    "77001570": [-48.34920, -10.16180],
+// Referências manuais mantidas apenas para CEPs previamente conferidos.
+async function geo(address: Address): Promise<GeoPoint> {
+  const references: Record<string, [number, number]> = {
+    "77001540": [-48.346, -10.163],
+    "77001570": [-48.3492, -10.1618],
     "77015007": [-48.33366, -10.18457],
   };
-  if (postalReference[address.postalCode]) return postalReference[address.postalCode];
-  const street = normalize(address.street);
-  const streetWords = street.split(/[^a-z0-9]+/).filter((word) => word.length >= 3 && !/^\d+$/.test(word));
+  const reference = references[address.postalCode];
+  if (reference) {
+    return { lon: reference[0], lat: reference[1], source: "referência de CEP validada" };
+  }
+
+  const streetWords = norm(address.street).split(/[^a-z0-9]+/).filter((word) => word.length >= 3 && !/^\d+$/.test(word));
+  if (!streetWords.length) {
+    throw new Error("Não foi possível identificar o logradouro deste endereço. Confira o CEP e o nome da rua.");
+  }
+
   const queries = [
     [address.street, address.number, address.neighborhood, address.city, address.state, address.postalCode, "Brasil"],
     [address.street, address.neighborhood, address.city, address.state, address.postalCode, "Brasil"],
-    [address.street, address.city, address.state, "Brasil"],
+    [address.street, address.neighborhood, address.city, address.state, "Brasil"],
   ].map((parts) => parts.filter(Boolean).join(", "));
+
   for (const query of queries) {
-    const params = new URLSearchParams({ q: query, format: "jsonv2", addressdetails: "1", countrycodes: "br", limit: "10", viewbox: "-48.60,-9.70,-48.00,-10.60" });
-    const data = await fetchJson(`https://nominatim.openstreetmap.org/search?${params}`, { headers: { Accept: "application/json", "User-Agent": "ViolettaStoreShipping/1.0" } });
-    const candidates = Array.isArray(data) ? data : [];
-    const match = candidates.find((item: any) => {
-      const lat = Number(item?.lat), lon = Number(item?.lon), result = item?.address || {};
-      const city = normalize(result.city || result.town || result.municipality || result.city_district || "");
-      const state = normalize(result.state || "");
-      const postal = digits(result.postcode);
-      const label = normalize(item?.display_name || "");
-      const resultStreet = normalize(result.road || result.pedestrian || result.footway || "");
-      const streetEvidence = streetWords.some((word) => resultStreet.includes(word) || label.includes(word));
-      return Number.isFinite(lat) && Number.isFinite(lon) && lon >= bbox.minLon && lon <= bbox.maxLon && lat >= bbox.minLat && lat <= bbox.maxLat
-        && city.includes(normalize(address.city)) && (!state || state.includes("tocantins") || state === "to")
-        && (!postal || !address.postalCode || postal === address.postalCode) && streetEvidence;
+    const params = new URLSearchParams({
+      q: query,
+      format: "jsonv2",
+      addressdetails: "1",
+      countrycodes: "br",
+      limit: "10",
+      viewbox: "-48.60,-9.70,-48.00,-10.60",
+      bounded: "1",
     });
-    if (match) return [Number(match.lon), Number(match.lat)];
+    const data = await get(`https://nominatim.openstreetmap.org/search?${params}`, {
+      headers: { Accept: "application/json", "User-Agent": "ViolettaStoreShipping/1.1" },
+    });
+    const results = Array.isArray(data) ? data : [];
+    const match = results.find((item: any) => {
+      const lat = Number(item?.lat);
+      const lon = Number(item?.lon);
+      const resultAddress = item?.address || {};
+      const resultCity = norm(
+        resultAddress.city || resultAddress.town || resultAddress.municipality ||
+        resultAddress.city_district || resultAddress.village || "",
+      );
+      const resultState = norm(resultAddress.state || "");
+      const resultPostalCode = dig(resultAddress.postcode);
+      const resultLabel = norm(item?.display_name || "");
+      const resultRoad = norm(
+        resultAddress.road || resultAddress.pedestrian || resultAddress.footway || resultAddress.residential || "",
+      );
+      const hasStreetMatch = streetWords.some((word) => resultRoad.includes(word) || resultLabel.includes(word));
+      const cityMatches = resultCity === norm(address.city) || resultCity.includes(norm(address.city));
+      const stateMatches = !resultState || resultState.includes("tocantins") || resultState === "to";
+      const postalMatches = !resultPostalCode || resultPostalCode === address.postalCode;
+      return Number.isFinite(lat) && Number.isFinite(lon) &&
+        lon >= box.minLon && lon <= box.maxLon && lat >= box.minLat && lat <= box.maxLat &&
+        cityMatches && stateMatches && postalMatches && hasStreetMatch;
+    });
+    if (match) {
+      return { lon: Number(match.lon), lat: Number(match.lat), source: "OpenStreetMap/Nominatim" };
+    }
   }
-  const areaQuery = [address.neighborhood, address.city, address.state, "Brasil"].filter(Boolean).join(", ");
-  const areaParams = new URLSearchParams({ q: areaQuery, format: "jsonv2", addressdetails: "1", countrycodes: "br", limit: "10", viewbox: "-48.60,-9.70,-48.00,-10.60" });
-  const areaData = await fetchJson(`https://nominatim.openstreetmap.org/search?${areaParams}`, { headers: { Accept: "application/json", "User-Agent": "ViolettaStoreShipping/1.0" } });
-  const areaMatch = (Array.isArray(areaData) ? areaData : []).find((item: any) => {
-    const lat = Number(item?.lat), lon = Number(item?.lon), result = item?.address || {};
-    const city = normalize(result.city || result.town || result.municipality || result.city_district || "");
-    const state = normalize(result.state || "");
-    return Number.isFinite(lat) && Number.isFinite(lon) && lon >= bbox.minLon && lon <= bbox.maxLon && lat >= bbox.minLat && lat <= bbox.maxLat
-      && city.includes(normalize(address.city)) && (!state || state.includes("tocantins") || state === "to");
-  });
-  if (areaMatch) return [Number(areaMatch.lon), Number(areaMatch.lat)];
-  const cityParams = new URLSearchParams({ q: `${address.city}, ${address.state}, Brasil`, format: "jsonv2", addressdetails: "1", countrycodes: "br", limit: "10", viewbox: "-48.60,-9.70,-48.00,-10.60" });
-  const cityData = await fetchJson(`https://nominatim.openstreetmap.org/search?${cityParams}`, { headers: { Accept: "application/json", "User-Agent": "ViolettaStoreShipping/1.0" } });
-  const cityMatch = (Array.isArray(cityData) ? cityData : []).find((item: any) => {
-    const lat = Number(item?.lat), lon = Number(item?.lon), result = item?.address || {};
-    return Number.isFinite(lat) && Number.isFinite(lon) && lon >= bbox.minLon && lon <= bbox.maxLon && lat >= bbox.minLat && lat <= bbox.maxLat
-      && normalize(result.city || result.town || result.municipality || item?.display_name).includes(normalize(address.city));
-  });
-  if (cityMatch) return [-48.345, -10.195];
-  throw new Error("O mapa não encontrou o logradouro em Palmas. Confira rua, número, bairro e CEP.");
+
+  // Nunca substituir um endereço não localizado por coordenadas genéricas.
+  throw new Error("Não conseguimos localizar este endereço com segurança. Confira rua, bairro e CEP ou fale com a Violetta para confirmar o frete.");
 }
 
-async function roadDistance(origin: [number, number], destination: [number, number]) {
-  const coords = encodeURIComponent(`${origin[0]},${origin[1]};${destination[0]},${destination[1]}`);
-  const data = await fetchJson(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=false&steps=false`, { headers: { Accept: "application/json" } });
+function straightLineKm(origin: GeoPoint, destination: GeoPoint) {
+  const radians = (degrees: number) => degrees * Math.PI / 180;
+  const lat1 = radians(origin.lat);
+  const lat2 = radians(destination.lat);
+  const deltaLat = lat2 - lat1;
+  const deltaLon = radians(destination.lon - origin.lon);
+  const a = Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)));
+}
+
+async function route(origin: GeoPoint, destination: GeoPoint) {
+  const directKm = straightLineKm(origin, destination);
+  if (!Number.isFinite(directKm) || directKm < 0.01) {
+    throw new Error("A localização do endereço não parece válida. Confira o endereço informado.");
+  }
+  const coordinates = encodeURIComponent(`${origin.lon},${origin.lat};${destination.lon},${destination.lat}`);
+  const data = await get(
+    `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=false&steps=false`,
+    { headers: { Accept: "application/json" } },
+  );
   const meters = Number(data?.routes?.[0]?.distance);
-  if (data?.code !== "Ok" || !Number.isFinite(meters) || meters <= 0) throw new Error("Não foi possível calcular a rota pelas ruas. Tente novamente.");
-  const duration = Number(data?.routes?.[0]?.duration);
-  return { distanceKm: Number((meters / 1000).toFixed(2)), durationMinutes: Number.isFinite(duration) && duration > 0 ? Math.max(1, Math.round(duration / 60)) : null };
+  if (data?.code !== "Ok" || !Number.isFinite(meters) || meters <= 0) {
+    throw new Error("Não foi possível calcular a rota pelas ruas. Tente novamente.");
+  }
+  const routeKm = meters / 1000;
+  // A rota não pode ser significativamente menor que a linha reta.
+  // A tolerância considera o ajuste (snap) dos pontos para as vias do roteador.
+  const toleranceKm = Math.max(0.25, directKm * 0.03);
+  if (routeKm + toleranceKm < directKm) {
+    throw new Error("O cálculo da rota retornou uma distância inconsistente. Não calculamos o frete para evitar cobrar um valor incorreto. Tente novamente ou fale com a Violetta.");
+  }
+  // Sinaliza rotas suspeitamente próximas à linha reta para não subestimar trajetos.
+  const routeRatio = routeKm / directKm;
+  if (!Number.isFinite(routeRatio) || routeRatio < 0.97) {
+    throw new Error("Não foi possível validar a distância deste endereço. Confira os dados ou fale com a Violetta.");
+  }
+  const seconds = Number(data?.routes?.[0]?.duration);
+  return {
+    km: Number(routeKm.toFixed(2)),
+    straight_line_km: Number(directKm.toFixed(2)),
+    min: Number.isFinite(seconds) && seconds > 0 ? Math.max(1, Math.round(seconds / 60)) : null,
+    route_ratio: Number(routeRatio.toFixed(2)),
+    origin_geocoder: origin.source,
+    destination_geocoder: destination.source,
+  };
 }
 
-Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-  if (req.method !== "POST") return json({ error: "Método não permitido." }, 405);
+Deno.serve(async (request: Request) => {
+  if (request.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (request.method !== "POST") return json({ error: "Método não permitido." }, 405);
+
   try {
-    const body = await req.json();
+    const body = await request.json();
     const shipping = body?.shipping || {};
-    const city = normalize(shipping.city).replace(/[\s,/-]*(to|tocantins)$/, "");
-    const state = normalize(shipping.state) === "tocantins" ? "TO" : String(shipping.state || "").trim().toUpperCase();
-    const postalCode = digits(shipping.postal_code);
-    if (city !== "palmas" || state !== "TO") throw new Error("A entrega automática está disponível somente para endereços de Palmas-TO.");
-    if (!/^\d{8}$/.test(postalCode) || !shipping.address || !shipping.number || !shipping.neighborhood) throw new Error("Preencha CEP, logradouro, número e bairro para calcular a rota.");
-    const url = Deno.env.get("SUPABASE_URL"), key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const city = norm(shipping.city).replace(/[\s,/-]*(to|tocantins)$/, "");
+    const state = norm(shipping.state) === "tocantins" ? "TO" : String(shipping.state || "").trim().toUpperCase();
+    const postalCode = dig(shipping.postal_code);
+
+    if (city !== "palmas" || state !== "TO") {
+      throw new Error("A entrega automática está disponível somente para endereços de Palmas-TO.");
+    }
+    if (!/^\d{8}$/.test(postalCode) || !shipping.address || !shipping.number || !shipping.neighborhood) {
+      throw new Error("Preencha CEP, logradouro, número e bairro para calcular a rota.");
+    }
+
+    const url = Deno.env.get("SUPABASE_URL");
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!url || !key) throw new Error("Configuração do servidor indisponível.");
+
     const db = createClient(url, key);
-    const { data: settings, error } = await db.from("storefront_settings").select("shipping_palmas_enabled,shipping_palmas_free_above,shipping_palmas_distance_rules,shipping_origin_postal_code,shipping_origin_address_confirmed,shipping_origin_draft_postal_code,shipping_origin_draft_street,shipping_origin_draft_number,shipping_origin_draft_neighborhood,shipping_origin_draft_city,shipping_origin_draft_state").eq("store_slug", "violetta").maybeSingle();
+    const { data: settings, error } = await db.from("storefront_settings")
+      .select("shipping_palmas_enabled,shipping_palmas_free_above,shipping_palmas_distance_rules,shipping_origin_postal_code,shipping_origin_address_confirmed,shipping_origin_draft_postal_code,shipping_origin_draft_street,shipping_origin_draft_number,shipping_origin_draft_neighborhood,shipping_origin_draft_city,shipping_origin_draft_state")
+      .eq("store_slug", "violetta")
+      .maybeSingle();
+
     if (error || !settings) throw new Error("Não foi possível carregar as regras de frete da loja.");
     if (settings.shipping_palmas_enabled !== true) throw new Error("O cálculo automático de frete para Palmas está desativado.");
-    let origin: Address;
-    if (settings.shipping_origin_address_confirmed === true) {
-      origin = { street: String(settings.shipping_origin_draft_street || ""), number: String(settings.shipping_origin_draft_number || ""), neighborhood: String(settings.shipping_origin_draft_neighborhood || ""), city: String(settings.shipping_origin_draft_city || "Palmas"), state: String(settings.shipping_origin_draft_state || "TO").toUpperCase(), postalCode: digits(settings.shipping_origin_draft_postal_code) };
-    } else {
-      const postal = await fromCep(String(settings.shipping_origin_postal_code || ""));
-      origin = postal;
-    }
-    const destination: Address = { street: String(shipping.address), number: String(shipping.number), neighborhood: String(shipping.neighborhood), city: String(shipping.city), state, postalCode };
-    const route = await roadDistance(await geocode(origin), await geocode(destination));
-    const serviceable = route.distanceKm <= 20;
-    const rules = Array.isArray(settings.shipping_palmas_distance_rules) ? settings.shipping_palmas_distance_rules : [{ min_km: 0, max_km: 5, price: 7 }, { min_km: 5, max_km: 10, price: 10 }, { min_km: 10, max_km: 20, price: 15 }];
-    const rule = rules.find((item: any) => { const min = Number(item?.min_km), max = item?.max_km == null || item?.max_km === "" ? Infinity : Number(item.max_km); return Number.isFinite(min) && Number.isFinite(Number(item?.price)) && route.distanceKm >= min && route.distanceKm <= max; });
+
+    const origin: Address = settings.shipping_origin_address_confirmed === true
+      ? {
+          street: String(settings.shipping_origin_draft_street || ""),
+          number: String(settings.shipping_origin_draft_number || ""),
+          neighborhood: String(settings.shipping_origin_draft_neighborhood || ""),
+          city: String(settings.shipping_origin_draft_city || "Palmas"),
+          state: String(settings.shipping_origin_draft_state || "TO").toUpperCase(),
+          postalCode: dig(settings.shipping_origin_draft_postal_code),
+        }
+      : await cep(String(settings.shipping_origin_postal_code || ""));
+
+    const destination: Address = {
+      street: String(shipping.address),
+      number: String(shipping.number),
+      neighborhood: String(shipping.neighborhood),
+      city: String(shipping.city),
+      state,
+      postalCode,
+    };
+
+    const originPoint = await geo(origin);
+    const destinationPoint = await geo(destination);
+    const distance = await route(originPoint, destinationPoint);
+    const serviceable = distance.km <= 20;
+    const rules = Array.isArray(settings.shipping_palmas_distance_rules)
+      ? settings.shipping_palmas_distance_rules
+      : [
+          { min_km: 0, max_km: 5, price: 7 },
+          { min_km: 5, max_km: 10, price: 10 },
+          { min_km: 10, max_km: 20, price: 15 },
+        ];
+    const rule = rules.find((item: any) => {
+      const min = Number(item?.min_km);
+      const max = item?.max_km == null || item?.max_km === "" ? Infinity : Number(item.max_km);
+      return Number.isFinite(min) && Number.isFinite(Number(item?.price)) && distance.km >= min && distance.km <= max;
+    });
     const subtotal = Math.max(0, Number(body?.subtotal) || 0);
-    const freeAbove = Number(settings.shipping_palmas_free_above || 0);
-    const shippingPrice = !serviceable ? null : freeAbove > 0 && subtotal >= freeAbove ? 0 : Number(rule?.price ?? 0);
-    return json({ distance_km: route.distanceKm, serviceable, shipping_price: shippingPrice, shipping_price_formatted: shippingPrice === null ? null : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(shippingPrice), service: !serviceable ? "Frete a combinar" : shippingPrice === 0 ? "Entrega em Palmas · frete grátis" : `Entrega em Palmas · ${route.distanceKm.toFixed(1)} km`, estimated_duration_minutes: route.durationMinutes, provider: "OSRM", geocoder: "Nominatim" });
+    const freeAbove = Number(settings.shipping_palmas_free_above) || 0;
+    const price = !serviceable ? null : freeAbove > 0 && subtotal >= freeAbove ? 0 : Number(rule?.price ?? 0);
+
+    return json({
+      distance_km: distance.km,
+      straight_line_km: distance.straight_line_km,
+      route_ratio: distance.route_ratio,
+      serviceable,
+      shipping_price: price,
+      shipping_price_formatted: price === null
+        ? null
+        : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(price),
+      service: !serviceable
+        ? "Frete a combinar"
+        : price === 0
+          ? "Entrega em Palmas · frete grátis"
+          : `Entrega em Palmas · ${distance.km.toFixed(1)} km`,
+      estimated_duration_minutes: distance.min,
+      provider: "OSRM",
+      geocoder: `${distance.origin_geocoder} → ${distance.destination_geocoder}`,
+    });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Não foi possível calcular o frete." }, 400);
   }
