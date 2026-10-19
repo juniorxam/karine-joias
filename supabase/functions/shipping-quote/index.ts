@@ -101,8 +101,7 @@ Deno.serve(async (req) => {
       const rule = rules.find((item: any, index: number) => {
         const min = Number(item?.min_km);
         const max = item?.max_km === null || item?.max_km === undefined || item?.max_km === "" ? null : Number(item.max_km);
-        const last = index === rules.length - 1;
-        return Number.isFinite(min) && distance >= min && max !== null && Number.isFinite(max) && (last ? distance <= max : distance < max);
+        return Number.isFinite(min) && distance >= min && max !== null && Number.isFinite(max) && distance <= max;
       });
       if (rule) {
         options.push({

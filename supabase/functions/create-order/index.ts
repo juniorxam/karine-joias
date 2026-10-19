@@ -235,8 +235,8 @@ Deno.serve(async (req) => {
         } else {
           const distance = Number(quote.distance_km);
           if (!Number.isFinite(distance) || distance <= 0) throw new Error("O serviço de frete retornou uma distância inválida.");
-          if (quote.serviceable !== true || distance > 20 || quote.shipping_price === null) {
-            if (requestedService !== "Frete a combinar") throw new Error("Este endereço fica fora do raio de 20 km. Selecione Frete a combinar para negociar a entrega com a loja.");
+          if (quote.serviceable !== true || distance > 17.9 || quote.shipping_price === null) {
+            if (requestedService !== "Frete a combinar") throw new Error("Este endereço fica fora da faixa automática de 17,9 km. Selecione Frete a combinar para negociar a entrega com a loja.");
             shippingAmount = 0;
             normalizedShippingOption = { id: "palmas-combine", company: "Violetta", service: "Frete a combinar", price: 0, delivery_time: 0 };
           } else {
