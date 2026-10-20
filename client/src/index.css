@@ -990,3 +990,67 @@
 .store-footer .footer-card-brands{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:9px 0 10px}
 .store-footer .footer-card-brands span{display:inline-flex;align-items:center;justify-content:center;min-height:27px;padding:5px 8px;border:1px solid rgba(255,255,255,.24);border-radius:6px;background:rgba(255,255,255,.07);color:inherit;font-size:10px;font-weight:700;letter-spacing:.02em}
 .store-footer .footer-card-brands span:nth-child(2){font-weight:600}
+
+
+/* Vitrine Violetta: aproveitar melhor a largura em telas grandes */
+.store-hero {
+  width: min(100%, 1600px);
+  max-width: 1600px;
+  padding-left: clamp(24px, 4.2vw, 68px);
+  padding-right: clamp(24px, 4.2vw, 68px);
+  gap: clamp(28px, 4vw, 64px);
+}
+.store-category-strip,
+.store-latest,
+.store-values,
+.store-featured,
+.store-catalog,
+.store-gifts {
+  width: 100%;
+  max-width: 1600px;
+  padding-left: clamp(20px, 3.2vw, 52px);
+  padding-right: clamp(20px, 3.2vw, 52px);
+}
+.store-product-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(14px, 1.45vw, 24px);
+}
+.store-latest .store-product-grid,
+.store-gifts .store-product-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.store-product-art,
+.featured-card .store-product-art {
+  aspect-ratio: 1 / 1;
+}
+.store-product-info { padding: 16px 16px 18px; }
+@media (min-width: 1500px) {
+  .store-product-grid,
+  .store-latest .store-product-grid,
+  .store-gifts .store-product-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 24px;
+  }
+  .store-product-info h3 { font-size: 16px; }
+  .product-price-stack strong { font-size: 20px; }
+}
+@media (max-width: 1000px) {
+  .store-hero { padding-left: 28px; padding-right: 28px; }
+  .store-category-strip,
+  .store-latest,
+  .store-featured,
+  .store-catalog,
+  .store-gifts { padding-left: 24px; padding-right: 24px; }
+}
+@media (max-width: 760px) {
+  .store-hero { padding: 42px 20px 34px; }
+  .store-category-strip,
+  .store-latest,
+  .store-featured,
+  .store-catalog,
+  .store-gifts { padding-left: 16px; padding-right: 16px; }
+  .store-product-grid,
+  .store-latest .store-product-grid,
+  .store-gifts .store-product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .store-product-info { padding: 12px 10px; }
+}
