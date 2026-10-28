@@ -730,9 +730,25 @@ export default function Storefront() {
         </section>
       </div>
       <div className="footer-payment">
-        <p className="footer-payment-title">Formas de pagamento</p>
-        <div className="footer-card-brands" aria-label="Bandeiras aceitas"><span>PIX</span><span>VISA</span><span>Mastercard</span><span>ELO</span><span>AMEX</span><span>Hiper</span><span>Hipercard</span></div>
-        <small>Pagamentos processados com segurança pelo InfinitePay.</small>
+        <div className="footer-payment-group">
+          <p className="footer-payment-title">Bandeiras de cartão aceitas</p>
+          <div className="footer-card-brands" aria-label="Visa, Mastercard, Elo e American Express">
+            <span className="payment-mark payment-visa" aria-label="Visa">VISA</span>
+            <span className="payment-mark payment-mastercard" aria-label="Mastercard"><i/><i/><b>mastercard</b></span>
+            <span className="payment-mark payment-elo" aria-label="Elo"><i>elo</i><b/></span>
+            <span className="payment-mark payment-amex" aria-label="American Express"><b>AMERICAN<br/>EXPRESS</b></span>
+          </div>
+        </div>
+        <div className="footer-payment-group footer-digital-payments">
+          <p className="footer-payment-title">Meios de pagamento digitais</p>
+          <div className="footer-card-brands" aria-label="Pix, Apple Pay, Google Pay e Samsung Wallet">
+            <span className="payment-mark payment-pix" aria-label="Pix"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 5.1 5.1-2.4 2.4L12 6.8 9.3 9.5 6.9 7.1 12 2Zm-5.8 5.8 2.4 2.4L6 12.8l2.6 2.6-2.4 2.4L1.4 13l4.8-5.2Zm11.6 0 4.8 5.2-4.8 5.2-2.4-2.4 2.6-2.6-2.6-2.6 2.4-2.8ZM12 17.2l2.7-2.7 2.4 2.4L12 22l-5.1-5.1 2.4-2.4 2.7 2.7Z" fill="currentColor"/></svg>PIX</span>
+            <span className="payment-mark payment-apple" aria-label="Apple Pay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.4 3.1c-.7.8-1.7 1.3-2.7 1.2-.1-1 .3-2 1-2.8.7-.8 1.8-1.3 2.7-1.4.1 1-.3 2.1-1 3ZM20.5 17c-.5 1.1-.8 1.6-1.5 2.6-1 1.5-2.5 3.4-4.3 3.4-1.6 0-2-.9-4.1-.9-2 0-2.5.9-4.1.9-1.8 0-3.2-1.7-4.3-3.2-3-4.3-3.3-9.3-1.5-11.9 1.3-1.9 3.4-3 5.4-3 1.7 0 2.7.9 4.1.9 1.4 0 2.3-.9 4.4-.9 1.7 0 3.6.9 4.9 2.5-4.3 2.4-3.6 8.6 1 9.6Z" fill="currentColor"/></svg><b>Pay</b></span>
+            <span className="payment-mark payment-google" aria-label="Google Pay"><strong>G</strong><b>Pay</b></span>
+            <span className="payment-mark payment-samsung" aria-label="Samsung Wallet"><b>SAMSUNG</b><strong>Wallet</strong></span>
+          </div>
+        </div>
+        <small className="footer-payment-note">Pagamentos processados com segurança pela InfinitePay.</small>
       </div>
       <div className="footer-bottom">
         <span>© {new Date().getFullYear()} Violetta Joias · Prata 925 e semijoias</span>
