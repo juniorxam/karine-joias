@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { Toaster } from "sonner";
 import App from "./App";
 import "./index.css";
+import "./storefront-ui.css";
 
 type Props = { children: ReactNode };
 type State = { hasError: boolean };

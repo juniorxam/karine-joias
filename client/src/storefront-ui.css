@@ -1,0 +1,51 @@
+/* Refinos responsivos da vitrine Violetta. */
+@media (min-width: 761px) {
+  .store-nav {
+    gap: clamp(18px, 2vw, 34px);
+  }
+
+  .store-nav a {
+    font-size: 11px;
+    letter-spacing: .06em;
+  }
+
+  .store-hero {
+    min-height: 500px;
+    padding-top: clamp(38px, 4vw, 62px);
+    padding-bottom: clamp(38px, 4vw, 62px);
+  }
+
+  .store-hero-art {
+    height: clamp(320px, 24vw, 390px);
+    background-position: center 58%;
+  }
+
+  .store-values {
+    padding-top: 18px;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 860px) {
+  .store-product-grid,
+  .store-latest .store-product-grid,
+  .store-gifts .store-product-grid,
+  .featured-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  .store-product-info { padding: 15px; }
+  .store-product-info h3 { font-size: 16px; }
+}
+
+@media (min-width: 861px) and (max-width: 1240px) {
+  .store-product-grid,
+  .store-latest .store-product-grid,
+  .store-gifts .store-product-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  .store-product-info { padding: 14px; }
+  .store-product-info h3 { font-size: 15px; }
+}
