@@ -201,3 +201,50 @@
   .store-footer .footer-card-brands span { padding: 6px 8px; font-size: 9px; }
   .store-footer .footer-bottom { flex-wrap: wrap; gap: 7px 18px; }
 }
+
+
+/* Marcas visuais dos meios de pagamento realmente aceitos pela InfinitePay. */
+.store-footer .footer-payment { display: block; }
+.store-footer .footer-payment-group { margin: 0 0 20px; }
+.store-footer .footer-payment-title { margin: 0 0 12px; color: #65575d; font-size: 13px; }
+.store-footer .footer-digital-payments { margin-top: 8px; }
+.store-footer .footer-card-brands { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 9px; margin: 0; }
+.store-footer .payment-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 66px;
+  height: 38px;
+  padding: 5px 9px;
+  border: 1px solid #e7e1e4;
+  border-radius: 7px;
+  background: #fff;
+  color: #25252b;
+  line-height: 1;
+}
+.store-footer .payment-visa { color: #1a1f71; font: italic 800 19px/1 Arial, sans-serif; letter-spacing: -1px; }
+.store-footer .payment-mastercard { min-width: 91px; gap: 0; }
+.store-footer .payment-mastercard i { display: block; width: 18px; height: 18px; border-radius: 50%; }
+.store-footer .payment-mastercard i:first-child { background: #eb001b; }
+.store-footer .payment-mastercard i:nth-child(2) { margin-left: -7px; background: #f79e1b; mix-blend-mode: multiply; }
+.store-footer .payment-mastercard b { margin-left: 4px; color: #413f3e; font: 600 8px/1 Arial,sans-serif; letter-spacing: -.3px; }
+.store-footer .payment-elo { min-width: 62px; color: #151515; font: 800 18px/1 Arial,sans-serif; font-style: italic; }
+.store-footer .payment-elo b { width: 14px; height: 14px; border-top: 3px solid #f3a51d; border-right: 3px solid #00a6df; border-bottom: 3px solid #6abf4b; border-radius: 50%; transform: rotate(-35deg); }
+.store-footer .payment-amex { min-width: 70px; border-color: #2a65a8; background: #2a65a8; color: #fff; }
+.store-footer .payment-amex b { font: 800 7px/1.05 Arial,sans-serif; letter-spacing: .25px; }
+.store-footer .payment-pix { color: #32a879; font: 700 13px/1 Arial,sans-serif; letter-spacing: -.4px; }
+.store-footer .payment-pix svg { width: 18px; height: 18px; }
+.store-footer .payment-apple { color: #111; font: 500 12px/1 Arial,sans-serif; }
+.store-footer .payment-apple svg { width: 18px; height: 18px; }
+.store-footer .payment-google { font: 600 12px/1 Arial,sans-serif; }
+.store-footer .payment-google strong { font: 800 19px/1 Arial,sans-serif; background: linear-gradient(120deg,#4285f4 0 28%,#34a853 30% 48%,#fbbc05 50% 68%,#ea4335 70%); color: transparent; background-clip: text; }
+.store-footer .payment-samsung { display: grid; gap: 2px; align-content: center; text-align: left; }
+.store-footer .payment-samsung b { color: #1428a0; font: 800 7px/1 Arial,sans-serif; letter-spacing: .3px; }
+.store-footer .payment-samsung strong { color: #242424; font: 600 11px/1 Arial,sans-serif; }
+.store-footer .footer-payment-note { color: #81767b; font-size: 11px; }
+@media (max-width: 760px) {
+  .store-footer .footer-card-brands { gap: 7px; }
+  .store-footer .payment-mark { min-width: 62px; }
+  .store-footer .payment-mastercard { min-width: 87px; }
+}
