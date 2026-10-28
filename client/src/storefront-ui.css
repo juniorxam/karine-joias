@@ -49,3 +49,43 @@
   .store-product-info { padding: 14px; }
   .store-product-info h3 { font-size: 15px; }
 }
+
+
+/* Cabeçalho mais legível e confortável em telas grandes e pequenas. */
+@media (min-width: 761px) {
+  .store-header {
+    height: 96px;
+    padding-left: clamp(24px, 4vw, 68px);
+    padding-right: clamp(24px, 4vw, 68px);
+  }
+
+  .store-logo { gap: 13px; }
+  .store-logo-image { width: 58px; height: 58px; flex-basis: 58px; }
+  .store-logo strong { font-size: 28px; line-height: 1.05; }
+  .store-logo small { font-size: 10px; letter-spacing: 2px; }
+  .store-nav { gap: clamp(24px, 2vw, 38px); }
+  .store-nav a { font-size: 12px; }
+  .store-header-actions { gap: 11px; }
+  .store-header-search, .store-cart-button, .store-menu-button {
+    width: 46px;
+    height: 46px;
+  }
+  .store-admin-link { min-height: 46px; padding: 0 16px; font-size: 12px; }
+}
+
+.store-promo-bar {
+  min-height: 48px;
+  gap: 24px;
+  font-size: 10px;
+}
+.store-promo-bar span { font-size: 11px; }
+.store-promo-bar b { font-size: 11px; }
+.store-promo-bar a { font-size: 11px; }
+
+@media (max-width: 760px) {
+  .store-header { height: 76px; }
+  .store-logo-image { width: 50px; height: 50px; flex-basis: 50px; }
+  .store-logo strong { font-size: 20px; }
+  .store-header-actions { gap: 8px; }
+  .store-promo-bar { min-height: 48px; gap: 8px 14px; }
+}
