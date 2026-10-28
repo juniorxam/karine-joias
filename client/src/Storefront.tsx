@@ -82,7 +82,8 @@ function readCheckoutDraft(): { customer: Customer; shipping: Shipping; couponCo
 }
 
 
-function FirstPurchasePopup(){const [open,setOpen]=useState(false);const[name,setName]=useState("");const[phone,setPhone]=useState("");const[done,setDone]=useState(false);const[reward,setReward]=useState<any>(null);const popupKey="violetta-first-purchase-popup";const popupCooldownMs=30*24*60*60*1000;useEffect(()=>{const saved=localStorage.getItem(popupKey);if(saved==="unlocked")return;if(saved==="closed"){localStorage.setItem(popupKey,String(Date.now()+popupCooldownMs));return}if(saved){const suppressedUntil=Number(saved);if(Number.isFinite(suppressedUntil)&&suppressedUntil>Date.now())return;localStorage.removeItem(popupKey)}const t=window.setTimeout(()=>setOpen(true),4500);return()=>window.clearTimeout(t)},[]);if(!open)return null;const validName=name.trim().length>=2;const validPhone=normalizePhone(phone).length>=10;const close=()=>{localStorage.setItem(popupKey,done?"unlocked":String(Date.now()+popupCooldownMs));setOpen(false)};const rewardText=reward?.reward_type==="PERCENT"?"desconto de "+reward.reward_value+"%":reward?.reward_type==="FIXED"?"desconto de "+formatMoney(Number(reward.reward_value)||0):reward?.reward_type==="FREIGHT"?"frete grátis":reward?.reward_type==="GIFT"?(reward.gift_description||"um brinde especial"):"um presente especial";const unlock=async()=>{if(!supabase){toast.error("Serviço da loja indisponível no momento.");return}if(!validName||!validPhone){toast.error("Preencha seu nome e WhatsApp para desbloquear o presente.");return}try{const {data,error}=await supabase.functions.invoke("first-purchase-gift",{body:{name:name.trim(),phone:normalizePhone(phone)}});if(error)throw error;if(!data?.coupon_code)throw new Error("Não foi possível gerar seu benefício.");localStorage.setItem("violetta-first-purchase-popup","unlocked");localStorage.setItem("violetta-first-purchase-lead",JSON.stringify({name:name.trim(),phone:normalizePhone(phone),coupon_code:data.coupon_code,created_at:new Date().toISOString()}));localStorage.setItem("kj-first-purchase-coupon",data.coupon_code);setReward(data);setDone(true)}catch(error){toast.error("Não foi possível liberar o presente.",{description:error instanceof Error?error.message:"Tente novamente."})}};return <div className="first-purchase-overlay" role="dialog" aria-modal="true"><div className="first-purchase-popup"><button className="first-purchase-close" type="button" onClick={close} aria-label="Fechar"><X size={18}/></button><div className="first-purchase-icon">🎁</div>{!done?<><p className="first-purchase-kicker">UM MIMO ESPECIAL PARA VOCÊ</p><h2>Ganhe um presente exclusivo na sua primeira compra</h2><p className="first-purchase-subtitle">Cadastre seu contato para desbloquear seu presente.</p><label>Digite seu nome*<input value={name} onChange={e=>setName(e.target.value)} placeholder="Seu nome" autoComplete="name"/>{name&&!validName&&<small>Digite seu nome válido.</small>}</label><label>Agora, seu WhatsApp*<input value={formatPhone(phone)} onChange={e=>setPhone(e.target.value)} placeholder="(63) 99999-9999" inputMode="tel" autoComplete="tel"/>{phone&&!validPhone&&<small>Digite um WhatsApp válido.</small>}</label><button className="first-purchase-submit" type="button" onClick={unlock}>DESBLOQUEAR PRESENTE <ArrowRight size={16}/></button><small className="first-purchase-privacy">Seu benefício é individual e válido conforme as regras configuradas pela Violetta.</small></>:<><p className="first-purchase-kicker">PRESENTE DESBLOQUEADO ✨</p><h2>Seu mimo está reservado!</h2><p className="first-purchase-subtitle">Obrigada, {name.trim().split(/\s+/)[0]||"querida"}. Você ganhou <strong>{rewardText}</strong>.</p><div className="first-purchase-coupon">{reward?.coupon_code||localStorage.getItem("kj-first-purchase-coupon")||""}</div>{reward?.reward_type==="GIFT"&&<small className="first-purchase-privacy">Brinde: {reward.gift_description||"consulte a loja"}</small>}<small className="first-purchase-privacy">Use este código no checkout. Validade e pedido mínimo conforme configuração da loja.</small><button className="first-purchase-submit" type="button" onClick={close}>CONTINUAR COMPRANDO <ArrowRight size={16}/></button></>}</div></div>}
+function localDayKey(){const now=new Date();return now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0")}
+function FirstPurchasePopup({eligible}:{eligible:boolean}){const [open,setOpen]=useState(false);const[name,setName]=useState("");const[phone,setPhone]=useState("");const[done,setDone]=useState(false);const[reward,setReward]=useState<any>(null);const shownKey="violetta-first-purchase-popup-last-shown";useEffect(()=>{if(!eligible){setOpen(false);return}const today=localDayKey();if(localStorage.getItem(shownKey)===today)return;const t=window.setTimeout(()=>{localStorage.setItem(shownKey,today);setOpen(true)},4500);return()=>window.clearTimeout(t)},[eligible]);if(!eligible||!open)return null;const validName=name.trim().length>=2;const validPhone=normalizePhone(phone).length>=10;const close=()=>setOpen(false);const rewardText=reward?.reward_type==="PERCENT"?"desconto de "+reward.reward_value+"%":reward?.reward_type==="FIXED"?"desconto de "+formatMoney(Number(reward.reward_value)||0):reward?.reward_type==="FREIGHT"?"frete grátis":reward?.reward_type==="GIFT"?(reward.gift_description||"um brinde especial"):"um presente especial";const unlock=async()=>{if(!supabase){toast.error("Serviço da loja indisponível no momento.");return}if(!validName||!validPhone){toast.error("Preencha seu nome e WhatsApp para desbloquear o presente.");return}try{const {data,error}=await supabase.functions.invoke("first-purchase-gift",{body:{name:name.trim(),phone:normalizePhone(phone)}});if(error)throw error;if(!data?.coupon_code)throw new Error("Não foi possível gerar seu benefício.");localStorage.setItem("violetta-first-purchase-lead",JSON.stringify({name:name.trim(),phone:normalizePhone(phone),coupon_code:data.coupon_code,created_at:new Date().toISOString()}));localStorage.setItem("kj-first-purchase-coupon",data.coupon_code);setReward(data);setDone(true)}catch(error){toast.error("Não foi possível liberar o presente.",{description:error instanceof Error?error.message:"Tente novamente."})}};return <div className="first-purchase-overlay" role="dialog" aria-modal="true"><div className="first-purchase-popup"><button className="first-purchase-close" type="button" onClick={close} aria-label="Fechar"><X size={18}/></button><div className="first-purchase-icon">🎁</div>{!done?<><p className="first-purchase-kicker">UM MIMO ESPECIAL PARA VOCÊ</p><h2>Ganhe um presente exclusivo na sua primeira compra</h2><p className="first-purchase-subtitle">Cadastre seu contato para desbloquear seu presente.</p><label>Digite seu nome*<input value={name} onChange={e=>setName(e.target.value)} placeholder="Seu nome" autoComplete="name"/>{name&&!validName&&<small>Digite seu nome válido.</small>}</label><label>Agora, seu WhatsApp*<input value={formatPhone(phone)} onChange={e=>setPhone(e.target.value)} placeholder="(63) 99999-9999" inputMode="tel" autoComplete="tel"/>{phone&&!validPhone&&<small>Digite um WhatsApp válido.</small>}</label><button className="first-purchase-submit" type="button" onClick={unlock}>DESBLOQUEAR PRESENTE <ArrowRight size={16}/></button><small className="first-purchase-privacy">Seu benefício é individual e válido conforme as regras configuradas pela Violetta.</small></>:<><p className="first-purchase-kicker">PRESENTE DESBLOQUEADO ✨</p><h2>Seu mimo está reservado!</h2><p className="first-purchase-subtitle">Obrigada, {name.trim().split(/\s+/)[0]||"querida"}. Você ganhou <strong>{rewardText}</strong>.</p><div className="first-purchase-coupon">{reward?.coupon_code||localStorage.getItem("kj-first-purchase-coupon")||""}</div>{reward?.reward_type==="GIFT"&&<small className="first-purchase-privacy">Brinde: {reward.gift_description||"consulte a loja"}</small>}<small className="first-purchase-privacy">Use este código no checkout. Validade e pedido mínimo conforme configuração da loja.</small><button className="first-purchase-submit" type="button" onClick={close}>CONTINUAR COMPRANDO <ArrowRight size={16}/></button></>}</div></div>}
 export default function Storefront() {
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [query, setQuery] = useState("");
@@ -193,6 +194,9 @@ export default function Storefront() {
   const [trackingLoading, setTrackingLoading] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerSignedIn, setCustomerSignedIn] = useState(false);
+  const [customerAuthResolved, setCustomerAuthResolved] = useState(!supabase);
+  const [hasMadeFirstPurchase, setHasMadeFirstPurchase] = useState(() => localStorage.getItem("violetta-first-purchase-made") === "true");
+  const [firstPurchaseCheckComplete, setFirstPurchaseCheckComplete] = useState(false);
   const returnToCheckoutRef = useRef(false);
   const checkoutIdempotencyKey = useRef<string | null>(null);
   const productSlug = decodeURIComponent(window.location.pathname.split("/produto/")[1] || "");
@@ -203,12 +207,13 @@ export default function Storefront() {
   }, []);
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase) { setCustomerAuthResolved(true); return; }
     const syncCustomerName = (session: any) => {
       setCustomerSignedIn(Boolean(session?.user));
       setCustomerName(String(session?.user?.user_metadata?.full_name || "").trim());
+      setCustomerAuthResolved(true);
     };
-    supabase.auth.getSession().then(({ data }) => syncCustomerName(data.session));
+    supabase.auth.getSession().then(({ data }) => syncCustomerName(data.session)).catch(() => setCustomerAuthResolved(true));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => syncCustomerName(session));
     return () => subscription.unsubscribe();
   }, []);
@@ -288,6 +293,34 @@ export default function Storefront() {
   }, [view, selectedProduct?.id]);
 
   useEffect(() => {
+    let active = true;
+    const checkPreviousOrder = async () => {
+      setFirstPurchaseCheckComplete(false);
+      if (localStorage.getItem("violetta-first-purchase-made") === "true") {
+        if (active) { setHasMadeFirstPurchase(true); setFirstPurchaseCheckComplete(true); }
+        return;
+      }
+      const orderNumber = localStorage.getItem("kj-last-order-number");
+      const token = localStorage.getItem("kj-last-order-token");
+      if (!supabase || !orderNumber || !token) {
+        if (active) setFirstPurchaseCheckComplete(true);
+        return;
+      }
+      try {
+        const { data } = await supabase.functions.invoke("order-status", { body: { order_number: orderNumber, token } });
+        const paymentStatus = String(data?.order?.payment_status || "").toUpperCase();
+        if (["PAID", "APPROVED"].includes(paymentStatus) && active) {
+          localStorage.setItem("violetta-first-purchase-made", "true");
+          setHasMadeFirstPurchase(true);
+        }
+      } catch {}
+      if (active) setFirstPurchaseCheckComplete(true);
+    };
+    void checkPreviousOrder();
+    return () => { active = false; };
+  }, [customerSignedIn]);
+
+  useEffect(() => {
     if (view !== "success" || !returnedOrder || !supabase) return;
     const token = localStorage.getItem("kj-last-order-token");
     if (!token) return;
@@ -295,6 +328,11 @@ export default function Storefront() {
       body: { order_number: returnedOrder, token },
     }).then(({ data }) => {
       if (data?.order) {
+        const paymentStatus = String(data.order.payment_status || "").toUpperCase();
+        if (["PAID", "APPROVED"].includes(paymentStatus)) {
+          localStorage.setItem("violetta-first-purchase-made", "true");
+          setHasMadeFirstPurchase(true);
+        }
         setOrder({
           order_number: data.order.order_number,
           total_amount: Number(data.order.total_amount),
@@ -585,7 +623,7 @@ export default function Storefront() {
     }} onReview={submitReview} paymentLoading={paymentLoading} trackingLoading={trackingLoading} />;
   }
 
-  return <div className="storefront"><FirstPurchasePopup/>
+  return <div className="storefront"><FirstPurchasePopup eligible={view === "store" && customerAuthResolved && !customerSignedIn && firstPurchaseCheckComplete && !hasMadeFirstPurchase}/>
     <header className="store-header">
       <a className="store-logo" href="/loja" onClick={(e) => { e.preventDefault(); backToStore(); }}>
         <img className="store-logo-image" src={logoSrc} alt="Violetta Prata 925 e Semijoias" />
