@@ -796,7 +796,7 @@ export default function Storefront() {
   </div>;
 }
 
-function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false, isTopSeller = false }: { product: CatalogProduct; onAdd: (product: CatalogProduct) => void; onBuyNow: (product: CatalogProduct) => void; onAsk: (product: CatalogProduct) => void; onOpen: (product: CatalogProduct) => void; featured?: boolean; isTopSeller?: boolean }) {
+export function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false, isTopSeller = false }: { product: CatalogProduct; onAdd: (product: CatalogProduct) => void; onBuyNow: (product: CatalogProduct) => void; onAsk: (product: CatalogProduct) => void; onOpen: (product: CatalogProduct) => void; featured?: boolean; isTopSeller?: boolean }) {
   const [isImageHovered, setIsImageHovered] = useState(false);
   const badges = product.isBestSeller || isTopSeller ? ["MAIS VENDIDO"] : product.isNew ? ["NOVO"] : [];
   const compareAtPrice = Number(product.compareAtPrice ?? 0);
@@ -837,7 +837,7 @@ function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured = false
   </article>;
 }
 
-function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNow, onCheckout, onCart, onAsk, onRelatedOpen, onRelatedAdd, onRelatedBuyNow, onRelatedAsk }: { product: CatalogProduct; relatedProducts: CatalogProduct[]; onBack: () => void; onAdd: (quantity: number) => void; onBuyNow: (quantity: number) => void; onCheckout: () => void; onCart: () => void; onAsk: (product: CatalogProduct) => void; onRelatedOpen: (product: CatalogProduct) => void; onRelatedAdd: (product: CatalogProduct) => void; onRelatedBuyNow: (product: CatalogProduct) => void; onRelatedAsk: (product: CatalogProduct) => void }) {
+export function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNow, onCheckout, onCart, onAsk, onRelatedOpen, onRelatedAdd, onRelatedBuyNow, onRelatedAsk, preview = false }: { preview?: boolean; product: CatalogProduct; relatedProducts: CatalogProduct[]; onBack: () => void; onAdd: (quantity: number) => void; onBuyNow: (quantity: number) => void; onCheckout: () => void; onCart: () => void; onAsk: (product: CatalogProduct) => void; onRelatedOpen: (product: CatalogProduct) => void; onRelatedAdd: (product: CatalogProduct) => void; onRelatedBuyNow: (product: CatalogProduct) => void; onRelatedAsk: (product: CatalogProduct) => void }) {
   const available = Number(product.stock ?? 0) > 0;
   const maxQuantity = Math.max(1, Number(product.stock ?? 0));
   const gallery = Array.from(new Set([...(product.imageUrls || []), ...(product.imageUrl ? [product.imageUrl] : [])])).slice(0, 5);
@@ -873,7 +873,7 @@ function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNow, onCh
         <p className="product-detail-note">Pagamento online processado pelo InfinitePay. Consulte as opções de entrega no checkout.</p>
       </div>
     </main>
-    <ProductReviews productId={Number(product.id)} />
+    {!preview && <ProductReviews productId={Number(product.id)} />}
     {relatedProducts.length > 0 && <section className="product-related-section"><div className="product-detail-section-heading"><div><p className="store-kicker">VOCÊ TAMBÉM PODE GOSTAR</p><h2>Produtos relacionados</h2><p>Mais peças da categoria {product.category} para completar sua escolha.</p></div><button className="store-text-link product-related-back" onClick={onBack}>Ver toda a coleção <ArrowRight size={14} /></button></div><div className="store-product-grid product-related-grid">{relatedProducts.map(related => <ProductCard key={related.id} product={related} onAdd={onRelatedAdd} onBuyNow={onRelatedBuyNow} onAsk={onRelatedAsk} onOpen={onRelatedOpen} />)}</div></section>}
   </div>;
 }

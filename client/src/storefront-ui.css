@@ -248,3 +248,34 @@
   .store-footer .payment-mark { min-width: 62px; }
   .store-footer .payment-mastercard { min-width: 87px; }
 }
+
+/* Capa da loja: preservar toda a imagem, sem cortes ou distorções. */
+.storefront .store-hero-art{
+  width:100%;
+  min-width:0;
+  height:auto;
+  min-height:0;
+  aspect-ratio: 5 / 4;
+  background-size: 100% 100%, contain;
+  background-position:center,center;
+  background-repeat:no-repeat;
+  background-color:#fff4f8;
+  border-radius:24px;
+}
+@media (min-width:761px){
+  .storefront .store-hero-art{
+    height:auto;
+    min-height:0;
+    max-height:440px;
+    aspect-ratio: 5 / 4;
+  }
+}
+@media (max-width:760px){
+  .storefront .store-hero-art{
+    height:auto;
+    min-height:0;
+    max-height:none;
+    aspect-ratio: 4 / 3;
+    border-radius:16px;
+  }
+}
