@@ -1,0 +1,48 @@
+/* Prévia administrativa isolada: usa os componentes reais da loja. */
+.violetta-preview-overlay{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:14px;background:rgba(14,27,32,.7);backdrop-filter:blur(7px)}
+.violetta-preview-dialog{display:flex;flex-direction:column;width:min(1070px,100%);max-height:min(94vh,1000px);overflow:hidden;background:#fff;border-radius:19px;box-shadow:0 25px 85px rgba(0,0,0,.3);color:#253a3e}
+.violetta-preview-header{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;padding:22px 26px 18px;border-bottom:1px solid #e6ebeb}
+.violetta-preview-heading{display:flex;gap:13px;align-items:flex-start}
+.violetta-preview-icon{display:grid;place-items:center;width:43px;height:43px;flex:none;border-radius:12px;background:#e9f1f2;color:#205366}
+.violetta-preview-heading small{display:block;font-weight:750;font-size:10px;letter-spacing:.13em;color:#8a7050}
+.violetta-preview-heading h2{margin:4px 0 2px;font-size:clamp(18px,2.3vw,24px);line-height:1.2;color:#243b41}
+.violetta-preview-heading p{margin:0;color:#67787c;font-size:13px}
+.violetta-preview-close{display:grid;place-items:center;width:38px;height:38px;flex:none;border:1px solid #e4eaed;border-radius:10px;background:#fff;color:#52656e;cursor:pointer}
+.violetta-preview-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:13px 25px;background:#f7f9f9;border-bottom:1px solid #e6ebeb}
+.violetta-preview-choice{display:flex;gap:4px;padding:4px;background:#e9eeee;border-radius:11px}
+.violetta-preview-choice button{display:flex;justify-content:center;align-items:center;gap:6px;padding:8px 12px;border:0;border-radius:8px;background:transparent;color:#4d6067;font:inherit;font-weight:650;font-size:12px;white-space:nowrap;cursor:pointer}
+.violetta-preview-choice button.is-active{background:#fff;color:#1d5365;box-shadow:0 1px 6px #00000014}
+.violetta-preview-stage{min-height:190px;flex:1;overflow:auto;padding:23px;background:repeating-linear-gradient(45deg,#edf1f0,#edf1f0 13px,#e9eded 13px,#e9eded 26px)}
+.violetta-preview-screen.storefront{box-sizing:border-box;overflow:hidden;margin:0 auto;min-height:260px;max-width:100%;width:100%;background:#fff;border:1px solid #dce4e4;border-radius:14px;box-shadow:0 14px 45px #132b351f}
+.violetta-preview-screen.violetta-preview-phone{width:390px;max-width:100%;border:7px solid #253841;border-radius:29px}
+.violetta-preview-card-wrap{display:flex;justify-content:center;align-items:flex-start;padding:35px 25px;background:#fff}
+.violetta-preview-screen .store-product-grid{width:100%;max-width:340px;display:grid;grid-template-columns:minmax(0,1fr);gap:0}
+.violetta-preview-screen .store-product-card{width:100%;margin:0}
+.violetta-preview-screen .store-product-card button{cursor:default}
+.violetta-preview-screen .store-product-card .product-actions button{pointer-events:none}
+.violetta-preview-phone .violetta-preview-card-wrap{padding:13px}
+.violetta-preview-phone .store-product-info{padding:14px}
+.violetta-preview-phone .store-product-info h3{font-size:18px}
+.violetta-preview-screen .checkout-page{min-height:unset}
+.violetta-preview-screen .store-header{position:static}
+.violetta-preview-phone .store-header{padding:10px!important;gap:8px;min-height:65px;height:auto}
+.violetta-preview-phone .store-header .store-logo-image{width:38px;height:38px;flex-basis:38px}
+.violetta-preview-phone .store-header .store-logo strong{font-size:19px}
+.violetta-preview-phone .store-header .store-logo small{font-size:8px;letter-spacing:0}
+.violetta-preview-phone .store-header .checkout-back{font-size:0;padding:8px}
+.violetta-preview-phone .store-header .checkout-back svg{width:17px;height:17px}
+.violetta-preview-phone .product-detail-page{display:flex;flex-direction:column;gap:17px;padding:13px!important}
+.violetta-preview-phone .product-detail-image-wrap,.violetta-preview-phone .product-detail-copy{min-width:0;width:100%}
+.violetta-preview-phone .product-detail-image{min-height:300px;aspect-ratio:1/1}
+.violetta-preview-phone .product-detail-copy h1{font-size:26px}
+.violetta-preview-screen .product-detail-page{max-width:100%}
+.violetta-preview-screen .product-detail-actions button,.violetta-preview-screen .store-header button,.violetta-preview-screen .store-logo{cursor:default}
+.violetta-preview-footer{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:15px 25px;border-top:1px solid #e6ebeb;background:#fff}
+.violetta-preview-footer p{display:flex;align-items:center;gap:6px;max-width:590px;margin:0;color:#617378;font-size:12px}
+.violetta-preview-footer p svg{flex:none;color:#527f84}
+.violetta-preview-footer-buttons{display:flex;align-items:center;gap:8px;flex:none}
+.violetta-preview-footer-buttons button{min-height:40px;border-radius:9px;padding:9px 15px;font:inherit;font-size:13px;font-weight:750;cursor:pointer}
+.violetta-preview-cancel{background:white;color:#385a62;border:1px solid #cbd9dc}
+.violetta-preview-publish{background:#1b5867;color:white;border:1px solid #1b5867}
+.violetta-preview-footer-buttons button:disabled{opacity:.55;cursor:not-allowed}
+@media(max-width:720px){.violetta-preview-overlay{padding:6px}.violetta-preview-dialog{max-height:98dvh;border-radius:12px}.violetta-preview-header{padding:14px;gap:8px}.violetta-preview-heading{gap:9px}.violetta-preview-icon{width:36px;height:36px}.violetta-preview-heading p{font-size:11px}.violetta-preview-toolbar{padding:9px 10px;gap:7px}.violetta-preview-choice{flex:1}.violetta-preview-choice button{flex:1;padding:8px 6px;font-size:11px}.violetta-preview-stage{padding:10px}.violetta-preview-footer{flex-direction:column;align-items:stretch;padding:12px;gap:10px}.violetta-preview-footer-buttons{justify-content:flex-end}.violetta-preview-footer p{font-size:11px}}
