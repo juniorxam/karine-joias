@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { toast } from "sonner";
-import { ArrowRight, ArrowLeft, CalendarDays, Check, CreditCard, Gem, Heart, Instagram, Menu, Search, ShoppingBag, Sparkles, X, User, Truck, Tag, ShieldCheck, Star, MessageCircle } from "lucide-react";
+import { ArrowRight, ArrowLeft, CalendarDays, Check, CreditCard, Gem, Heart, Instagram, Menu, Search, ShoppingBag, Sparkles, X, User, Truck, Tag, ShieldCheck, Star, MessageCircle, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatMoney, type CatalogProduct } from "./lib/catalog";
 type ShippingDistanceRule = { min_km:number; max_km:number|null; price:number };
 type ProductReview = { id:string; product_id:number; rating:number; comment:string; display_name:string; created_at:string };
@@ -843,6 +843,23 @@ export function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNo
   const gallery = Array.from(new Set([...(product.imageUrls || []), ...(product.imageUrl ? [product.imageUrl] : [])])).slice(0, 5);
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const [zoomOpen, setZoomOpen] = useState(false);
+  const [zoomScale, setZoomScale] = useState(1);
+  const [zoomPoint, setZoomPoint] = useState({x:50,y:50});
+  const zoomImage = (index: number) => { setActiveImage(index); setZoomScale(1); setZoomPoint({x:50,y:50}); setZoomOpen(true); };
+  const moveZoomImage = (delta: number) => { setActiveImage(i => (i + delta + gallery.length) % gallery.length); setZoomScale(1); setZoomPoint({x:50,y:50}); };
+  useEffect(() => {
+    if (!zoomOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setZoomOpen(false);
+      if (event.key === "ArrowLeft" && gallery.length > 1) moveZoomImage(-1);
+      if (event.key === "ArrowRight" && gallery.length > 1) moveZoomImage(1);
+    };
+    document.addEventListener("keydown", onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = previous; };
+  }, [zoomOpen, gallery.length]);
   const adjustQuantity = (delta: number) => setQuantity(current => Math.min(maxQuantity, Math.max(1, current + delta)));
   return <div className="storefront checkout-page">
     <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><a className="store-logo" href="/loja" onClick={event => { event.preventDefault(); onBack(); }}><img className="store-logo-image" src={logoSrc} alt="Violetta Prata 925 e Semijoias" /><span><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></span></a><button className="store-cart-button" onClick={onCart} aria-label="Abrir carrinho"><ShoppingBag size={18}/></button></header>
@@ -850,8 +867,22 @@ export function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNo
     <main className="product-detail-page">
       <div className="product-detail-image-wrap">
         <button className="product-detail-back" onClick={onBack}><ArrowLeft size={15}/> Voltar para a coleção</button>
-        <div className="product-detail-image" style={gallery[activeImage] ? { backgroundImage: `url(${gallery[activeImage]})` } : undefined}>{!gallery[activeImage] && <Gem size={80} strokeWidth={1}/>}<span className="product-detail-category">{product.category}</span></div>{gallery.length > 1 && <div className="product-detail-thumbnails" aria-label="Fotos do produto">{gallery.map((url,index)=><button type="button" key={url+index} className={activeImage===index ? "active" : ""} onClick={()=>setActiveImage(index)} aria-label={`Ver foto ${index+1}`}><img src={url} alt={`${product.name} - foto ${index+1}`} /></button>)}</div>}
+        <div className="product-detail-image" style={gallery[activeImage] ? { backgroundImage: `url(${gallery[activeImage]})` } : undefined}>{!gallery[activeImage] && <Gem size={80} strokeWidth={1}/>}<span className="product-detail-category">{product.category}</span>{gallery[activeImage] && <button type="button" className="product-zoom-trigger" onClick={() => zoomImage(activeImage)} aria-label="Ampliar foto do produto"><ZoomIn size={19}/> Ampliar foto</button>}</div>{gallery.length > 1 && <div className="product-detail-thumbnails" aria-label="Fotos do produto">{gallery.map((url,index)=><button type="button" key={url+index} className={activeImage===index ? "active" : ""} onClick={()=>setActiveImage(index)} aria-label={`Ver foto ${index+1}`}><img src={url} alt={`${product.name} - foto ${index+1}`} /></button>)}</div>}
       </div>
+      {zoomOpen && gallery[activeImage] && <div className="product-image-lightbox" role="dialog" aria-modal="true" aria-label={`Foto ampliada de ${product.name}`} onClick={() => setZoomOpen(false)}>
+        <div className="product-image-lightbox-toolbar" onClick={e => e.stopPropagation()}>
+          <span>{activeImage + 1} de {gallery.length}</span>
+          <button type="button" onClick={() => setZoomScale(v => Math.max(1, +(v - .5).toFixed(1)))} disabled={zoomScale <= 1} aria-label="Diminuir zoom"><ZoomOut size={21}/></button>
+          <button type="button" onClick={() => setZoomScale(v => Math.min(4, +(v + .5).toFixed(1)))} disabled={zoomScale >= 4} aria-label="Aumentar zoom"><ZoomIn size={21}/></button>
+          <button type="button" onClick={() => setZoomOpen(false)} aria-label="Fechar imagem ampliada"><X size={23}/></button>
+        </div>
+        {gallery.length > 1 && <button type="button" className="product-lightbox-prev" onClick={e => {e.stopPropagation();moveZoomImage(-1)}} aria-label="Foto anterior"><ChevronLeft size={27}/></button>}
+        <div className="product-image-lightbox-stage" onClick={e => e.stopPropagation()} onDoubleClick={() => setZoomScale(v => v > 1 ? 1 : 2)} onPointerMove={e => { if (zoomScale > 1 && e.pointerType === "mouse") { const rect = e.currentTarget.getBoundingClientRect(); setZoomPoint({x: Math.max(0,Math.min(100,(e.clientX-rect.left)/rect.width*100)),y: Math.max(0,Math.min(100,(e.clientY-rect.top)/rect.height*100))}); } }}>
+          <img src={gallery[activeImage]} alt={`${product.name} — foto ${activeImage+1} ampliada`} style={{transform:`scale(${zoomScale})`,transformOrigin:`${zoomPoint.x}% ${zoomPoint.y}%`}} draggable={false}/>
+        </div>
+        {gallery.length > 1 && <button type="button" className="product-lightbox-next" onClick={e => {e.stopPropagation();moveZoomImage(1)}} aria-label="Próxima foto"><ChevronRight size={27}/></button>}
+        <p className="product-image-lightbox-hint">Toque em + para ampliar · toque duas vezes na foto para alternar o zoom</p>
+      </div>}
       <div className="product-detail-copy">
         <p className="store-kicker">{product.category}</p><p className="product-material">{product.material}</p><h1>{product.name}</h1>
         <strong className="product-detail-price">{formatMoney(product.price)}</strong><span className="product-installment-note">No Pix: <b>{formatMoney(Number(product.pixPrice || (Number(product.price) * 0.95)))}</b> (5% de desconto)</span><span className="product-installment-note">Até {Number(product.installmentCount || (Number(product.price) < 150 ? 2 : 3))}x sem juros, conforme opções disponíveis no InfinitePay</span><span className="product-detail-payment-note"><ShieldCheck size={14}/> Pagamento seguro pelo InfinitePay</span><span className={available ? "product-stock-note" : "product-stock-note sold-out"}>{available ? "Disponível para envio" : "Produto temporariamente esgotado"}</span>
