@@ -855,6 +855,8 @@ export function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNo
   const maxQuantity = Math.max(1, Number(product.stock ?? 0));
   const gallery = Array.from(new Set([...(product.imageUrls || []), ...(product.imageUrl ? [product.imageUrl] : [])])).slice(0, 5);
   const [activeImage, setActiveImage] = useState(0);
+  const [imageZoomOpen, setImageZoomOpen] = useState(false);
+  const [imageMagnified, setImageMagnified] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const adjustQuantity = (delta: number) => setQuantity(current => Math.min(maxQuantity, Math.max(1, current + delta)));
   return <div className="storefront checkout-page">
@@ -863,7 +865,11 @@ export function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNo
     <main className="product-detail-page">
       <div className="product-detail-image-wrap">
         <button className="product-detail-back" onClick={onBack}><ArrowLeft size={15}/> Voltar para a coleção</button>
-        <div className="product-detail-image" style={gallery[activeImage] ? { backgroundImage: `url(${gallery[activeImage]})` } : undefined}>{!gallery[activeImage] && <Gem size={80} strokeWidth={1}/>}<span className="product-detail-category">{product.category}</span></div>{gallery.length > 1 && <div className="product-detail-thumbnails" aria-label="Fotos do produto">{gallery.map((url,index)=><button type="button" key={url+index} className={activeImage===index ? "active" : ""} onClick={()=>setActiveImage(index)} aria-label={`Ver foto ${index+1}`}><img src={url} alt={`${product.name} - foto ${index+1}`} /></button>)}</div>}
+        <button type="button" className="product-detail-image product-detail-image-zoom-trigger" style={gallery[activeImage] ? { backgroundImage: `url(${gallery[activeImage]})` } : undefined} onClick={() => { if (gallery[activeImage]) { setImageMagnified(false); setImageZoomOpen(true); } }} aria-label={`Ampliar foto de ${product.name}`} disabled={!gallery[activeImage]}>{!gallery[activeImage] && <Gem size={80} strokeWidth={1}/>}<span className="product-detail-category">{product.category}</span>{gallery[activeImage] && <span className="product-zoom-hint">Toque para ampliar</span>}</button>
+        {imageZoomOpen && gallery[activeImage] && <div className="product-image-lightbox" role="dialog" aria-modal="true" aria-label={`Foto ampliada de ${product.name}`} onClick={() => setImageZoomOpen(false)}>
+          <button type="button" className="product-image-lightbox-close" aria-label="Fechar foto ampliada" onClick={() => setImageZoomOpen(false)}><X size={24}/></button>
+          <div className="product-image-lightbox-stage" onClick={event => event.stopPropagation()}><img src={gallery[activeImage]} alt={`${product.name} ampliado`} className={imageMagnified ? "magnified" : ""} onClick={() => setImageMagnified(value => !value)} /><span>Toque na imagem para {imageMagnified ? "reduzir" : "aproximar"} · Use dois dedos para ampliar</span></div>
+        </div>}{gallery.length > 1 && <div className="product-detail-thumbnails" aria-label="Fotos do produto">{gallery.map((url,index)=><button type="button" key={url+index} className={activeImage===index ? "active" : ""} onClick={()=>setActiveImage(index)} aria-label={`Ver foto ${index+1}`}><img src={url} alt={`${product.name} - foto ${index+1}`} /></button>)}</div>}
       </div>
       <div className="product-detail-copy">
         <p className="store-kicker">{product.category}</p><p className="product-material">{product.material}</p><h1>{product.name}</h1>
