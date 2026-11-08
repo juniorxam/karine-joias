@@ -10,6 +10,16 @@ import { supabase, customerSupabase } from "./lib/supabase";
 import CustomerAccount from "./CustomerAccount";
 
 const categories = ["Todas", "Joias", "Semi-joias", "Acessórios"];
+const productTypes = ["Todas as peças", "Anéis", "Brincos", "Colares", "Pulseiras", "Conjuntos"] as const;
+function inferProductType(product: CatalogProduct): string {
+  const name = product.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (/\b(anel|aneis|alianca|solitario)\b/.test(name)) return "Anéis";
+  if (/\b(brinco|brincos|ear cuff|argola|earcuff)\b/.test(name)) return "Brincos";
+  if (/\b(colar|colares|corrente|gargantilha|choker)\b/.test(name)) return "Colares";
+  if (/\b(pulseira|pulseiras|bracelete)\b/.test(name)) return "Pulseiras";
+  if (/\b(conjunto|conjuntos|kit)\b/.test(name)) return "Conjuntos";
+  return "Outras peças";
+}
 const storeWhatsApp = (import.meta.env.VITE_STORE_WHATSAPP as string | undefined)?.replace(/\D/g, "") || "63999945488";
 const storeInstagram = (import.meta.env.VITE_STORE_INSTAGRAM as string | undefined)?.trim() || "https://www.instagram.com/violettapratasesemijoias/";
 const logoSrc = "/logo-violetta.jpeg";
@@ -88,6 +98,7 @@ export default function Storefront() {
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todas");
+  const [productType, setProductType] = useState("Todas as peças");
   const [sort, setSort] = useState("relevancia");
   const [menuOpen, setMenuOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
@@ -373,9 +384,10 @@ export default function Storefront() {
 
   const filtered = useMemo(() => products.filter((product) => {
     const matchesCategory = category === "Todas" || product.category === category;
+    const matchesType = productType === "Todas as peças" || inferProductType(product) === productType;
     const text = `${product.name} ${product.material} ${product.category}`.toLowerCase();
-    return matchesCategory && text.includes(query.toLowerCase());
-  }), [category, products, query]);
+    return matchesCategory && matchesType && text.includes(query.toLowerCase());
+  }), [category, productType, products, query]);
 
   const topSoldQuantity = Math.max(0, ...products.map(product => product.soldQuantity ?? 0));
   // Na fase inicial, evite repetir as mesmas peças em várias vitrines da página inicial.
@@ -674,9 +686,10 @@ export default function Storefront() {
         <div className="store-section-heading catalog-heading"><div><p className="store-kicker">A COLEÇÃO</p><h2>Encontre o seu brilho.</h2><p className="catalog-intro">Explore joias, semi-joias e acessórios escolhidos para você.</p></div><span>{filtered.length} peças</span></div>
         <div className="catalog-toolbar">
           <div className="catalog-search"><Search size={17} /><input aria-label="Buscar produtos" placeholder="Buscar uma peça..." value={query} onChange={event => setQuery(event.target.value)} /><button className="catalog-clear" onClick={() => setQuery("")} aria-label="Limpar busca" disabled={!query}><X size={14}/></button></div>
-          {(query || category !== "Todas") && <button className="catalog-clear-filters" onClick={() => { setQuery(""); setCategory("Todas"); }}>Limpar filtros</button>}<div className="catalog-toolbar-row"><div className="category-list">{categories.map(item => <button className={category === item ? "selected" : ""} key={item} onClick={() => setCategory(item)}>{item}</button>)}</div><div className="catalog-toolbar-actions"><label className="catalog-sort">Ordenar<select value={sort} onChange={event => setSort(event.target.value)}><option value="relevancia">Relevância</option><option value="novidades">Novidades</option><option value="menor-preco">Menor preço</option><option value="maior-preco">Maior preço</option><option value="estoque">Disponibilidade</option></select></label><span className="catalog-result-count">{filtered.length} {filtered.length === 1 ? "peça encontrada" : "peças encontradas"}</span></div></div>
+          {(query || category !== "Todas" || productType !== "Todas as peças") && <button className="catalog-clear-filters" onClick={() => { setQuery(""); setCategory("Todas"); setProductType("Todas as peças"); }}>Limpar filtros</button>}
+          <div className="product-type-filters" role="group" aria-label="Filtrar por tipo de joia">{[...productTypes, ...(products.some(product => inferProductType(product) === "Outras peças") ? ["Outras peças"] : [])].filter(type => type === "Todas as peças" || products.some(product => inferProductType(product) === type)).map(type => <button type="button" key={type} aria-pressed={productType === type} className={productType === type ? "selected" : ""} onClick={() => setProductType(type)}>{type}</button>)}</div><div className="catalog-toolbar-row"><div className="category-list">{categories.map(item => <button className={category === item ? "selected" : ""} key={item} onClick={() => setCategory(item)}>{item}</button>)}</div><div className="catalog-toolbar-actions"><label className="catalog-sort">Ordenar<select value={sort} onChange={event => setSort(event.target.value)}><option value="relevancia">Relevância</option><option value="novidades">Novidades</option><option value="menor-preco">Menor preço</option><option value="maior-preco">Maior preço</option><option value="estoque">Disponibilidade</option></select></label><span className="catalog-result-count">{filtered.length} {filtered.length === 1 ? "peça encontrada" : "peças encontradas"}</span></div></div>
         </div>
-        {filtered.length ? <div className="store-product-grid">{filtered.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} />)}</div> : products.length ? <div className="empty-catalog"><Gem size={28} /><h3>Nenhuma peça encontrada.</h3><p>Tente outro termo ou volte para todas as categorias.</p><button onClick={() => { setQuery(""); setCategory("Todas"); }}>Limpar busca</button></div> : <div className="empty-catalog"><Sparkles size={28} /><h3>Em breve, novidades da Violetta.</h3><p>O catálogo está sendo preparado com carinho. Em breve teremos novas peças para você.</p></div>}
+        {filtered.length ? <div className="store-product-grid">{filtered.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} />)}</div> : products.length ? <div className="empty-catalog"><Gem size={28} /><h3>Nenhuma peça encontrada.</h3><p>Tente outro termo ou volte para todas as categorias.</p><button onClick={() => { setQuery(""); setCategory("Todas"); setProductType("Todas as peças"); }}>Limpar busca</button></div> : <div className="empty-catalog"><Sparkles size={28} /><h3>Em breve, novidades da Violetta.</h3><p>O catálogo está sendo preparado com carinho. Em breve teremos novas peças para você.</p></div>}
       </section>
 
       <section className="store-values" id="essencia">
