@@ -389,6 +389,18 @@ export default function Storefront() {
     return matchesCategory && matchesType && text.includes(query.toLowerCase());
   }), [category, productType, products, query]);
 
+  const orderedProducts = useMemo(() => {
+    const result = [...filtered];
+    const manualOrder = (a: CatalogProduct, b: CatalogProduct) =>
+      (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER);
+    if (sort === "menor-preco") result.sort((a, b) => a.price - b.price || manualOrder(a, b));
+    else if (sort === "maior-preco") result.sort((a, b) => b.price - a.price || manualOrder(a, b));
+    else if (sort === "novidades") result.sort((a, b) => Number(Boolean(b.isNew)) - Number(Boolean(a.isNew)) || manualOrder(a, b));
+    else if (sort === "estoque") result.sort((a, b) => Number((b.stock ?? 0) > 0) - Number((a.stock ?? 0) > 0) || (b.stock ?? 0) - (a.stock ?? 0) || manualOrder(a, b));
+    else result.sort((a, b) => manualOrder(a, b));
+    return result;
+  }, [filtered, sort]);
+
   const topSoldQuantity = Math.max(0, ...products.map(product => product.soldQuantity ?? 0));
   // Na fase inicial, evite repetir as mesmas peças em várias vitrines da página inicial.
   const launches = [...products].filter(product => product.isNew).sort((a,b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 8);
@@ -687,9 +699,9 @@ export default function Storefront() {
         <div className="catalog-toolbar">
           <div className="catalog-search"><Search size={17} /><input aria-label="Buscar produtos" placeholder="Buscar uma peça..." value={query} onChange={event => setQuery(event.target.value)} /><button className="catalog-clear" onClick={() => setQuery("")} aria-label="Limpar busca" disabled={!query}><X size={14}/></button></div>
           {(query || category !== "Todas" || productType !== "Todas as peças") && <button className="catalog-clear-filters" onClick={() => { setQuery(""); setCategory("Todas"); setProductType("Todas as peças"); }}>Limpar filtros</button>}
-          <div className="product-type-filters" role="group" aria-label="Filtrar por tipo de joia">{[...productTypes, ...(products.some(product => inferProductType(product) === "Outras peças") ? ["Outras peças"] : [])].filter(type => type === "Todas as peças" || products.some(product => inferProductType(product) === type)).map(type => <button type="button" key={type} aria-pressed={productType === type} className={productType === type ? "selected" : ""} onClick={() => setProductType(type)}>{type}</button>)}</div><div className="catalog-toolbar-row"><div className="category-list">{categories.map(item => <button className={category === item ? "selected" : ""} key={item} onClick={() => setCategory(item)}>{item}</button>)}</div><div className="catalog-toolbar-actions"><label className="catalog-sort">Ordenar<select value={sort} onChange={event => setSort(event.target.value)}><option value="relevancia">Relevância</option><option value="novidades">Novidades</option><option value="menor-preco">Menor preço</option><option value="maior-preco">Maior preço</option><option value="estoque">Disponibilidade</option></select></label><span className="catalog-result-count">{filtered.length} {filtered.length === 1 ? "peça encontrada" : "peças encontradas"}</span></div></div>
+          <div className="product-type-filters" role="group" aria-label="Filtrar por tipo de joia">{[...productTypes, ...(products.some(product => inferProductType(product) === "Outras peças") ? ["Outras peças"] : [])].filter(type => type === "Todas as peças" || products.some(product => inferProductType(product) === type)).map(type => <button type="button" key={type} aria-pressed={productType === type} className={productType === type ? "selected" : ""} onClick={() => setProductType(type)}>{type}</button>)}</div><div className="catalog-toolbar-row"><div className="category-list">{categories.map(item => <button className={category === item ? "selected" : ""} key={item} onClick={() => setCategory(item)}>{item}</button>)}</div><div className="catalog-toolbar-actions"><label className="catalog-sort">Ordenar<select value={sort} onChange={event => setSort(event.target.value)}><option value="relevancia">Ordem da loja</option><option value="novidades">Novidades</option><option value="menor-preco">Menor preço</option><option value="maior-preco">Maior preço</option><option value="estoque">Disponibilidade</option></select></label><span className="catalog-result-count">{filtered.length} {filtered.length === 1 ? "peça encontrada" : "peças encontradas"}</span></div></div>
         </div>
-        {filtered.length ? <div className="store-product-grid">{filtered.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} />)}</div> : products.length ? <div className="empty-catalog"><Gem size={28} /><h3>Nenhuma peça encontrada.</h3><p>Tente outro termo ou volte para todas as categorias.</p><button onClick={() => { setQuery(""); setCategory("Todas"); setProductType("Todas as peças"); }}>Limpar busca</button></div> : <div className="empty-catalog"><Sparkles size={28} /><h3>Em breve, novidades da Violetta.</h3><p>O catálogo está sendo preparado com carinho. Em breve teremos novas peças para você.</p></div>}
+        {filtered.length ? <div className="store-product-grid">{orderedProducts.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} />)}</div> : products.length ? <div className="empty-catalog"><Gem size={28} /><h3>Nenhuma peça encontrada.</h3><p>Tente outro termo ou volte para todas as categorias.</p><button onClick={() => { setQuery(""); setCategory("Todas"); setProductType("Todas as peças"); }}>Limpar busca</button></div> : <div className="empty-catalog"><Sparkles size={28} /><h3>Em breve, novidades da Violetta.</h3><p>O catálogo está sendo preparado com carinho. Em breve teremos novas peças para você.</p></div>}
       </section>
 
       <section className="store-values" id="essencia">
