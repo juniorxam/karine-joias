@@ -547,7 +547,7 @@ export default function Storefront() {
     localStorage.removeItem(checkoutDraftKey);
     checkoutIdempotencyKey.current = null;
     setRedirectingToPayment(true);
-    const payment = await supabase.functions.invoke("create-infinitepay-payment", { body: { order_number: data.order_number, email: customer.email } });
+    const payment = await supabase.functions.invoke("create-infinitepay-payment", { body: { order_number: data.order_number, email: customer.email, tracking_token: data.tracking_token } });
     if (payment.data?.url) {
       window.location.href = payment.data.url;
       return;
@@ -612,7 +612,7 @@ export default function Storefront() {
         return;
       }
       setRedirectingToPayment(true);
-      const payment = await supabase.functions.invoke("create-infinitepay-payment", { body: { order_number: order.order_number, email } });
+      const payment = await supabase.functions.invoke("create-infinitepay-payment", { body: { order_number: order.order_number, email, tracking_token: localStorage.getItem("kj-last-order-token") || "" } });
       setPaymentLoading(false);
       if (payment.data?.url) window.location.href = payment.data.url;
       else {
