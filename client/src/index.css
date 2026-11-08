@@ -1117,3 +1117,22 @@
 @media(max-width:380px){
  .quick-edit-grid{grid-template-columns:minmax(0,1fr)}
 }
+
+/* Jewelry type filters — horizontal scrolling keeps the catalog usable on phones. */
+.product-type-filters{display:flex;align-items:center;gap:8px;overflow-x:auto;max-width:100%;padding:8px 1px 12px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+.product-type-filters button{flex:0 0 auto;border:1px solid #e3d1d9;border-radius:999px;background:#fff;color:#6d4757;padding:10px 16px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;min-height:42px;transition:background .15s,color .15s,border-color .15s}
+.product-type-filters button:hover,.product-type-filters button:focus-visible{border-color:#9e5376;outline-offset:2px}
+.product-type-filters button.selected{background:#823c60;border-color:#823c60;color:#fff}
+@media(max-width:600px){.product-type-filters{margin-right:-12px;padding-right:12px}.product-type-filters button{padding:10px 14px}}
+
+/* Product photo zoom, accessible on touch screens as well as desktop. */
+.product-detail-image-zoom-trigger{display:block;width:100%;border:0;text-align:inherit;position:relative;cursor:zoom-in;font:inherit}
+.product-detail-image-zoom-trigger:focus-visible{outline:3px solid #823c60;outline-offset:3px}
+.product-zoom-hint{position:absolute;bottom:14px;right:14px;background:rgba(255,255,255,.93);color:#503343;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:600;box-shadow:0 2px 12px #0001}
+.product-image-lightbox{position:fixed;inset:0;z-index:99999;background:rgba(20,15,18,.96);display:flex;align-items:center;justify-content:center;padding:58px 14px 24px}
+.product-image-lightbox-close{position:absolute;right:16px;top:calc(12px + env(safe-area-inset-top,0px));z-index:2;border:1px solid #ffffff55;background:#ffffff22;color:white;border-radius:50%;height:44px;width:44px;display:grid;place-items:center;cursor:pointer}
+.product-image-lightbox-stage{width:100%;height:100%;overflow:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;overscroll-behavior:contain}
+.product-image-lightbox-stage img{display:block;max-width:100%;max-height:calc(100% - 45px);object-fit:contain;cursor:zoom-in;touch-action:pan-x pan-y pinch-zoom}
+.product-image-lightbox-stage img.magnified{max-width:none;max-height:none;width:180%;height:auto;cursor:zoom-out}
+.product-image-lightbox-stage span{color:#fff;font-size:12px;text-align:center;padding:0 8px}
+@media(max-width:600px){.product-image-lightbox{padding-left:8px;padding-right:8px}.product-image-lightbox-stage img.magnified{width:230%}.category-list button{min-height:40px}}

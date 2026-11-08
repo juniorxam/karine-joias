@@ -10,6 +10,16 @@ import { supabase, customerSupabase } from "./lib/supabase";
 import CustomerAccount from "./CustomerAccount";
 
 const categories = ["Todas", "Joias", "Semi-joias", "Acessórios"];
+const productTypes = ["Todas as peças", "Anéis", "Brincos", "Colares", "Pulseiras", "Conjuntos"] as const;
+function inferProductType(product: CatalogProduct): string {
+  const name = product.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (/\b(anel|aneis|alianca|solitario)\b/.test(name)) return "Anéis";
+  if (/\b(brinco|brincos|ear cuff|argola|earcuff)\b/.test(name)) return "Brincos";
+  if (/\b(colar|colares|corrente|gargantilha|choker)\b/.test(name)) return "Colares";
+  if (/\b(pulseira|pulseiras|bracelete)\b/.test(name)) return "Pulseiras";
+  if (/\b(conjunto|conjuntos|kit)\b/.test(name)) return "Conjuntos";
+  return "Outras peças";
+}
 const storeWhatsApp = (import.meta.env.VITE_STORE_WHATSAPP as string | undefined)?.replace(/\D/g, "") || "63999945488";
 const storeInstagram = (import.meta.env.VITE_STORE_INSTAGRAM as string | undefined)?.trim() || "https://www.instagram.com/violettapratasesemijoias/";
 const logoSrc = "/logo-violetta.jpeg";
@@ -88,6 +98,7 @@ export default function Storefront() {
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todas");
+  const [productType, setProductType] = useState("Todas as peças");
   const [sort, setSort] = useState("relevancia");
   const [menuOpen, setMenuOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
@@ -373,9 +384,22 @@ export default function Storefront() {
 
   const filtered = useMemo(() => products.filter((product) => {
     const matchesCategory = category === "Todas" || product.category === category;
+    const matchesType = productType === "Todas as peças" || inferProductType(product) === productType;
     const text = `${product.name} ${product.material} ${product.category}`.toLowerCase();
-    return matchesCategory && text.includes(query.toLowerCase());
-  }), [category, products, query]);
+    return matchesCategory && matchesType && text.includes(query.toLowerCase());
+  }), [category, productType, products, query]);
+
+  const orderedProducts = useMemo(() => {
+    const result = [...filtered];
+    const manualOrder = (a: CatalogProduct, b: CatalogProduct) =>
+      (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER);
+    if (sort === "menor-preco") result.sort((a, b) => a.price - b.price || manualOrder(a, b));
+    else if (sort === "maior-preco") result.sort((a, b) => b.price - a.price || manualOrder(a, b));
+    else if (sort === "novidades") result.sort((a, b) => Number(Boolean(b.isNew)) - Number(Boolean(a.isNew)) || manualOrder(a, b));
+    else if (sort === "estoque") result.sort((a, b) => Number((b.stock ?? 0) > 0) - Number((a.stock ?? 0) > 0) || (b.stock ?? 0) - (a.stock ?? 0) || manualOrder(a, b));
+    else result.sort((a, b) => manualOrder(a, b));
+    return result;
+  }, [filtered, sort]);
 
   const topSoldQuantity = Math.max(0, ...products.map(product => product.soldQuantity ?? 0));
   // Na fase inicial, evite repetir as mesmas peças em várias vitrines da página inicial.
@@ -674,9 +698,10 @@ export default function Storefront() {
         <div className="store-section-heading catalog-heading"><div><p className="store-kicker">A COLEÇÃO</p><h2>Encontre o seu brilho.</h2><p className="catalog-intro">Explore joias, semi-joias e acessórios escolhidos para você.</p></div><span>{filtered.length} peças</span></div>
         <div className="catalog-toolbar">
           <div className="catalog-search"><Search size={17} /><input aria-label="Buscar produtos" placeholder="Buscar uma peça..." value={query} onChange={event => setQuery(event.target.value)} /><button className="catalog-clear" onClick={() => setQuery("")} aria-label="Limpar busca" disabled={!query}><X size={14}/></button></div>
-          {(query || category !== "Todas") && <button className="catalog-clear-filters" onClick={() => { setQuery(""); setCategory("Todas"); }}>Limpar filtros</button>}<div className="catalog-toolbar-row"><div className="category-list">{categories.map(item => <button className={category === item ? "selected" : ""} key={item} onClick={() => setCategory(item)}>{item}</button>)}</div><div className="catalog-toolbar-actions"><label className="catalog-sort">Ordenar<select value={sort} onChange={event => setSort(event.target.value)}><option value="relevancia">Relevância</option><option value="novidades">Novidades</option><option value="menor-preco">Menor preço</option><option value="maior-preco">Maior preço</option><option value="estoque">Disponibilidade</option></select></label><span className="catalog-result-count">{filtered.length} {filtered.length === 1 ? "peça encontrada" : "peças encontradas"}</span></div></div>
+          {(query || category !== "Todas" || productType !== "Todas as peças") && <button className="catalog-clear-filters" onClick={() => { setQuery(""); setCategory("Todas"); setProductType("Todas as peças"); }}>Limpar filtros</button>}
+          <div className="product-type-filters" role="group" aria-label="Filtrar por tipo de joia">{[...productTypes, ...(products.some(product => inferProductType(product) === "Outras peças") ? ["Outras peças"] : [])].filter(type => type === "Todas as peças" || products.some(product => inferProductType(product) === type)).map(type => <button type="button" key={type} aria-pressed={productType === type} className={productType === type ? "selected" : ""} onClick={() => setProductType(type)}>{type}</button>)}</div><div className="catalog-toolbar-row"><div className="category-list">{categories.map(item => <button className={category === item ? "selected" : ""} key={item} onClick={() => setCategory(item)}>{item}</button>)}</div><div className="catalog-toolbar-actions"><label className="catalog-sort">Ordenar<select value={sort} onChange={event => setSort(event.target.value)}><option value="relevancia">Ordem da loja</option><option value="novidades">Novidades</option><option value="menor-preco">Menor preço</option><option value="maior-preco">Maior preço</option><option value="estoque">Disponibilidade</option></select></label><span className="catalog-result-count">{filtered.length} {filtered.length === 1 ? "peça encontrada" : "peças encontradas"}</span></div></div>
         </div>
-        {filtered.length ? <div className="store-product-grid">{filtered.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} />)}</div> : products.length ? <div className="empty-catalog"><Gem size={28} /><h3>Nenhuma peça encontrada.</h3><p>Tente outro termo ou volte para todas as categorias.</p><button onClick={() => { setQuery(""); setCategory("Todas"); }}>Limpar busca</button></div> : <div className="empty-catalog"><Sparkles size={28} /><h3>Em breve, novidades da Violetta.</h3><p>O catálogo está sendo preparado com carinho. Em breve teremos novas peças para você.</p></div>}
+        {filtered.length ? <div className="store-product-grid">{orderedProducts.map(product => <ProductCard key={product.id} product={product} onAdd={addToCart} onBuyNow={buyNow} onAsk={askAbout} onOpen={openProduct} />)}</div> : products.length ? <div className="empty-catalog"><Gem size={28} /><h3>Nenhuma peça encontrada.</h3><p>Tente outro termo ou volte para todas as categorias.</p><button onClick={() => { setQuery(""); setCategory("Todas"); setProductType("Todas as peças"); }}>Limpar busca</button></div> : <div className="empty-catalog"><Sparkles size={28} /><h3>Em breve, novidades da Violetta.</h3><p>O catálogo está sendo preparado com carinho. Em breve teremos novas peças para você.</p></div>}
       </section>
 
       <section className="store-values" id="essencia">
@@ -842,6 +867,8 @@ export function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNo
   const maxQuantity = Math.max(1, Number(product.stock ?? 0));
   const gallery = Array.from(new Set([...(product.imageUrls || []), ...(product.imageUrl ? [product.imageUrl] : [])])).slice(0, 5);
   const [activeImage, setActiveImage] = useState(0);
+  const [imageZoomOpen, setImageZoomOpen] = useState(false);
+  const [imageMagnified, setImageMagnified] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const adjustQuantity = (delta: number) => setQuantity(current => Math.min(maxQuantity, Math.max(1, current + delta)));
   return <div className="storefront checkout-page">
@@ -850,7 +877,11 @@ export function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNo
     <main className="product-detail-page">
       <div className="product-detail-image-wrap">
         <button className="product-detail-back" onClick={onBack}><ArrowLeft size={15}/> Voltar para a coleção</button>
-        <div className="product-detail-image" style={gallery[activeImage] ? { backgroundImage: `url(${gallery[activeImage]})` } : undefined}>{!gallery[activeImage] && <Gem size={80} strokeWidth={1}/>}<span className="product-detail-category">{product.category}</span></div>{gallery.length > 1 && <div className="product-detail-thumbnails" aria-label="Fotos do produto">{gallery.map((url,index)=><button type="button" key={url+index} className={activeImage===index ? "active" : ""} onClick={()=>setActiveImage(index)} aria-label={`Ver foto ${index+1}`}><img src={url} alt={`${product.name} - foto ${index+1}`} /></button>)}</div>}
+        <button type="button" className="product-detail-image product-detail-image-zoom-trigger" style={gallery[activeImage] ? { backgroundImage: `url(${gallery[activeImage]})` } : undefined} onClick={() => { if (gallery[activeImage]) { setImageMagnified(false); setImageZoomOpen(true); } }} aria-label={`Ampliar foto de ${product.name}`} disabled={!gallery[activeImage]}>{!gallery[activeImage] && <Gem size={80} strokeWidth={1}/>}<span className="product-detail-category">{product.category}</span>{gallery[activeImage] && <span className="product-zoom-hint">Toque para ampliar</span>}</button>
+        {imageZoomOpen && gallery[activeImage] && <div className="product-image-lightbox" role="dialog" aria-modal="true" aria-label={`Foto ampliada de ${product.name}`} onClick={() => setImageZoomOpen(false)}>
+          <button type="button" className="product-image-lightbox-close" aria-label="Fechar foto ampliada" onClick={() => setImageZoomOpen(false)}><X size={24}/></button>
+          <div className="product-image-lightbox-stage" onClick={event => event.stopPropagation()}><img src={gallery[activeImage]} alt={`${product.name} ampliado`} className={imageMagnified ? "magnified" : ""} onClick={() => setImageMagnified(value => !value)} /><span>Toque na imagem para {imageMagnified ? "reduzir" : "aproximar"} · Use dois dedos para ampliar</span></div>
+        </div>}{gallery.length > 1 && <div className="product-detail-thumbnails" aria-label="Fotos do produto">{gallery.map((url,index)=><button type="button" key={url+index} className={activeImage===index ? "active" : ""} onClick={()=>setActiveImage(index)} aria-label={`Ver foto ${index+1}`}><img src={url} alt={`${product.name} - foto ${index+1}`} /></button>)}</div>}
       </div>
       <div className="product-detail-copy">
         <p className="store-kicker">{product.category}</p><p className="product-material">{product.material}</p><h1>{product.name}</h1>
