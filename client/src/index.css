@@ -1117,3 +1117,10 @@
 @media(max-width:380px){
  .quick-edit-grid{grid-template-columns:minmax(0,1fr)}
 }
+
+/* Jewelry type filters — horizontal scrolling keeps the catalog usable on phones. */
+.product-type-filters{display:flex;align-items:center;gap:8px;overflow-x:auto;max-width:100%;padding:8px 1px 12px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+.product-type-filters button{flex:0 0 auto;border:1px solid #e3d1d9;border-radius:999px;background:#fff;color:#6d4757;padding:10px 16px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;min-height:42px;transition:background .15s,color .15s,border-color .15s}
+.product-type-filters button:hover,.product-type-filters button:focus-visible{border-color:#9e5376;outline-offset:2px}
+.product-type-filters button.selected{background:#823c60;border-color:#823c60;color:#fff}
+@media(max-width:600px){.product-type-filters{margin-right:-12px;padding-right:12px}.product-type-filters button{padding:10px 14px}}
