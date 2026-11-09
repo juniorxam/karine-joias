@@ -41,3 +41,9 @@
 .rewards-management-form label{display:grid;gap:6px;font-size:13px}
 .rewards-management-form input,.rewards-management-form select,.rewards-management-form textarea{width:100%;min-width:0;padding:10px;border:1px solid #d9c6ce;border-radius:8px;background:white;font:inherit}
 @media(max-width:560px){.rewards-management{padding:14px}.rewards-management-toolbar button{width:100%}}
+
+.rewards-management-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0}
+.rewards-management-tabs button{border:1px solid #e3ccd7;border-radius:10px;background:#fff;padding:11px 15px;color:#75435a;font:inherit;cursor:pointer}
+.rewards-management-tabs button[aria-pressed=true]{background:#8d4569;border-color:#8d4569;color:white}
+.rewards-management-customers{padding:8px 0 20px}
+.rewards-management-customers>p{color:#776a70;font-size:14px}
