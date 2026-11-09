@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Check, Clock3, CreditCard, Eye, LogOut, Package, ShieldCheck, Truck, UserRound, X, Save, LockKeyhole } from "lucide-react";
 import { toast } from "sonner";
 import { customerSupabase } from "./lib/supabase";
+import RewardsProgress, { type RewardMissionView } from "./RewardsProgress";
+import { calculateRewardProgress } from "./lib/rewardRules";
+import "./rewards.css";
 
 type SavedAddress = { id:string; label:string; recipient:string; postal_code:string; address:string; number:string; complement:string; neighborhood:string; city:string; state:string; is_default:boolean };
 type StatusHistory = { id:string; status:string; note?:string|null; created_at:string };
@@ -38,8 +41,12 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   const [confirmPassword,setConfirmPassword]=useState("");
   const [busy,setBusy]=useState(false);
   const [orders,setOrders]=useState<Order[]>([]);
+  const [rewardMissions,setRewardMissions]=useState<(RewardMissionView & {startsAt:string|null;endsAt:string|null})[]>([]);
+  const [rewardClaims,setRewardClaims]=useState<string[]>([]);
+  const [rewardsLoading,setRewardsLoading]=useState(false);
+  const [rewardsError,setRewardsError]=useState(false);
   const [selected,setSelected]=useState<Order|null>(null);
-  const [activeTab,setActiveTab]=useState<"overview"|"orders"|"profile"|"addresses">("overview");
+  const [activeTab,setActiveTab]=useState<"overview"|"orders"|"profile"|"addresses"|"missions">("overview");
   const [search,setSearch]=useState("");
   const [orderFilter,setOrderFilter]=useState("ALL");
   const [profileName,setProfileName]=useState("");
@@ -126,6 +133,34 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
     return()=>{cancelled=true;};
   },[session?.user?.id]);
 
+  useEffect(()=>{
+    if(!session?.user?.id||!customerSupabase){setRewardMissions([]);setRewardClaims([]);return;}
+    let cancelled=false;
+    setRewardsLoading(true);
+    setRewardsError(false);
+    (async()=>{
+      const {data,error}=await customerSupabase.from("reward_missions")
+        .select("id,title,description,mode,threshold_amount,gift_name,gift_image_url,gift_stock,is_active,starts_at,ends_at")
+        .eq("is_active",true).order("threshold_amount",{ascending:true});
+      if(cancelled)return;
+      if(error){setRewardsError(true);setRewardsLoading(false);return;}
+      const {data:claims, error:claimsError}=await customerSupabase.from("reward_claims").select("mission_id,status").eq("customer_user_id",session.user.id);
+      if(cancelled)return;
+      if(claimsError){setRewardsError(true);setRewardsLoading(false);return;}
+      setRewardClaims((claims||[]).filter((claim:any)=>["reserved","fulfilled"].includes(claim.status)).map((claim:any)=>String(claim.mission_id)));
+      const eligible=(data||[]).filter((m:any)=>(!m.starts_at||new Date(m.starts_at)<=new Date())&&(!m.ends_at||new Date(m.ends_at)>new Date()));
+      setRewardMissions(eligible.map((m:any)=>({id:String(m.id),title:String(m.title),description:m.description,mode:m.mode,thresholdAmount:Number(m.threshold_amount),qualifiedAmount:0,giftName:String(m.gift_name),giftImageUrl:m.gift_image_url,available:Number(m.gift_stock)>0,claimed:false,startsAt:m.starts_at||null,endsAt:m.ends_at||null})));
+      setRewardsLoading(false);
+    })();
+    return()=>{cancelled=true;};
+  },[session?.user?.id]);
+  const rewardProgress=useMemo(()=>rewardMissions.map(m=>({
+    ...m,
+    claimed:rewardClaims.includes(m.id),
+    qualifiedAmount:calculateRewardProgress({mode:m.mode,threshold_amount:m.thresholdAmount,starts_at:m.startsAt,ends_at:m.endsAt},
+      orders.map(o=>({id:o.id,customer_user_id:session?.user?.id||null,payment_status:o.payment_status,status:o.status,subtotal_amount:o.subtotal_amount,discount_amount:o.discount_amount,created_at:o.created_at})),
+      session?.user?.id||"")
+  })),[rewardMissions,rewardClaims,orders,session?.user?.id]);
   const filteredOrders=useMemo(()=>orders.filter(order=>{
     const q=search.trim().toLowerCase();
     return (!q||order.order_number.toLowerCase().includes(q))&&(orderFilter==="ALL"||order.status===orderFilter);
@@ -326,6 +361,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       <button className={activeTab==="overview"?"active":""} onClick={()=>setActiveTab("overview")}>Visão geral</button>
       <button className={activeTab==="orders"?"active":""} onClick={()=>setActiveTab("orders")}>Meus pedidos <b>{orders.length}</b></button>
       <button className={activeTab==="profile"?"active":""} onClick={()=>setActiveTab("profile")}>Meu perfil</button>
+      <button className={activeTab==="missions"?"active":""} onClick={()=>setActiveTab("missions")}>Minhas missões</button>
       <button className={activeTab==="addresses"?"active":""} onClick={()=>setActiveTab("addresses")}>Meus endereços <b>{savedAddresses.length}</b></button>
     </div>}
 
@@ -349,7 +385,9 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       {selected.shipments?.[0]?.tracking_code&&<div className="customer-tracking"><Truck size={20}/><div><strong>{selected.shipments[0].carrier||"Entrega"}</strong><span>{selected.shipments[0].tracking_code}</span>{selected.shipments[0].tracking_url&&<a href={selected.shipments[0].tracking_url} target="_blank" rel="noreferrer">Acompanhar entrega ↗</a>}</div></div>}
       {!["PAID","APPROVED"].includes(String(selected.payment_status||"").toUpperCase())&&selected.payment_url&&<a className="checkout-submit customer-pay" href={selected.payment_url}>Continuar pagamento</a>}
     </div>
-    :activeTab==="overview"?<div>
+    :activeTab==="missions"?<div className="customer-missions-tab">{rewardsLoading?<p>Carregando suas missões…</p>:rewardsError?<p>Não foi possível carregar as missões. Tente novamente mais tarde.</p>:<RewardsProgress missions={rewardProgress} authenticated={true} onSignIn={()=>{}}/>}</div>
+        :activeTab==="overview"?<div>
+      {!rewardsLoading&&!rewardsError&&<RewardsProgress missions={rewardProgress} authenticated={true} onSignIn={()=>{}}/>}
       <div className="customer-metrics"><div><Package/><span>Pedidos</span><strong>{orders.length}</strong></div><div><Truck/><span>Em andamento</span><strong>{activeOrders.length}</strong></div><div><CreditCard/><span>Total comprado</span><strong>{money(totalSpent)}</strong></div></div>
       {latestOrder?<div className="customer-latest"><div className="customer-section-head"><div><p className="store-kicker">COMPRA MAIS RECENTE</p><h2>{latestOrder.order_number}</h2></div><button onClick={()=>setSelected(latestOrder)}>Ver pedido <Eye size={16}/></button></div><div className="customer-latest-meta"><span>{new Date(latestOrder.created_at).toLocaleDateString("pt-BR")}</span><b>{displayStatus(latestOrder.status)}</b><strong>{money(latestOrder.total_amount)}</strong></div></div>:<div className="customer-empty"><Package size={30}/><h3>Você ainda não tem pedidos.</h3><p>Faça sua primeira compra e acompanhe tudo por aqui.</p><button className="store-primary-cta" onClick={onBack}>Começar a comprar</button></div>}
     </div>
