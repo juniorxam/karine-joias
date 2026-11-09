@@ -56,8 +56,14 @@ async function cep(value: string): Promise<Address> {
 async function geo(address: Address): Promise<GeoPoint> {
   const references: Record<string, [number, number]> = {
     "77001540": [-48.346, -10.163],
+    "77001568": [-48.35128, -10.1597],
     "77001570": [-48.3492, -10.1618],
     "77015007": [-48.33366, -10.18457],
+    // Centroides postais de áreas comerciais/residenciais de Palmas.
+    "77006014": [-48.32738858571429, -10.184463542857143],
+    "77003310": [-48.3078545, -10.1559256],
+    "77059002": [-48.3144243, -10.2965523],
+    "77064002": [-48.2877673, -10.3333855],
   };
   const reference = references[address.postalCode];
   if (reference) {
