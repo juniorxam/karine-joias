@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Gift, Plus, Pencil, Search, X } from "lucide-react";
+import { Gift, Plus, Pencil, Search, X, Download } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "./lib/supabase";
 
@@ -32,7 +32,7 @@ export default function RewardsManagement({ ownerId, products }: { ownerId: stri
   const [editingId, setEditingId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [view, setView] = useState<"config"|"customers">("config");
+  const [view, setView] = useState<"config"|"customers"|"report">("config");
   const [claims, setClaims] = useState<{id:string;mission_id:string;customer_user_id:string;status:string;created_at:string}[]>([]);
   const [claimsLoading, setClaimsLoading] = useState(false);
   const rewardsActivationEnabled = false; // Unlock only after verified server-side fulfillment.
@@ -50,7 +50,7 @@ export default function RewardsManagement({ ownerId, products }: { ownerId: stri
     return () => { cancelled = true; };
   }, [ownerId]);
   useEffect(()=>{
-    if(view!=="customers"||!supabase||!ownerId)return;
+    if((view!=="customers"&&view!=="report")||!supabase||!ownerId)return;
     let cancelled=false;
     setClaimsLoading(true);
     supabase.from("reward_claims").select("id,mission_id,customer_user_id,status,created_at,reward_missions!inner(owner_id)").eq("reward_missions.owner_id",ownerId).order("created_at",{ascending:false}).then(({data,error})=>{
@@ -93,11 +93,17 @@ export default function RewardsManagement({ ownerId, products }: { ownerId: stri
     setEditingId(m.id);
     setShowForm(true);
   };
+  const reportRows=missions.map(m=>({mission:m,claims:claims.filter(c=>c.mission_id===m.id)}));
+  const exportReport=()=>{
+    const rows=[["Meta","Modalidade","Valor da meta (R$)","Brinde","Situação","Estoque","Reservados","Resgates registrados","Brindes reservados","Brindes entregues","Resgates cancelados"],...reportRows.map(({mission:m,claims:c})=>[m.title,m.mode==="cumulative"?"Acumulada":"Compra única",String(m.threshold_amount),m.gift_name,m.is_active?"Ativa":"Desativada",String(m.gift_stock),String(m.reserved_gifts),String(c.length),String(c.filter(x=>x.status==="reserved").length),String(c.filter(x=>x.status==="fulfilled").length),String(c.filter(x=>x.status==="cancelled").length)])];
+    const csv="\\uFEFF"+rows.map(row=>row.map(value=>'"'+String(value).replace(/"/g,'""')+'"').join(";")).join("\\r\\n");
+    const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));const a=document.createElement("a");a.href=url;a.download="relatorio-metas-violetta.csv";a.click();URL.revokeObjectURL(url);
+  };
   return <section className="rewards-management">
     <h2><Gift size={20} aria-hidden="true"/> Clube de Recompensas</h2>
     <p>Crie metas de compras e escolha o brinde. Missões novas começam desativadas.</p><p role="status">Ativação temporariamente bloqueada: falta homologar pagamentos e resgate de brindes.</p>
-    <div className="rewards-management-tabs"><button type="button" aria-pressed={view==="config"} onClick={()=>setView("config")}>Configurar metas</button><button type="button" aria-pressed={view==="customers"} onClick={()=>setView("customers")}>Acompanhamento de clientes</button></div>
-    {view==="customers"?<div className="rewards-management-customers"><h3>Resgates registrados</h3><p>Exibimos somente brindes com resgate registrado no banco. Atingimento automático de metas ainda depende da validação do processamento de pagamentos.</p>{claimsLoading?<p>Carregando resgates…</p>:claims.length===0?<p>Nenhum resgate registrado até o momento.</p>:<div className="rewards-management-grid">{claims.map(c=><article className="rewards-management-card" key={c.id}><strong>{missions.find(m=>m.id===c.mission_id)?.title||"Meta"}</strong><p>Brinde: {missions.find(m=>m.id===c.mission_id)?.gift_name||"—"}</p><p>Cliente (ID): {c.customer_user_id}</p><p>Registrado em: {new Date(c.created_at).toLocaleDateString("pt-BR")}</p><span className={c.status==="fulfilled"?"reward-status-active":"reward-status-draft"}>{c.status==="fulfilled"?"Entregue":c.status==="reserved"?"Reservado":"Cancelado"}</span></article>)}</div>}</div>:<>
+    <div className="rewards-management-tabs"><button type="button" aria-pressed={view==="config"} onClick={()=>setView("config")}>Configurar metas</button><button type="button" aria-pressed={view==="customers"} onClick={()=>setView("customers")}>Acompanhamento de clientes</button><button type="button" aria-pressed={view==="report"} onClick={()=>setView("report")}>Relatório de metas</button></div>
+    {view==="report"?<div className="rewards-management-report"><div className="rewards-management-toolbar"><div><h3>Relatório de metas</h3><span>Dados de cadastro e resgates registrados, não representam todos os clientes que atingiram metas.</span></div><button type="button" disabled={loading||claimsLoading} onClick={exportReport}><Download size={17}/> Exportar CSV</button></div><div className="rewards-report-stats"><article><strong>{missions.length}</strong><span>Metas cadastradas</span></article><article><strong>{missions.filter(m=>m.is_active).length}</strong><span>Metas ativas</span></article><article><strong>{claims.filter(c=>c.status==="reserved").length}</strong><span>Brindes reservados</span></article><article><strong>{claims.filter(c=>c.status==="fulfilled").length}</strong><span>Brindes entregues</span></article></div>{loading||claimsLoading?<p>Carregando relatório…</p>:<div className="rewards-report-table-wrap"><table><thead><tr><th>Meta</th><th>Valor</th><th>Brinde</th><th>Situação</th><th>Resgates</th><th>Entregues</th></tr></thead><tbody>{reportRows.map(({mission:m,claims:c})=><tr key={m.id}><td>{m.title}</td><td>{Number(m.threshold_amount).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}</td><td>{m.gift_name}</td><td>{m.is_active?"Ativa":"Desativada"}</td><td>{c.length}</td><td>{c.filter(x=>x.status==="fulfilled").length}</td></tr>)}{reportRows.length===0&&<tr><td colSpan={6}>Nenhuma meta cadastrada.</td></tr>}</tbody></table></div>}<p>O relatório de conversão e metas atingidas será disponibilizado após a validação do processamento dos pagamentos.</p></div>:view==="customers"?<div className="rewards-management-customers"><h3>Resgates registrados</h3><p>Exibimos somente brindes com resgate registrado no banco. Atingimento automático de metas ainda depende da validação do processamento de pagamentos.</p>{claimsLoading?<p>Carregando resgates…</p>:claims.length===0?<p>Nenhum resgate registrado até o momento.</p>:<div className="rewards-management-grid">{claims.map(c=><article className="rewards-management-card" key={c.id}><strong>{missions.find(m=>m.id===c.mission_id)?.title||"Meta"}</strong><p>Brinde: {missions.find(m=>m.id===c.mission_id)?.gift_name||"—"}</p><p>Cliente (ID): {c.customer_user_id}</p><p>Registrado em: {new Date(c.created_at).toLocaleDateString("pt-BR")}</p><span className={c.status==="fulfilled"?"reward-status-active":"reward-status-draft"}>{c.status==="fulfilled"?"Entregue":c.status==="reserved"?"Reservado":"Cancelado"}</span></article>)}</div>}</div>:<>
     <div className="rewards-management-toolbar"><div><strong>{missions.length} {missions.length===1?"meta cadastrada":"metas cadastradas"}</strong><span>{missions.filter(m=>m.is_active).length} ativas · {missions.filter(m=>!m.is_active).length} desativadas</span></div><button type="button" onClick={()=>{setEditingId(null);setDraft(blank);setShowForm(v=>!v);}}><Plus size={17}/> Nova meta</button></div>
     <div className="rewards-management-search"><Search size={17}/><input aria-label="Buscar metas" placeholder="Buscar meta ou brinde" value={query} onChange={e=>setQuery(e.target.value)}/></div>
     {showForm && <form className="rewards-management-form" onSubmit={e => { e.preventDefault(); void save(draft,editingId||undefined); }}><div className="rewards-management-form-heading"><h3>{editingId?"Editar meta":"Criar nova meta"}</h3><button type="button" onClick={()=>{setShowForm(false);setEditingId(null);setDraft(blank);}} aria-label="Fechar formulário"><X size={18}/></button></div>
