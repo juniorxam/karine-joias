@@ -19,7 +19,7 @@ export default function RewardsProgress({ missions, authenticated, onSignIn }: {
   authenticated: boolean;
   onSignIn: () => void;
 }) {
-  if (!missions.length) return null;
+  if (!missions.length) return <section className="rewards-club" aria-labelledby="rewards-club-heading"><div className="rewards-club-heading"><Gift aria-hidden="true" size={24}/><div><p>CLUBE DE RECOMPENSAS VIOLETTA</p><h2 id="rewards-club-heading">Minhas missões</h2></div></div><p>Nenhuma missão disponível no momento. Quando novas metas forem ativadas, elas aparecerão aqui.</p></section>;
   return <section className="rewards-club" aria-labelledby="rewards-club-heading">
     <div className="rewards-club-heading"><Gift aria-hidden="true" size={24}/><div><p>CLUBE DE RECOMPENSAS VIOLETTA</p><h2 id="rewards-club-heading">Suas compras valem presentes</h2></div></div>
     {!authenticated && <p className="rewards-club-signin">Entre na sua conta para acompanhar o progresso das suas compras. <button type="button" onClick={onSignIn}>Entrar</button></p>}
