@@ -16,3 +16,28 @@
 .rewards-club-track>div{height:100%;background:#b87592;border-radius:inherit}
 .rewards-club-card-copy small{display:block;margin-top:8px;font-size:12px}
 @media(max-width:420px){.rewards-club-card{padding:12px}.rewards-club-card img{width:70px;height:70px}}
+
+.rewards-management{margin:24px 0;padding:22px;border:1px solid #eadce2;border-radius:18px;background:#fff}
+.rewards-management h2{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+.rewards-management-toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:22px 0 14px}
+.rewards-management-toolbar>div{display:grid;gap:4px}
+.rewards-management-toolbar span{font-size:13px;color:#78616d}
+.rewards-management-toolbar button,.rewards-management-edit,.rewards-management-form button[type=submit]{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 14px;border:1px solid #ad6b8a;border-radius:10px;background:#8d4569;color:white;cursor:pointer;font:inherit}
+.rewards-management-search{display:flex;align-items:center;gap:8px;border:1px solid #dfcbd4;border-radius:10px;padding:8px 12px;margin-bottom:18px}
+.rewards-management-search input{width:100%;border:0;outline:0;font:inherit}
+.rewards-management-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:14px}
+.rewards-management-card{border:1px solid #eadce2;border-radius:14px;padding:16px;background:#fff;display:flex;flex-direction:column;gap:12px}
+.rewards-management-card-top{display:flex;align-items:center;gap:12px}
+.rewards-management-card-top img{width:64px;height:64px;object-fit:contain;border-radius:10px;background:#faf3f6}
+.rewards-management-card h4{margin:6px 0 0;font-size:16px}
+.reward-status-active,.reward-status-draft{display:inline-block;font-size:12px;border-radius:999px;padding:3px 9px}
+.reward-status-active{background:#e7f5eb;color:#27663c}
+.reward-status-draft{background:#f5edf0;color:#794e63}
+.rewards-management-edit{margin-top:auto;background:white;color:#854265}
+.rewards-management-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:14px;padding:20px;margin:16px 0 24px;background:#fbf7f9;border:1px solid #e8d9df;border-radius:14px}
+.rewards-management-form-heading{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between}
+.rewards-management-form-heading h3{margin:0}
+.rewards-management-form-heading button{background:transparent;border:0;cursor:pointer}
+.rewards-management-form label{display:grid;gap:6px;font-size:13px}
+.rewards-management-form input,.rewards-management-form select,.rewards-management-form textarea{width:100%;min-width:0;padding:10px;border:1px solid #d9c6ce;border-radius:8px;background:white;font:inherit}
+@media(max-width:560px){.rewards-management{padding:14px}.rewards-management-toolbar button{width:100%}}
