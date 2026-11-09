@@ -371,11 +371,38 @@ export default function Storefront() {
     localStorage.setItem(checkoutDraftKey, JSON.stringify(checkoutDraft));
   }, [checkoutDraft]);
 
-  const filtered = useMemo(() => products.filter((product) => {
-    const matchesCategory = category === "Todas" || product.category === category;
-    const text = `${product.name} ${product.material} ${product.category}`.toLowerCase();
-    return matchesCategory && text.includes(query.toLowerCase());
-  }), [category, products, query]);
+  const filtered = useMemo(() => {
+    const matchingProducts = products.filter((product) => {
+      const matchesCategory = category === "Todas" || product.category === category;
+      const text = `${product.name} ${product.material} ${product.category}`.toLowerCase();
+      return matchesCategory && text.includes(query.toLowerCase());
+    });
+
+    // “Relevância” preserva a ordem já definida pelo catálogo público.
+    if (sort === "relevancia") return matchingProducts;
+
+    const sortedProducts = [...matchingProducts];
+    const numericValue = (value: number | undefined) => Number.isFinite(Number(value)) ? Number(value) : 0;
+    const tieBreak = (a: CatalogProduct, b: CatalogProduct) =>
+      numericValue(a.sortOrder) - numericValue(b.sortOrder) || String(a.name).localeCompare(String(b.name), "pt-BR");
+
+    sortedProducts.sort((a, b) => {
+      if (sort === "novidades") {
+        return (Number(Boolean(b.isNew)) - Number(Boolean(a.isNew))) || tieBreak(a, b);
+      }
+      if (sort === "menor-preco") {
+        return numericValue(a.price) - numericValue(b.price) || tieBreak(a, b);
+      }
+      if (sort === "maior-preco") {
+        return numericValue(b.price) - numericValue(a.price) || tieBreak(a, b);
+      }
+      if (sort === "estoque") {
+        return numericValue(b.stock) - numericValue(a.stock) || tieBreak(a, b);
+      }
+      return 0;
+    });
+    return sortedProducts;
+  }, [category, products, query, sort]);
 
   const topSoldQuantity = Math.max(0, ...products.map(product => product.soldQuantity ?? 0));
   // Na fase inicial, evite repetir as mesmas peças em várias vitrines da página inicial.
