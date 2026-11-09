@@ -11,8 +11,10 @@ create table if not exists public.reward_missions (
   gift_product_id bigint references public.products(id),
   gift_name text not null check (length(gift_name) between 2 and 160),
   gift_description text,
-  gift_image_url text,
+  gift_image_url text check (gift_image_url is null or gift_image_url ~ '^https://'),
   gift_stock integer not null default 0 check (gift_stock >= 0),
+  reserved_gifts integer not null default 0 check (reserved_gifts >= 0),
+  check (reserved_gifts <= gift_stock),
   check ((gift_source = 'custom' and gift_product_id is null) or (gift_source = 'catalog' and gift_product_id is not null)),
   gift_quantity integer not null default 1 check (gift_quantity between 1 and 100),
   max_redemptions integer check (max_redemptions is null or max_redemptions > 0),
@@ -31,8 +33,10 @@ create table if not exists public.reward_claims (
   status text not null default 'reserved' check (status in ('reserved','fulfilled','cancelled')),
   created_at timestamptz not null default now(),
   fulfilled_at timestamptz,
-  unique (mission_id, customer_user_id)
+  unique (mission_id, customer_user_id) -- One reward per customer per mission
 );
+-- A customer must not be able to insert/update claims or grant themselves a gift.
+-- Reserve inventory and insert a claim together in one server-controlled transaction.
 create index if not exists reward_claims_mission_status_idx on public.reward_claims(mission_id,status);
 create index if not exists reward_claims_customer_idx on public.reward_claims(customer_user_id);
 create index if not exists reward_missions_owner_idx on public.reward_missions(owner_id,is_active);
