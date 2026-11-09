@@ -7,7 +7,13 @@ create table if not exists public.reward_missions (
   description text,
   mode text not null check (mode in ('cumulative','single_order')),
   threshold_amount numeric(12,2) not null check (threshold_amount > 0),
-  gift_product_id bigint not null references public.products(id),
+  gift_source text not null default 'custom' check (gift_source in ('custom','catalog')),
+  gift_product_id bigint references public.products(id),
+  gift_name text not null check (length(gift_name) between 2 and 160),
+  gift_description text,
+  gift_image_url text,
+  gift_stock integer not null default 0 check (gift_stock >= 0),
+  check ((gift_source = 'custom' and gift_product_id is null) or (gift_source = 'catalog' and gift_product_id is not null)),
   gift_quantity integer not null default 1 check (gift_quantity between 1 and 100),
   max_redemptions integer check (max_redemptions is null or max_redemptions > 0),
   starts_at timestamptz,
@@ -35,5 +41,5 @@ alter table public.reward_claims enable row level security;
 revoke all on public.reward_missions, public.reward_claims from anon, authenticated;
 -- Grant only after implementing audited owner-scoped policies and an authenticated
 -- server-side claim path. Never trust cart totals or email supplied by a browser.
--- Server must lock gift stock and enforce inventory/claim limits atomically.
+-- For custom gifts, gift_stock is independent of public.products stock.\n-- Server must lock the correct gift inventory and enforce claim limits atomically.
 -- Refunds, cancellation, duplicate webhook delivery and race conditions must be tested.
