@@ -32,6 +32,9 @@ export default function RewardsManagement({ ownerId, products }: { ownerId: stri
   const [editingId, setEditingId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [view, setView] = useState<"config"|"customers">("config");
+  const [claims, setClaims] = useState<{id:string;mission_id:string;customer_user_id:string;status:string;created_at:string}[]>([]);
+  const [claimsLoading, setClaimsLoading] = useState(false);
   const rewardsActivationEnabled = false; // Unlock only after verified server-side fulfillment.
   useEffect(() => {
     if (!supabase || !ownerId) return;
@@ -46,6 +49,17 @@ export default function RewardsManagement({ ownerId, products }: { ownerId: stri
       }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [ownerId]);
+  useEffect(()=>{
+    if(view!=="customers"||!supabase||!ownerId)return;
+    let cancelled=false;
+    setClaimsLoading(true);
+    supabase.from("reward_claims").select("id,mission_id,customer_user_id,status,created_at,reward_missions!inner(owner_id)").eq("reward_missions.owner_id",ownerId).order("created_at",{ascending:false}).then(({data,error})=>{
+      if(cancelled)return;
+      if(error){toast.error("Não foi possível consultar os resgates.");setClaims([]);}
+      else setClaims((data||[]) as unknown as typeof claims);
+    }).finally(()=>{if(!cancelled)setClaimsLoading(false)});
+    return()=>{cancelled=true};
+  },[view,ownerId]);
   async function save(input: typeof blank, id?: string) {
     if (!supabase || !ownerId || saving) return;
     if (!input.title.trim() || !Number.isFinite(input.threshold_amount) || input.threshold_amount <= 0) { toast.error("Informe título e valor de meta válido."); return; }
@@ -82,6 +96,8 @@ export default function RewardsManagement({ ownerId, products }: { ownerId: stri
   return <section className="rewards-management">
     <h2><Gift size={20} aria-hidden="true"/> Clube de Recompensas</h2>
     <p>Crie metas de compras e escolha o brinde. Missões novas começam desativadas.</p><p role="status">Ativação temporariamente bloqueada: falta homologar pagamentos e resgate de brindes.</p>
+    <div className="rewards-management-tabs"><button type="button" aria-pressed={view==="config"} onClick={()=>setView("config")}>Configurar metas</button><button type="button" aria-pressed={view==="customers"} onClick={()=>setView("customers")}>Acompanhamento de clientes</button></div>
+    {view==="customers"?<div className="rewards-management-customers"><h3>Resgates registrados</h3><p>Exibimos somente brindes com resgate registrado no banco. Atingimento automático de metas ainda depende da validação do processamento de pagamentos.</p>{claimsLoading?<p>Carregando resgates…</p>:claims.length===0?<p>Nenhum resgate registrado até o momento.</p>:<div className="rewards-management-grid">{claims.map(c=><article className="rewards-management-card" key={c.id}><strong>{missions.find(m=>m.id===c.mission_id)?.title||"Meta"}</strong><p>Brinde: {missions.find(m=>m.id===c.mission_id)?.gift_name||"—"}</p><p>Cliente (ID): {c.customer_user_id}</p><p>Registrado em: {new Date(c.created_at).toLocaleDateString("pt-BR")}</p><span className={c.status==="fulfilled"?"reward-status-active":"reward-status-draft"}>{c.status==="fulfilled"?"Entregue":c.status==="reserved"?"Reservado":"Cancelado"}</span></article>)}</div>}</div>:<>
     <div className="rewards-management-toolbar"><div><strong>{missions.length} {missions.length===1?"meta cadastrada":"metas cadastradas"}</strong><span>{missions.filter(m=>m.is_active).length} ativas · {missions.filter(m=>!m.is_active).length} desativadas</span></div><button type="button" onClick={()=>{setEditingId(null);setDraft(blank);setShowForm(v=>!v);}}><Plus size={17}/> Nova meta</button></div>
     <div className="rewards-management-search"><Search size={17}/><input aria-label="Buscar metas" placeholder="Buscar meta ou brinde" value={query} onChange={e=>setQuery(e.target.value)}/></div>
     {showForm && <form className="rewards-management-form" onSubmit={e => { e.preventDefault(); void save(draft,editingId||undefined); }}><div className="rewards-management-form-heading"><h3>{editingId?"Editar meta":"Criar nova meta"}</h3><button type="button" onClick={()=>{setShowForm(false);setEditingId(null);setDraft(blank);}} aria-label="Fechar formulário"><X size={18}/></button></div>
@@ -109,5 +125,6 @@ export default function RewardsManagement({ ownerId, products }: { ownerId: stri
         void save({ title: m.title, description: m.description || "", mode: m.mode, threshold_amount: m.threshold_amount, gift_source:m.gift_source, gift_product_id:m.gift_product_id, gift_name:m.gift_name, gift_description:m.gift_description || "", gift_image_url:m.gift_image_url || "", gift_stock:m.gift_stock, reserved_gifts:m.reserved_gifts, gift_quantity: m.gift_quantity, max_redemptions: m.max_redemptions, is_active: active }, m.id);
       }}/> {m.is_active ? "Ativa" : "Desativada"}</label>
     </article>)}</div>}
+    </>}
   </section>;
 }
