@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Gift, Plus, Save } from "lucide-react";
+import { Gift, Plus, Pencil, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "./lib/supabase";
 
@@ -29,6 +29,9 @@ export default function RewardsManagement({ ownerId, products }: { ownerId: stri
   const [draft, setDraft] = useState(blank);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [showForm, setShowForm] = useState(false);
   const rewardsActivationEnabled = false; // Unlock only after verified server-side fulfillment.
   useEffect(() => {
     if (!supabase || !ownerId) return;
@@ -61,17 +64,27 @@ export default function RewardsManagement({ ownerId, products }: { ownerId: stri
       const { data, error } = await request.select("id,owner_id,title,description,mode,threshold_amount,gift_source,gift_product_id,gift_name,gift_description,gift_image_url,gift_stock,reserved_gifts,gift_quantity,max_redemptions,is_active").single();
       if (error) throw error;
       setMissions(current => id ? current.map(m => m.id === id ? data as Mission : m) : [data as Mission, ...current]);
-      if (!id) setDraft(blank);
+      setDraft(blank);
+      setEditingId(null);
+      setShowForm(false);
       toast.success("Missão salva.");
     } catch (error) {
       console.error(error);
       toast.error("Não foi possível salvar a missão.");
     } finally { setSaving(false); }
   }
+  const filtered = missions.filter(m => `${m.title} ${m.gift_name}`.toLocaleLowerCase("pt-BR").includes(query.toLocaleLowerCase("pt-BR")));
+  const beginEdit = (m: Mission) => {
+    setDraft({title:m.title,description:m.description||"",mode:m.mode,threshold_amount:m.threshold_amount,gift_source:m.gift_source,gift_product_id:m.gift_product_id,gift_name:m.gift_name,gift_description:m.gift_description||"",gift_image_url:m.gift_image_url||"",gift_stock:m.gift_stock,reserved_gifts:m.reserved_gifts,gift_quantity:m.gift_quantity,max_redemptions:m.max_redemptions,is_active:m.is_active});
+    setEditingId(m.id);
+    setShowForm(true);
+  };
   return <section className="rewards-management">
     <h2><Gift size={20} aria-hidden="true"/> Clube de Recompensas</h2>
     <p>Crie metas de compras e escolha o brinde. Missões novas começam desativadas.</p><p role="status">Ativação temporariamente bloqueada: falta homologar pagamentos e resgate de brindes.</p>
-    <form onSubmit={e => { e.preventDefault(); void save(draft); }}>
+    <div className="rewards-management-toolbar"><div><strong>{missions.length} {missions.length===1?"meta cadastrada":"metas cadastradas"}</strong><span>{missions.filter(m=>m.is_active).length} ativas · {missions.filter(m=>!m.is_active).length} desativadas</span></div><button type="button" onClick={()=>{setEditingId(null);setDraft(blank);setShowForm(v=>!v);}}><Plus size={17}/> Nova meta</button></div>
+    <div className="rewards-management-search"><Search size={17}/><input aria-label="Buscar metas" placeholder="Buscar meta ou brinde" value={query} onChange={e=>setQuery(e.target.value)}/></div>
+    {showForm && <form className="rewards-management-form" onSubmit={e => { e.preventDefault(); void save(draft,editingId||undefined); }}><div className="rewards-management-form-heading"><h3>{editingId?"Editar meta":"Criar nova meta"}</h3><button type="button" onClick={()=>{setShowForm(false);setEditingId(null);setDraft(blank);}} aria-label="Fechar formulário"><X size={18}/></button></div>
       <label>Nome da missão<input required maxLength={120} value={draft.title} onChange={e => setDraft(d => ({ ...d, title: e.target.value }))} placeholder="Compre R$ 300 e ganhe um brinco"/></label>
       <label>Modalidade<select value={draft.mode} onChange={e => setDraft(d => ({ ...d, mode: e.target.value as Mission["mode"] }))}><option value="cumulative">Compras acumuladas</option><option value="single_order">Uma única compra</option></select></label>
       <label>Meta em R$<input type="number" min=".01" step=".01" required value={draft.threshold_amount} onChange={e => setDraft(d => ({ ...d, threshold_amount: Number(e.target.value) }))}/></label>
@@ -83,17 +96,18 @@ export default function RewardsManagement({ ownerId, products }: { ownerId: stri
         <label>Quantidade disponível<input type="number" min="0" step="1" value={draft.gift_stock} onChange={e => setDraft(d => ({...d,gift_stock:Number(e.target.value)}))}/></label>
       </>}
       <label>Unidades por brinde<input type="number" min="1" max="100" step="1" value={draft.gift_quantity} onChange={e => setDraft(d => ({ ...d, gift_quantity: Number(e.target.value) }))}/></label>
-      <button type="submit" disabled={saving}><Plus size={16}/> {saving ? "Salvando..." : "Criar missão desativada"}</button>
-    </form>
-    <h3>Missões cadastradas</h3>
-    {loading ? <p>Carregando missões...</p> : missions.length === 0 ? <p>Nenhuma missão cadastrada.</p> : missions.map(m => <article key={m.id}>
-      <strong>{m.title}</strong>
+      <button type="submit" disabled={saving}><Plus size={16}/> {saving ? "Salvando..." : editingId ? "Salvar alterações" : "Criar missão desativada"}</button>
+    </form>}
+    <h3>Metas cadastradas</h3>
+    {loading ? <p>Carregando missões...</p> : missions.length === 0 ? <p>Nenhuma meta cadastrada. Clique em “Nova meta” para começar.</p> : filtered.length === 0 ? <p>Nenhuma meta encontrada para esta busca.</p> : <div className="rewards-management-grid">{filtered.map(m => <article className="rewards-management-card" key={m.id}>
+      <div className="rewards-management-card-top">{m.gift_image_url&&<img src={m.gift_image_url} alt={m.gift_name} loading="lazy"/>}<div><span className={m.is_active?"reward-status-active":"reward-status-draft"}>{m.is_active?"Ativa":"Desativada"}</span><h4>{m.title}</h4></div></div>
       <p>{m.mode === "cumulative" ? "Compras acumuladas" : "Compra única"} · R$ {Number(m.threshold_amount).toFixed(2).replace(".", ",")} · {m.gift_name || products.find(p => p.id === m.gift_product_id)?.name || "Brinde indisponível"}</p>
+      <button type="button" className="rewards-management-edit" onClick={()=>beginEdit(m)}><Pencil size={15}/> Editar meta</button>
       <label><input type="checkbox" checked={m.is_active} disabled={saving || !rewardsActivationEnabled} onChange={e => {
         const active = e.target.checked;
         if (active && !window.confirm("Ativar esta missão para os clientes? Verifique antes se o processamento de pagamentos e o resgate de brindes estão homologados.")) return;
         void save({ title: m.title, description: m.description || "", mode: m.mode, threshold_amount: m.threshold_amount, gift_source:m.gift_source, gift_product_id:m.gift_product_id, gift_name:m.gift_name, gift_description:m.gift_description || "", gift_image_url:m.gift_image_url || "", gift_stock:m.gift_stock, reserved_gifts:m.reserved_gifts, gift_quantity: m.gift_quantity, max_redemptions: m.max_redemptions, is_active: active }, m.id);
       }}/> {m.is_active ? "Ativa" : "Desativada"}</label>
-    </article>)}
+    </article>)}</div>}
   </section>;
 }
