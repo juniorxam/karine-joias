@@ -1117,3 +1117,14 @@
 @media(max-width:380px){
  .quick-edit-grid{grid-template-columns:minmax(0,1fr)}
 }
+
+/* Inventory notifications in the management header */
+.stock-alert-anchor{position:relative}
+.stock-alert-popover{position:absolute;right:0;top:calc(100% + 10px);z-index:100;width:min(340px,calc(100vw - 40px));max-height:65vh;overflow:auto;background:#fff;border:1px solid #e8d8df;border-radius:14px;padding:16px;box-shadow:0 12px 34px rgba(40,23,32,.15);font-size:13px;color:#342e30}
+.stock-alert-popover>strong{font-size:16px}
+.stock-alert-popover p{margin:9px 0;color:#6c6267}
+.stock-alert-popover ul{list-style:none;margin:10px 0;padding:0}
+.stock-alert-popover li{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #f2e9ed}
+.stock-alert-popover li span{overflow-wrap:anywhere}
+.stock-alert-popover li b{white-space:nowrap;color:#9a496c}
+.stock-alert-popover>button{width:100%;border:0;border-radius:9px;background:#8d4569;color:white;padding:10px;cursor:pointer}
