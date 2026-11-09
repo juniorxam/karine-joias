@@ -22,6 +22,11 @@ const productTypeDefinitions = [
 ] as const;
 const normalizeCatalogText = (value: string) => value.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 const getProductType = (product: CatalogProduct) => {
+  if (product.productType) {
+    const structured = normalizeCatalogText(product.productType);
+    const direct = productTypeDefinitions.find(type => normalizeCatalogText(type.label) === structured || type.key === structured);
+    if (direct) return direct.key;
+  }
   const name = normalizeCatalogText(product.name);
   return productTypeDefinitions.find(type => type.terms.some(term => name.includes(term)))?.key;
 };
@@ -438,7 +443,7 @@ export default function Storefront() {
   const gifts = [...products].filter(product => /presente|kit|mix|conjunto/i.test(product.name) && !launchIds.has(String(product.id)) && !bestSellerIds.has(String(product.id)) && !featuredIds.has(String(product.id))).slice(0, 8);
   const giftProducts = gifts;
   const giftIds = new Set(giftProducts.map(product => String(product.id)));
-  const usedHomeProductIds = new Set([...launchIds, ...bestSellerIds, ...featuredIds, ...giftIds]);
+  const usedHomeProductIds = new Set([...Array.from(launchIds), ...Array.from(bestSellerIds), ...Array.from(featuredIds), ...Array.from(giftIds)]);
   const latest = [...products].filter(product => !usedHomeProductIds.has(String(product.id))).sort((a,b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0) || (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).slice(0, 8);
   const categoryCards = [
     { name: "Joias", label: "Joias", icon: "✦", imageUrl: products.find(product => product.category === "Joias" && product.imageUrl)?.imageUrl },

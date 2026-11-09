@@ -9,6 +9,12 @@ type PublicRow = {
   name: string;
   category: string;
   material: string;
+  product_type: string | null;
+  finish_color: string | null;
+  style: string | null;
+  occasions: string[] | null;
+  size: string | null;
+  tags: string[] | null;
   price: number;
   pix_price: number | null;
   compare_at_price: number | null;
@@ -56,7 +62,7 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
 
   const { data, error } = await publicClient
     .from("public_products")
-    .select("id,owner_id,product_id,name,category,material,price,pix_price,compare_at_price,discount_percent,installment_count,image_url,image_urls,featured,is_published,slug,description,stock,is_new,is_best_seller,sort_order,sold_quantity")
+    .select("id,owner_id,product_id,name,category,material,product_type,finish_color,style,occasions,size,tags,price,pix_price,compare_at_price,discount_percent,installment_count,image_url,image_urls,featured,is_published,slug,description,stock,is_new,is_best_seller,sort_order,sold_quantity")
     .eq("store_slug", "violetta")
     .eq("is_published", true)
     .order("featured", { ascending: false })
@@ -74,6 +80,12 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
     name: row.name,
     category: normalizeStoreCategory(row.category),
     material: row.material,
+    productType: row.product_type ?? undefined,
+    finishColor: row.finish_color ?? undefined,
+    style: row.style ?? undefined,
+    occasions: Array.isArray(row.occasions) ? row.occasions : [],
+    size: row.size ?? undefined,
+    tags: Array.isArray(row.tags) ? row.tags : [],
     price: Number(row.price),
     pixPrice: row.pix_price == null ? undefined : Number(row.pix_price),
     compareAtPrice: row.compare_at_price == null ? undefined : Number(row.compare_at_price),
