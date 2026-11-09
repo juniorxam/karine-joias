@@ -43,7 +43,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   const [orders,setOrders]=useState<Order[]>([]);
   const [rewardMissions,setRewardMissions]=useState<RewardMissionView[]>([]);
   const [selected,setSelected]=useState<Order|null>(null);
-  const [activeTab,setActiveTab]=useState<"overview"|"orders"|"profile"|"addresses">("overview");
+  const [activeTab,setActiveTab]=useState<"overview"|"orders"|"profile"|"addresses"|"missions">("overview");
   const [search,setSearch]=useState("");
   const [orderFilter,setOrderFilter]=useState("ALL");
   const [profileName,setProfileName]=useState("");
@@ -350,6 +350,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       <button className={activeTab==="overview"?"active":""} onClick={()=>setActiveTab("overview")}>Visão geral</button>
       <button className={activeTab==="orders"?"active":""} onClick={()=>setActiveTab("orders")}>Meus pedidos <b>{orders.length}</b></button>
       <button className={activeTab==="profile"?"active":""} onClick={()=>setActiveTab("profile")}>Meu perfil</button>
+      <button className={activeTab==="missions"?"active":""} onClick={()=>setActiveTab("missions")}>Minhas missões</button>
       <button className={activeTab==="addresses"?"active":""} onClick={()=>setActiveTab("addresses")}>Meus endereços <b>{savedAddresses.length}</b></button>
     </div>}
 
@@ -373,7 +374,8 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       {selected.shipments?.[0]?.tracking_code&&<div className="customer-tracking"><Truck size={20}/><div><strong>{selected.shipments[0].carrier||"Entrega"}</strong><span>{selected.shipments[0].tracking_code}</span>{selected.shipments[0].tracking_url&&<a href={selected.shipments[0].tracking_url} target="_blank" rel="noreferrer">Acompanhar entrega ↗</a>}</div></div>}
       {!["PAID","APPROVED"].includes(String(selected.payment_status||"").toUpperCase())&&selected.payment_url&&<a className="checkout-submit customer-pay" href={selected.payment_url}>Continuar pagamento</a>}
     </div>
-    :activeTab==="overview"?<div>
+    :activeTab==="missions"?<div className="customer-missions-tab"><RewardsProgress missions={rewardProgress} authenticated={true} onSignIn={()=>{}}/></div>
+        :activeTab==="overview"?<div>
       <RewardsProgress missions={rewardProgress} authenticated={true} onSignIn={()=>{}}/>
       <div className="customer-metrics"><div><Package/><span>Pedidos</span><strong>{orders.length}</strong></div><div><Truck/><span>Em andamento</span><strong>{activeOrders.length}</strong></div><div><CreditCard/><span>Total comprado</span><strong>{money(totalSpent)}</strong></div></div>
       {latestOrder?<div className="customer-latest"><div className="customer-section-head"><div><p className="store-kicker">COMPRA MAIS RECENTE</p><h2>{latestOrder.order_number}</h2></div><button onClick={()=>setSelected(latestOrder)}>Ver pedido <Eye size={16}/></button></div><div className="customer-latest-meta"><span>{new Date(latestOrder.created_at).toLocaleDateString("pt-BR")}</span><b>{displayStatus(latestOrder.status)}</b><strong>{money(latestOrder.total_amount)}</strong></div></div>:<div className="customer-empty"><Package size={30}/><h3>Você ainda não tem pedidos.</h3><p>Faça sua primeira compra e acompanhe tudo por aqui.</p><button className="store-primary-cta" onClick={onBack}>Começar a comprar</button></div>}
