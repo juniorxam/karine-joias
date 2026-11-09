@@ -16,12 +16,13 @@ type Mission = {
   gift_description: string | null;
   gift_image_url: string | null;
   gift_stock: number;
+  reserved_gifts: number;
   gift_quantity: number;
   max_redemptions: number | null;
   is_active: boolean;
 };
 type GiftProduct = { id: number; name: string; stock: number };
-const blank = { title: "", description: "", mode: "cumulative" as Mission["mode"], threshold_amount: 300, gift_source: "custom" as "custom" | "catalog", gift_product_id: null as number | null, gift_name: "", gift_description: "", gift_image_url: "", gift_stock: 0, gift_quantity: 1, max_redemptions: null as number | null, is_active: false };
+const blank = { title: "", description: "", mode: "cumulative" as Mission["mode"], threshold_amount: 300, gift_source: "custom" as "custom" | "catalog", gift_product_id: null as number | null, gift_name: "", gift_description: "", gift_image_url: "", gift_stock: 0, reserved_gifts: 0, gift_quantity: 1, max_redemptions: null as number | null, is_active: false };
 
 export default function RewardsManagement({ ownerId, products }: { ownerId: string; products: GiftProduct[] }) {
   const [missions, setMissions] = useState<Mission[]>([]);
@@ -33,7 +34,7 @@ export default function RewardsManagement({ ownerId, products }: { ownerId: stri
     if (!supabase || !ownerId) return;
     let cancelled = false;
     setLoading(true);
-    supabase.from("reward_missions").select("id,owner_id,title,description,mode,threshold_amount,gift_source,gift_product_id,gift_name,gift_description,gift_image_url,gift_stock,gift_quantity,max_redemptions,is_active")
+    supabase.from("reward_missions").select("id,owner_id,title,description,mode,threshold_amount,gift_source,gift_product_id,gift_name,gift_description,gift_image_url,gift_stock,reserved_gifts,gift_quantity,max_redemptions,is_active")
       .eq("owner_id", ownerId).order("created_at", { ascending: false })
       .then(({ data, error }) => {
         if (cancelled) return;
@@ -57,7 +58,7 @@ export default function RewardsManagement({ ownerId, products }: { ownerId: stri
       const request = id
         ? supabase.from("reward_missions").update(payload).eq("id", id).eq("owner_id", ownerId)
         : supabase.from("reward_missions").insert(payload);
-      const { data, error } = await request.select("id,owner_id,title,description,mode,threshold_amount,gift_source,gift_product_id,gift_name,gift_description,gift_image_url,gift_stock,gift_quantity,max_redemptions,is_active").single();
+      const { data, error } = await request.select("id,owner_id,title,description,mode,threshold_amount,gift_source,gift_product_id,gift_name,gift_description,gift_image_url,gift_stock,reserved_gifts,gift_quantity,max_redemptions,is_active").single();
       if (error) throw error;
       setMissions(current => id ? current.map(m => m.id === id ? data as Mission : m) : [data as Mission, ...current]);
       if (!id) setDraft(blank);
@@ -91,7 +92,7 @@ export default function RewardsManagement({ ownerId, products }: { ownerId: stri
       <label><input type="checkbox" checked={m.is_active} disabled={saving || !rewardsActivationEnabled} onChange={e => {
         const active = e.target.checked;
         if (active && !window.confirm("Ativar esta missão para os clientes? Verifique antes se o processamento de pagamentos e o resgate de brindes estão homologados.")) return;
-        void save({ title: m.title, description: m.description || "", mode: m.mode, threshold_amount: m.threshold_amount, gift_source:m.gift_source, gift_product_id:m.gift_product_id, gift_name:m.gift_name, gift_description:m.gift_description || "", gift_image_url:m.gift_image_url || "", gift_stock:m.gift_stock, gift_quantity: m.gift_quantity, max_redemptions: m.max_redemptions, is_active: active }, m.id);
+        void save({ title: m.title, description: m.description || "", mode: m.mode, threshold_amount: m.threshold_amount, gift_source:m.gift_source, gift_product_id:m.gift_product_id, gift_name:m.gift_name, gift_description:m.gift_description || "", gift_image_url:m.gift_image_url || "", gift_stock:m.gift_stock, reserved_gifts:m.reserved_gifts, gift_quantity: m.gift_quantity, max_redemptions: m.max_redemptions, is_active: active }, m.id);
       }}/> {m.is_active ? "Ativa" : "Desativada"}</label>
     </article>)}
   </section>;
