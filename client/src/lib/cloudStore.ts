@@ -99,7 +99,7 @@ export function useSyncedCollection<T extends Record<string, any>>(
 
   useEffect(() => {
     const client = supabase;
-    if (!client || !ownerId || !ready || !serverLoadSucceeded) return;
+    if (!client || !ownerId || !ready || !serverLoadSucceeded || table === "products") return;
     const sync = async () => {
       const rows = value.map((item) => toDb(table, item, ownerId));
       const { data: existing, error: readError } = await client.from(table).select("id").eq("owner_id", ownerId);
