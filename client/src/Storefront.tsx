@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { ArrowRight, ArrowLeft, CalendarDays, Check, CreditCard, Gem, Heart, Instagram, Menu, Search, ShoppingBag, Sparkles, X, User, Truck, Tag, ShieldCheck, Star, MessageCircle } from "lucide-react";
 import { formatMoney, type CatalogProduct } from "./lib/catalog";
@@ -213,9 +214,10 @@ export default function Storefront() {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [redirectingToPayment, setRedirectingToPayment] = useState(false);
   const [trackingLoading, setTrackingLoading] = useState(false);
-  const [customerName, setCustomerName] = useState("");
-  const [customerSignedIn, setCustomerSignedIn] = useState(false);
-  const [customerAuthResolved, setCustomerAuthResolved] = useState(!supabase);
+  const [customerUser, setCustomerUser] = useState<SupabaseUser | null>(null);
+  const [customerAuthResolved, setCustomerAuthResolved] = useState(!customerSupabase);
+  const customerSignedIn = Boolean(customerUser);
+  const customerName = String(customerUser?.user_metadata?.full_name || "").trim();
   const [hasMadeFirstPurchase, setHasMadeFirstPurchase] = useState(() => localStorage.getItem("violetta-first-purchase-made") === "true");
   const [firstPurchaseCheckComplete, setFirstPurchaseCheckComplete] = useState(false);
   const returnToCheckoutRef = useRef(false);
@@ -228,14 +230,11 @@ export default function Storefront() {
   }, []);
 
   useEffect(() => {
-    if (!supabase) { setCustomerAuthResolved(true); return; }
-    const syncCustomerName = (session: any) => {
-      setCustomerSignedIn(Boolean(session?.user));
-      setCustomerName(String(session?.user?.user_metadata?.full_name || "").trim());
+    if (!customerSupabase) return;
+    const { data: { subscription } } = customerSupabase.auth.onAuthStateChange((_event, session) => {
+      setCustomerUser(session?.user ?? null);
       setCustomerAuthResolved(true);
-    };
-    supabase.auth.getSession().then(({ data }) => syncCustomerName(data.session)).catch(() => setCustomerAuthResolved(true));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => syncCustomerName(session));
+    });
     return () => subscription.unsubscribe();
   }, []);
 
@@ -575,12 +574,12 @@ export default function Storefront() {
   };
 
   const finishOrder = async (customer: Customer, shipping: Shipping, couponCode = "") => {
-    if (!supabase) {
+    if (!customerSupabase) {
       toast.error("A loja ainda não está conectada ao Supabase.");
       return;
     }
     const idempotencyKey = checkoutIdempotencyKey.current ?? (checkoutIdempotencyKey.current = crypto.randomUUID());
-    const { data, error } = await supabase.functions.invoke("create-order", {
+    const { data, error } = await customerSupabase.functions.invoke("create-order", {
       body: {
         customer,
         shipping: { ...shipping, recipient_code: customer.recipient_code },
@@ -602,7 +601,7 @@ export default function Storefront() {
     localStorage.removeItem(checkoutDraftKey);
     checkoutIdempotencyKey.current = null;
     setRedirectingToPayment(true);
-    const payment = await supabase.functions.invoke("create-infinitepay-payment", { body: { order_number: data.order_number, email: customer.email } });
+    const payment = await customerSupabase.functions.invoke("create-infinitepay-payment", { body: { order_number: data.order_number, email: customer.email } });
     if (payment.data?.url) {
       window.location.href = payment.data.url;
       return;
@@ -644,7 +643,7 @@ export default function Storefront() {
   }
 
   if (view === "checkout") {
-    return <Checkout cart={cart} subtotal={subtotal} draft={checkoutDraft} onDraftChange={setCheckoutDraft} onBack={backToStore} onLogin={() => { returnToCheckoutRef.current = true; window.history.pushState({}, "", "/minha-conta"); setView("account"); window.scrollTo({ top: 0, behavior: "smooth" }); }} onFinish={finishOrder} onChangeQty={changeQty} onAskWhatsApp={askAboutCart} storefrontSettings={storefrontSettings} />;
+    return <Checkout customerUser={customerUser} customerAuthResolved={customerAuthResolved} cart={cart} subtotal={subtotal} draft={checkoutDraft} onDraftChange={setCheckoutDraft} onBack={backToStore} onLogin={() => { returnToCheckoutRef.current = true; window.history.pushState({}, "", "/minha-conta"); setView("account"); window.scrollTo({ top: 0, behavior: "smooth" }); }} onFinish={finishOrder} onChangeQty={changeQty} onAskWhatsApp={askAboutCart} storefrontSettings={storefrontSettings} />;
   }
 
   if (view === "success" && order) {
@@ -947,7 +946,7 @@ function ProductReviews({ productId }: { productId: number }) {
   </section>;
 }
 
-function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onLogin, onFinish, onChangeQty, onAskWhatsApp, storefrontSettings }: { cart: CartItem[]; subtotal: number; draft: { customer: Customer; shipping: Shipping; couponCode: string }; onDraftChange: Dispatch<SetStateAction<{ customer: Customer; shipping: Shipping; couponCode: string }>>; onBack: () => void; onLogin: () => void; onFinish: (customer: Customer, shipping: Shipping, couponCode?: string) => Promise<void>; onChangeQty: (id: CatalogProduct["id"], delta: number) => void; onAskWhatsApp: (items: CartItem[], name?: string) => void; storefrontSettings: StorefrontSettings | null }) {
+function Checkout({ customerUser, customerAuthResolved, cart, subtotal, draft, onDraftChange, onBack, onLogin, onFinish, onChangeQty, onAskWhatsApp, storefrontSettings }: { customerUser: SupabaseUser | null; customerAuthResolved: boolean; cart: CartItem[]; subtotal: number; draft: { customer: Customer; shipping: Shipping; couponCode: string }; onDraftChange: Dispatch<SetStateAction<{ customer: Customer; shipping: Shipping; couponCode: string }>>; onBack: () => void; onLogin: () => void; onFinish: (customer: Customer, shipping: Shipping, couponCode?: string) => Promise<void>; onChangeQty: (id: CatalogProduct["id"], delta: number) => void; onAskWhatsApp: (items: CartItem[], name?: string) => void; storefrontSettings: StorefrontSettings | null }) {
   const [customer, setCustomer] = useState<Customer>(draft.customer);
   const [shipping, setShipping] = useState<Shipping>(draft.shipping);
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
@@ -961,37 +960,37 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onLogin, onFin
   const [quickPurchaseBusy, setQuickPurchaseBusy] = useState(false);
   const [quickPurchase, setQuickPurchase] = useState({ name: draft.customer.name || "", phone: draft.customer.phone || "", address: "" });
   useEffect(() => {
-    if (!customerSupabase) return;
-    customerSupabase.auth.getSession().then(({ data }) => {
-      const user = data.session?.user;
-      if (!user) return;
-      setCustomer(current => ({
-        ...current,
-        email: current.email || user.email || "",
-        name: current.name || String(user.user_metadata?.full_name || ""),
-        phone: current.phone || String(user.user_metadata?.phone || ""),
-      }));
-      const saved = Array.isArray(user.user_metadata?.saved_addresses) ? user.user_metadata.saved_addresses : [];
-      setSavedAddresses(saved);
-      const preferred = saved.find((address: any) => address?.is_default) || saved[0];
-      if (preferred) {
-        setShipping(current => {
-          const hasExistingAddress = Boolean(current.postal_code || current.address || current.number || current.neighborhood || current.city);
-          if (hasExistingAddress) return current;
-          return {
-            ...current,
-            postal_code: String(preferred.postal_code || ""),
-            address: String(preferred.address || ""),
-            number: String(preferred.number || ""),
-            complement: String(preferred.complement || ""),
-            neighborhood: String(preferred.neighborhood || ""),
-            city: String(preferred.city || ""),
-            state: String(preferred.state || ""),
-          };
-        });
-      }
-    });
-  }, []);
+    const user = customerUser;
+    if (!user) {
+      setSavedAddresses([]);
+      return;
+    }
+    setCustomer(current => ({
+      ...current,
+      email: current.email || user.email || "",
+      name: current.name || String(user.user_metadata?.full_name || ""),
+      phone: current.phone || String(user.user_metadata?.phone || ""),
+    }));
+    const saved = Array.isArray(user.user_metadata?.saved_addresses) ? user.user_metadata.saved_addresses : [];
+    setSavedAddresses(saved);
+    const preferred = saved.find((address: any) => address?.is_default) || saved[0];
+    if (preferred) {
+      setShipping(current => {
+        const hasExistingAddress = Boolean(current.postal_code || current.address || current.number || current.neighborhood || current.city);
+        if (hasExistingAddress) return current;
+        return {
+          ...current,
+          postal_code: String(preferred.postal_code || ""),
+          address: String(preferred.address || ""),
+          number: String(preferred.number || ""),
+          complement: String(preferred.complement || ""),
+          neighborhood: String(preferred.neighborhood || ""),
+          city: String(preferred.city || ""),
+          state: String(preferred.state || ""),
+        };
+      });
+    }
+  }, [customerUser]);
   const [distanceKmValue, setDistanceKmValue] = useState<number|null>(null);
   const [distanceLoading, setDistanceLoading] = useState(false);
   const [distanceRequest, setDistanceRequest] = useState(0);
@@ -1226,7 +1225,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onLogin, onFin
   return <div className="storefront checkout-page">
     <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></span></span><span className="checkout-secure">Checkout seguro</span></header>
     <main className="checkout-layout"><form className="checkout-form" onSubmit={submit}>
-      <div className="checkout-title"><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}><span className="payment-methods"><span>1. Dados</span><span>2. Entrega</span><span>3. Pagamento</span></span></div><p className="store-kicker">FINALIZAR PEDIDO</p><h1>Quase seu.</h1><p>Preencha seus dados para reservar as peças e gerar seu pedido. O endereço será usado para organizar a entrega.</p><small style={{display:"block",marginTop:8}}><span style={{color:"#c0392b"}}>*</span> Campos obrigatórios.</small><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:14,flexWrap:"wrap",padding:"14px 16px",marginTop:18,border:"1px solid #eadde2",borderRadius:12,background:"#fffafc"}}><div style={{minWidth:200,flex:"1 1 220px"}}><strong style={{display:"block",fontSize:14,color:"#553744"}}>Já é cliente Violetta?</strong><span style={{display:"block",fontSize:13,color:"#765e68",marginTop:4}}>Entre para preencher seus dados e usar endereços salvos. É opcional: você também pode comprar como visitante.</span></div><button type="button" className="shipping-quote-button" onClick={onLogin} style={{margin:0,whiteSpace:"nowrap"}}>Entrar ou criar conta</button></div></div><div className="checkout-final-note" style={{marginTop:12}}><CalendarDays size={16}/><span><strong>Prazo de entrega:</strong> pedidos confirmados até as 11h têm previsão de entrega no mesmo dia. Após as 11h, a previsão é para o próximo dia útil. À tarde, há atendimento, mas não realizamos entregas.</span></div>
+      <div className="checkout-title"><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}><span className="payment-methods"><span>1. Dados</span><span>2. Entrega</span><span>3. Pagamento</span></span></div><p className="store-kicker">FINALIZAR PEDIDO</p><h1>Quase seu.</h1><p>Preencha seus dados para reservar as peças e gerar seu pedido. O endereço será usado para organizar a entrega.</p><small style={{display:"block",marginTop:8}}><span style={{color:"#c0392b"}}>*</span> Campos obrigatórios.</small>{customerAuthResolved && !customerUser && <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:14,flexWrap:"wrap",padding:"14px 16px",marginTop:18,border:"1px solid #eadde2",borderRadius:12,background:"#fffafc"}}><div style={{minWidth:200,flex:"1 1 220px"}}><strong style={{display:"block",fontSize:14,color:"#553744"}}>Já é cliente Violetta?</strong><span style={{display:"block",fontSize:13,color:"#765e68",marginTop:4}}>Entre para preencher seus dados e usar endereços salvos. É opcional: você também pode comprar como visitante.</span></div><button type="button" className="shipping-quote-button" onClick={onLogin} style={{margin:0,whiteSpace:"nowrap"}}>Entrar ou criar conta</button></div>}</div><div className="checkout-final-note" style={{marginTop:12}}><CalendarDays size={16}/><span><strong>Prazo de entrega:</strong> pedidos confirmados até as 11h têm previsão de entrega no mesmo dia. Após as 11h, a previsão é para o próximo dia útil. À tarde, há atendimento, mas não realizamos entregas.</span></div>
       <section className="checkout-section"><h2><User size={17}/> Seus dados</h2><div className="checkout-grid"><label>Nome completo <span style={{color:"#c0392b"}}>*</span><input required autoComplete="name" value={customer.name} onChange={e=>updateCustomer("name",e.target.value)}/></label><label>E-mail <span style={{color:"#c0392b"}}>*</span><input required type="email" autoComplete="email" value={customer.email} onChange={e=>updateCustomer("email",e.target.value)}/></label><label>WhatsApp <span style={{color:"#c0392b"}}>*</span><input required autoComplete="tel" value={customer.phone} onChange={e=>updateCustomer("phone",formatPhone(e.target.value))}/></label><label>CPF <span style={{color:"#c0392b"}}>*</span><input required inputMode="numeric" maxLength={14} value={customer.recipient_code} onChange={e=>updateCustomer("recipient_code",formatCPF(e.target.value))} placeholder="000.000.000-00"/></label></div></section>
       <section className="checkout-section"><h2><Truck size={17}/> Entrega</h2>{savedAddresses.length>0&&<label style={{display:"block",marginBottom:14}}>Usar endereço salvo<select value="" onChange={e=>chooseSavedAddress(e.target.value)}><option value="">Selecionar outro endereço salvo…</option>{savedAddresses.map((address:any)=><option key={address.id} value={address.id}>{address.label||"Endereço"}{address.is_default?" (padrão)":""} — {address.address}, {address.number} · {address.city}/{address.state}</option>)}</select><small>O endereço padrão já foi preenchido. Você pode escolher outro salvo.</small></label>}<div className="checkout-grid"><label>CEP <span style={{color:"#c0392b"}}>*</span><input required inputMode="numeric" value={shipping.postal_code} onChange={e=>fetchZip(e.target.value)} placeholder="00000-000"/>{zipLoading&&<small>Consultando CEP...</small>}</label><label className="wide">Endereço <span style={{color:"#c0392b"}}>*</span><input required={!pickupSelected} value={shipping.address} onChange={e=>updateShipping("address",e.target.value)}/></label><label>Número <span style={{color:"#c0392b"}}>*</span><input required={!pickupSelected} value={shipping.number} onChange={e=>updateShipping("number",e.target.value)}/></label><label>Complemento<input value={shipping.complement} onChange={e=>updateShipping("complement",e.target.value)}/></label><label>Bairro <span style={{color:"#c0392b"}}>*</span><input required={!pickupSelected} value={shipping.neighborhood} onChange={e=>updateShipping("neighborhood",e.target.value)}/></label><label>Cidade <span style={{color:"#c0392b"}}>*</span><input required value={shipping.city} onChange={e=>updateShipping("city",e.target.value)}/></label><label>UF <span style={{color:"#c0392b"}}>*</span><input required maxLength={2} value={shipping.state} onChange={e=>updateShipping("state",e.target.value.toUpperCase())}/></label></div>
         {<div className="checkout-final-note"><Truck size={16}/><span><strong>{distanceLoading?"Calculando frete e distância pela rota viária…":distanceKmValue!==null?`Distância da entrega: ${distanceKmValue.toFixed(1)} km`:distanceError||"Preencha os dados do endereço e clique em Calcular frete."}</strong></span></div>}<button type="button" className="shipping-quote-button" onClick={handleCalculateShipping} disabled={distanceLoading}>{distanceLoading?"Calculando frete…":"Calcular frete"}</button>{beyondDeliveryRadius&&<div className="checkout-final-note"><Truck size={16}/><span>Entrega acima da faixa automática de 17,9 km. O frete será combinado diretamente com a loja.</span></div>}{shippingOptions.length>0&&<div className="shipping-options">{shippingOptions.map(option=><label className={"shipping-option "+(shippingOption?.id===option.id?"selected":"")} key={String(option.id)}><input type="radio" name="shipping-option" checked={shippingOption?.id===option.id} onChange={()=>setShipping(v=>({...v,shipping_option:option}))}/><span><strong>{option.company} · {option.service}</strong><small>{option.service === "Retirada no local" ? "Retire seu pedido no endereço da Violetta, sem cobrança de frete." : isPalmas && option.service !== "Frete a combinar" ? "Frete calculado pela rota viária entre a loja e o seu endereço." : "Para este endereço, o frete será negociado separadamente com a loja."}</small></span><b>{option.service === "Frete a combinar" ? "À parte" : option.price > 0 ? formatMoney(option.price) : "Grátis"}</b></label>)}</div>}
@@ -1235,7 +1234,7 @@ function Checkout({ cart, subtotal, draft, onDraftChange, onBack, onLogin, onFin
       <section className="checkout-section"><h2><Tag size={17}/> Cupom de desconto</h2><div className="checkout-grid"><label className="wide">Código do cupom<input value={couponCode} onChange={e=>{setCouponCode(e.target.value.toUpperCase());setCouponDiscount(0);setCouponError("")}} placeholder="EX.: BEMVINDO10"/></label><button type="button" className="shipping-quote-button" onClick={applyCoupon} disabled={couponBusy}>{couponBusy?"Validando...":"Aplicar cupom"}</button></div>{couponError&&<small>{couponError}</small>}{couponApplied&&<small>Cupom aplicado: {couponGiftDescription || (couponDiscount>0 ? "desconto de "+formatMoney(couponDiscount) : "benefício de primeira compra")}</small>}</section>
       <section className="checkout-section"><h2><ShieldCheck size={17}/> Pagamento</h2><div className="payment-placeholder"><ShoppingBag size={18}/><div><strong>Pagamento seguro pelo InfinitePay</strong><p>Ao confirmar o pedido, você será direcionada ao InfinitePay. A modalidade e o valor do frete serão definidos conforme o endereço informado.</p><div className="payment-methods"><span>PIX</span><span>Cartão</span><span>Ambiente seguro</span></div></div></div></section>
       <div className="checkout-final-note"><ShieldCheck size={16}/><span>{shippingOption?.service === "Retirada no local" ? "Retirada no local sem cobrança de frete." : shippingOption?.service === "Frete a combinar" ? (isPalmas ? "O frete será combinado diretamente com o vendedor e pago separadamente. Ele não está incluído no pagamento desta compra." : "Para entregas fora de Palmas, o frete será combinado diretamente com o vendedor e pago separadamente.") : isPalmas&&shippingOption ? "Frete de "+formatMoney(shippingPrice)+" calculado automaticamente pela distância." : !shipping.city.trim() || !shipping.state.trim() ? "Informe o CEP, número, bairro, cidade e UF para calcular ou confirmar o frete." : "O frete será confirmado pela loja para este endereço."}</span></div>
-      <button className="checkout-submit" disabled={busy||!cart.length||!shippingOption}>{busy?"Criando pedido...":"Confirmar pedido e pagar"}</button>
+      <button className="checkout-submit" disabled={busy||!customerAuthResolved||!cart.length||!shippingOption}>{busy?"Criando pedido...":"Confirmar pedido e pagar"}</button>
       <button type="button" className="checkout-whatsapp checkout-quick-purchase" onClick={() => { setQuickPurchase(v => ({ ...v, name: v.name || customer.name, phone: v.phone || customer.phone, address: v.address || [shipping.address, shipping.number && `nº ${shipping.number}`, shipping.neighborhood, shipping.city, shipping.state].filter(Boolean).join(", ") })); setQuickPurchaseOpen(true); }} disabled={!cart.length}><MessageCircle size={15}/> Comprar rápido pelo WhatsApp</button>
       <button type="button" className="checkout-whatsapp checkout-whatsapp-secondary" onClick={() => onAskWhatsApp(cart, customer.name)} disabled={!cart.length}><MessageCircle size={15}/> Apenas tirar dúvidas sobre os produtos</button>
     </form>
