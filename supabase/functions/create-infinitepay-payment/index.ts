@@ -19,6 +19,10 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const orderNumber = String(body?.order_number ?? "").trim();
     const email = String(body?.email ?? "").trim().toLowerCase();
+    const trackingToken = String(body?.tracking_token ?? "").trim();
+    if (!/^[A-Za-z0-9_-]{20,128}$/.test(trackingToken)) return json({ error: "Acesso ao pedido inválido. Reabra o checkout." }, 403);
+    const trackingHashBytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(trackingToken));
+    const trackingHash = Array.from(new Uint8Array(trackingHashBytes)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
     if (!orderNumber || !/^\S+@\S+\.\S+$/.test(email)) return json({ error: "Pedido e e-mail válido são obrigatórios" }, 400);
 
     const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
@@ -30,9 +34,9 @@ Deno.serve(async (req) => {
 
     admin = createClient(supabaseUrl, serviceKey);
     const { data: order, error: orderError } = await admin.from("orders")
-      .select("id,order_number,customer_name,customer_email,customer_phone,shipping_address,total_amount,shipping_amount,discount_amount,status,payment_status,payment_provider,payment_provider_id,payment_url")
-      .eq("order_number", orderNumber).eq("customer_email", email).maybeSingle();
-    if (orderError || !order) return json({ error: "Pedido não encontrado" }, 404);
+      .select("id,order_number,customer_name,customer_email,customer_phone,shipping_address,total_amount,shipping_amount,discount_amount,status,payment_status,payment_provider,payment_provider_id,payment_url,tracking_token_hash")
+      .eq("order_number", orderNumber).eq("customer_email", email).eq("tracking_token_hash", trackingHash).maybeSingle();
+    if (orderError || !order) return json({ error: "Pedido não encontrado ou acesso não autorizado" }, 404);
     if (String(order.payment_status).toUpperCase() === "PAID") return json({ error: "Este pedido já foi pago" }, 409);
     if (["CANCELLED", "REFUNDED"].includes(String(order.status).toUpperCase())) return json({ error: "Este pedido não pode receber pagamento" }, 409);
     if (String(order.payment_provider || "").toLowerCase() === "infinitepay" && order.payment_url && String(order.payment_status).toUpperCase() === "PENDING") {
@@ -135,7 +139,12 @@ Deno.serve(async (req) => {
     });
     const result = await response.json().catch(() => ({}));
     const checkoutUrl = String(result?.url || "");
-    if (!response.ok || !/^https:\/\//i.test(checkoutUrl)) {
+    let validPaymentUrl = false;
+    try {
+      const parsed = new URL(checkoutUrl);
+      validPaymentUrl = parsed.protocol === "https:" && (parsed.hostname === "infinitepay.io" || parsed.hostname.endsWith(".infinitepay.io"));
+    } catch { /* Invalid URL */ }
+    if (!response.ok || !validPaymentUrl) {
       console.error("InfinitePay link creation failed", response.status, result?.message || result?.error || "invalid response");
       await releaseClaim();
       return json({ error: "A InfinitePay não conseguiu gerar o link agora. Tente novamente em instantes." }, 502);

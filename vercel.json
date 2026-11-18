@@ -3,17 +3,64 @@
   "outputDirectory": "dist/public",
   "headers": [
     {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=(), payment=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000"
+        },
+        {
+          "key": "Content-Security-Policy-Report-Only",
+          "value": "default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self' https:; upgrade-insecure-requests"
+        }
+      ]
+    },
+    {
       "source": "/index.html",
       "headers": [
-        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" }
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate"
+        }
       ]
     }
   ],
   "rewrites": [
-    { "source": "/loja/:path*", "destination": "/index.html" },
-    { "source": "/minha-conta/:path*", "destination": "/index.html" },
-    { "source": "/pedido/:path*", "destination": "/index.html" },
-    { "source": "/vendedora/:path*", "destination": "/index.html" },
-    { "source": "/gestao/:path*", "destination": "/index.html" }
+    {
+      "source": "/loja/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/minha-conta/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/pedido/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/vendedora/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/gestao/:path*",
+      "destination": "/index.html"
+    }
   ]
 }

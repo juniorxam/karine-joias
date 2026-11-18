@@ -20,12 +20,19 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceKey);
 
     const { data: order, error: orderError } = await admin.from("orders")
-      .select("id,order_number,total_amount,payment_status,payment_provider").eq("order_number", orderNumber).maybeSingle();
+      .select("id,order_number,total_amount,payment_status,payment_provider,payment_provider_id").eq("order_number", orderNumber).maybeSingle();
     if (orderError) {
       console.error("Falha ao consultar pedido InfinitePay", orderError);
       return json({ error: "Falha ao consultar pedido" }, 500);
     }
     if (!order) return json({ error: "Pedido não encontrado" }, 400);
+    // Reject callbacks for an order that has not initiated an InfinitePay payment.
+    // After first confirmation payment_provider_id becomes the verified transaction NSU.
+    if (String(order.payment_provider || "").toLowerCase() !== "infinitepay" ||
+        ![orderNumber, transactionNsu].includes(String(order.payment_provider_id || ""))) {
+      console.warn("InfinitePay webhook rejected: provider or transaction mismatch");
+      return json({ error: "Pagamento não vinculado ao pedido" }, 409);
+    }
 
     // A notificação recebida não é considerada prova de pagamento.
     // O endpoint oficial payment_check é a fonte de verdade.
