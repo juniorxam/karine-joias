@@ -121,18 +121,29 @@ Deno.serve(async (req) => {
       if (value) address[key === "address" ? "street" : key] = value.slice(0, 120);
     }
 
-    const response = await fetch("https://api.checkout.infinitepay.io/links", {
+    const checkoutPayload = {
+      handle,
+      order_nsu: order.order_number,
+      redirect_url: siteUrl + "/loja/pedido",
+      webhook_url: supabaseUrl + "/functions/v1/infinitepay-webhook",
+      items: paymentItems,
+    };
+    const requestLink = (payload: object) => fetch("https://api.checkout.infinitepay.io/links", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({
-        handle, order_nsu: order.order_number,
-        redirect_url: siteUrl + "/loja/pedido",
-        webhook_url: supabaseUrl + "/functions/v1/infinitepay-webhook",
-        items: paymentItems,
-        customer,
-        ...(Object.keys(address).length ? { address } : {}),
-      }),
+      body: JSON.stringify(payload),
     });
+
+    let response = await requestLink({
+      ...checkoutPayload,
+      customer,
+      ...(Object.keys(address).length ? { address } : {}),
+    });
+    if (response.status === 422) {
+      // Optional prefill can fail validation even when the order is valid.
+      await response.body?.cancel();
+      response = await requestLink(checkoutPayload);
+    }
     const result = await response.json().catch(() => ({}));
     const checkoutUrl = String(result?.url || "");
     if (!response.ok || !/^https:\/\//i.test(checkoutUrl)) {
