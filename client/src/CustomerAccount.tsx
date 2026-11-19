@@ -1,3 +1,4 @@
+import { useReservationCountdown } from "./lib/reservation";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Check, Clock3, CreditCard, Eye, LogOut, Package, ShieldCheck, Truck, UserRound, X, Save, LockKeyhole } from "lucide-react";
 import { toast } from "sonner";
@@ -39,6 +40,8 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   const [busy,setBusy]=useState(false);
   const [orders,setOrders]=useState<Order[]>([]);
   const [selected,setSelected]=useState<Order|null>(null);
+  const pending = selected?.payment_status === "PENDING" && selected.status === "PENDING_PAYMENT";
+  const reservation = useReservationCountdown(selected?.created_at, pending);
   const [activeTab,setActiveTab]=useState<"overview"|"orders"|"profile"|"addresses">("overview");
   const [search,setSearch]=useState("");
   const [orderFilter,setOrderFilter]=useState("ALL");
@@ -347,7 +350,8 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       {selected.shipping_address&&<div className="customer-detail-panel" style={{marginTop:14}}><h3>Entrega</h3><p>{selected.shipping_address.shipping_option?.service||"Entrega"} · {selected.shipping_address.address||""}{selected.shipping_address.number?", "+selected.shipping_address.number:""}{selected.shipping_address.complement?" · "+selected.shipping_address.complement:""}</p><small>{selected.shipping_address.neighborhood||""} · {selected.shipping_address.city||""}/{selected.shipping_address.state||""} · CEP {selected.shipping_address.postal_code||""}</small></div>}
       {selected.order_status_history?.length&&<div className="customer-detail-panel" style={{marginTop:14}}><h3>Histórico do pedido</h3>{selected.order_status_history.map(event=><div className="customer-summary-row" key={event.id}><span>{displayStatus(event.status)}{event.note?" · "+event.note:""}</span><small>{new Date(event.created_at).toLocaleString("pt-BR")}</small></div>)}</div>}
       {selected.shipments?.[0]?.tracking_code&&<div className="customer-tracking"><Truck size={20}/><div><strong>{selected.shipments[0].carrier||"Entrega"}</strong><span>{selected.shipments[0].tracking_code}</span>{selected.shipments[0].tracking_url&&<a href={selected.shipments[0].tracking_url} target="_blank" rel="noreferrer">Acompanhar entrega ↗</a>}</div></div>}
-      {!["PAID","APPROVED"].includes(String(selected.payment_status||"").toUpperCase())&&selected.payment_url&&<a className="checkout-submit customer-pay" href={selected.payment_url}>Continuar pagamento</a>}
+      {reservation && <p>{reservation.expired ? "O prazo da reserva terminou." : `Tempo para pagar: ${reservation.time}`}</p>}
+      {pending && !reservation?.expired && selected.payment_url && <a className="checkout-submit customer-pay" href={selected.payment_url}>Continuar pagamento</a>}
     </div>
     :activeTab==="overview"?<div>
       <div className="customer-metrics"><div><Package/><span>Pedidos</span><strong>{orders.length}</strong></div><div><Truck/><span>Em andamento</span><strong>{activeOrders.length}</strong></div><div><CreditCard/><span>Total comprado</span><strong>{money(totalSpent)}</strong></div></div>

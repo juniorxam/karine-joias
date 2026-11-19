@@ -4,11 +4,19 @@ import { toast } from "sonner";
 import { ArrowRight, ArrowLeft, CalendarDays, Check, CreditCard, Gem, Heart, Instagram, Menu, Search, ShoppingBag, Sparkles, X, User, Truck, Tag, ShieldCheck, Star, MessageCircle } from "lucide-react";
 import { formatMoney, type CatalogProduct } from "./lib/catalog";
 type ShippingDistanceRule = { min_km:number; max_km:number|null; price:number };
+type AppliedCoupon = { type: string; value: number };
+function merchandiseDiscount(subtotal: number, coupon: AppliedCoupon | null) {
+  if (coupon?.type === "PERCENT") return Math.min(subtotal, Math.round(subtotal * coupon.value) / 100);
+  if (coupon?.type === "FIXED") return Math.min(subtotal, coupon.value);
+  return 0;
+}
 type ProductReview = { id:string; product_id:number; rating:number; comment:string; display_name:string; created_at:string };
 type StorefrontSettings = { quick_categories?:string[]; home_section_order?:string[]; hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string; shipping_palmas_enabled:boolean; shipping_palmas_min_subtotal:number; shipping_palmas_free_above:number; shipping_palmas_pickup_enabled:boolean; shipping_origin_postal_code:string; shipping_origin_draft_street?:string; shipping_origin_draft_number?:string; shipping_origin_draft_neighborhood?:string; shipping_origin_draft_city?:string; shipping_origin_draft_state?:string; shipping_palmas_distance_rules:ShippingDistanceRule[]; top_banner_enabled:boolean; top_banner_text:string; top_banner_message:string; top_banner_cta:string; top_banner_cta_url:string };
 import { loadPublicCatalog } from "./lib/publicCatalog";
 import { supabase, customerSupabase } from "./lib/supabase";
 import CustomerAccount from "./CustomerAccount";
+import CartGiftProgress, { type GiftMission } from "./CartGiftProgress";
+import { useReservationCountdown } from "./lib/reservation";
 
 const categories = ["Joias", "Semi-joias", "Acessórios"];
 const productTypeDefinitions = [
@@ -107,6 +115,15 @@ function localDayKey(){const now=new Date();return now.getFullYear()+"-"+String(
 function FirstPurchasePopup({eligible}:{eligible:boolean}){const [open,setOpen]=useState(false);const[name,setName]=useState("");const[phone,setPhone]=useState("");const[done,setDone]=useState(false);const[reward,setReward]=useState<any>(null);const shownKey="violetta-first-purchase-popup-last-shown";useEffect(()=>{if(!eligible){setOpen(false);return}const today=localDayKey();if(localStorage.getItem(shownKey)===today)return;const t=window.setTimeout(()=>{localStorage.setItem(shownKey,today);setOpen(true)},4500);return()=>window.clearTimeout(t)},[eligible]);if(!eligible||!open)return null;const validName=name.trim().length>=2;const validPhone=normalizePhone(phone).length>=10;const close=()=>setOpen(false);const rewardText=reward?.reward_type==="PERCENT"?"desconto de "+reward.reward_value+"%":reward?.reward_type==="FIXED"?"desconto de "+formatMoney(Number(reward.reward_value)||0):reward?.reward_type==="FREIGHT"?"frete grátis":reward?.reward_type==="GIFT"?(reward.gift_description||"um brinde especial"):"um presente especial";const unlock=async()=>{if(!supabase){toast.error("Serviço da loja indisponível no momento.");return}if(!validName||!validPhone){toast.error("Preencha seu nome e WhatsApp para desbloquear o presente.");return}try{const {data,error}=await supabase.functions.invoke("first-purchase-gift",{body:{name:name.trim(),phone:normalizePhone(phone)}});if(error)throw error;if(!data?.coupon_code)throw new Error("Não foi possível gerar seu benefício.");localStorage.setItem("violetta-first-purchase-lead",JSON.stringify({name:name.trim(),phone:normalizePhone(phone),coupon_code:data.coupon_code,created_at:new Date().toISOString()}));localStorage.setItem("kj-first-purchase-coupon",data.coupon_code);setReward(data);setDone(true)}catch(error){toast.error("Não foi possível liberar o presente.",{description:error instanceof Error?error.message:"Tente novamente."})}};return <div className="first-purchase-overlay" role="dialog" aria-modal="true"><div className="first-purchase-popup"><button className="first-purchase-close" type="button" onClick={close} aria-label="Fechar"><X size={18}/></button><div className="first-purchase-icon">🎁</div>{!done?<><p className="first-purchase-kicker">UM MIMO ESPECIAL PARA VOCÊ</p><h2>Ganhe um presente exclusivo na sua primeira compra</h2><p className="first-purchase-subtitle">Cadastre seu contato para desbloquear seu presente.</p><label>Digite seu nome*<input value={name} onChange={e=>setName(e.target.value)} placeholder="Seu nome" autoComplete="name"/>{name&&!validName&&<small>Digite seu nome válido.</small>}</label><label>Agora, seu WhatsApp*<input value={formatPhone(phone)} onChange={e=>setPhone(e.target.value)} placeholder="(63) 99999-9999" inputMode="tel" autoComplete="tel"/>{phone&&!validPhone&&<small>Digite um WhatsApp válido.</small>}</label><button className="first-purchase-submit" type="button" onClick={unlock}>DESBLOQUEAR PRESENTE <ArrowRight size={16}/></button><small className="first-purchase-privacy">Seu benefício é individual e válido conforme as regras configuradas pela Violetta.</small></>:<><p className="first-purchase-kicker">PRESENTE DESBLOQUEADO ✨</p><h2>Seu mimo está reservado!</h2><p className="first-purchase-subtitle">Obrigada, {name.trim().split(/\s+/)[0]||"querida"}. Você ganhou <strong>{rewardText}</strong>.</p><div className="first-purchase-coupon">{reward?.coupon_code||localStorage.getItem("kj-first-purchase-coupon")||""}</div>{reward?.reward_type==="GIFT"&&<small className="first-purchase-privacy">Brinde: {reward.gift_description||"consulte a loja"}</small>}<small className="first-purchase-privacy">Use este código no checkout. Validade e pedido mínimo conforme configuração da loja.</small><button className="first-purchase-submit" type="button" onClick={close}>CONTINUAR COMPRANDO <ArrowRight size={16}/></button></>}</div></div>}
 export default function Storefront() {
   const [products, setProducts] = useState<CatalogProduct[]>([]);
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
+  const [giftMissions, setGiftMissions] = useState<GiftMission[]>([]);
+  useEffect(() => {
+    let mounted = true;
+    supabase?.rpc("violetta_cart_gifts").then(({ data }) => {
+      if (mounted && data) setGiftMissions(data);
+    });
+    return () => { mounted = false; };
+  }, []);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todas");
   const [typeFilter, setTypeFilter] = useState("todos");
@@ -208,7 +225,7 @@ export default function Storefront() {
   const [view, setView] = useState<"store" | "checkout" | "success" | "product" | "account">(
     window.location.pathname.includes("/checkout") ? "checkout" : window.location.pathname.includes("/pedido") ? "success" : window.location.pathname.includes("/produto/") ? "product" : window.location.pathname.includes("/minha-conta") ? "account" : "store"
   );
-  const [order, setOrder] = useState<{ order_number: string; total_amount: number; payment_status?: string; payment_url?: string; status?: string; shipment?: { carrier?: string | null; service?: string | null; tracking_code?: string | null; tracking_url?: string | null; shipping_status?: string | null } | null; items?: Array<{ id:string; product_id:number; product_name:string; quantity:number; unit_price:number; total_price:number }>; reviews?: Array<{ order_item_id:string; status:string }> } | null>(
+  const [order, setOrder] = useState<{ order_number: string; total_amount: number; created_at?: string; payment_status?: string; payment_url?: string; status?: string; shipment?: { carrier?: string | null; service?: string | null; tracking_code?: string | null; tracking_url?: string | null; shipping_status?: string | null } | null; items?: Array<{ id:string; product_id:number; product_name:string; quantity:number; unit_price:number; total_price:number }>; reviews?: Array<{ order_item_id:string; status:string }> } | null>(
     returnedOrder ? { order_number: returnedOrder, total_amount: 0, payment_status: returnParams.get("status") || "success" } : null
   );
   const [paymentLoading, setPaymentLoading] = useState(false);
@@ -356,6 +373,7 @@ export default function Storefront() {
         setOrder({
           order_number: data.order.order_number,
           total_amount: Number(data.order.total_amount),
+          created_at: data.order.created_at,
           payment_status: data.order.payment_status,
           status: data.order.status,
           shipment: data.shipment || null,
@@ -593,6 +611,11 @@ export default function Storefront() {
       toast.error("Não foi possível criar o pedido", { description: message });
       return;
     }
+    if (data.status === "CANCELLED" || (data.created_at && Date.now() >= Date.parse(data.created_at) + 7200000)) {
+      checkoutIdempotencyKey.current = null;
+      toast.error("A reserva expirou. Confirme o carrinho para criar um novo pedido.");
+      return;
+    }
     setOrder(data);
     localStorage.setItem("kj-last-order-email", customer.email.trim().toLowerCase());
     localStorage.setItem("kj-last-order-number", data.order_number);
@@ -601,6 +624,7 @@ export default function Storefront() {
     const payment = await customerSupabase.functions.invoke("create-infinitepay-payment", { body: { order_number: data.order_number, email: customer.email } });
     if (payment.data?.url) {
       setCart([]);
+      setAppliedCoupon(null);
       localStorage.removeItem(checkoutDraftKey);
       checkoutIdempotencyKey.current = null;
       window.location.assign(payment.data.url);
@@ -643,7 +667,7 @@ export default function Storefront() {
   }
 
   if (view === "checkout") {
-    return <Checkout customerUser={customerUser} customerAuthResolved={customerAuthResolved} cart={cart} subtotal={subtotal} draft={checkoutDraft} onDraftChange={setCheckoutDraft} onBack={backToStore} onLogin={() => { returnToCheckoutRef.current = true; window.history.pushState({}, "", "/minha-conta"); setView("account"); window.scrollTo({ top: 0, behavior: "smooth" }); }} onFinish={finishOrder} onChangeQty={changeQty} onAskWhatsApp={askAboutCart} storefrontSettings={storefrontSettings} />;
+    return <Checkout onCouponChange={setAppliedCoupon} giftMissions={giftMissions} products={products} onAddProduct={addToCart} customerUser={customerUser} customerAuthResolved={customerAuthResolved} cart={cart} subtotal={subtotal} draft={checkoutDraft} onDraftChange={setCheckoutDraft} onBack={backToStore} onLogin={() => { returnToCheckoutRef.current = true; window.history.pushState({}, "", "/minha-conta"); setView("account"); window.scrollTo({ top: 0, behavior: "smooth" }); }} onFinish={finishOrder} onChangeQty={changeQty} onAskWhatsApp={askAboutCart} storefrontSettings={storefrontSettings} />;
   }
 
   if (view === "success" && order) {
@@ -705,7 +729,7 @@ export default function Storefront() {
           <button className="store-cart-thumb" onClick={() => { setCartOpen(false); openProduct(item); }} style={item.imageUrl ? {backgroundImage:`url(${item.imageUrl})`} : undefined}>{!item.imageUrl && <Gem size={24}/>}</button>
           <div className="store-cart-item-copy"><button onClick={() => { setCartOpen(false); openProduct(item); }}><strong>{item.name}</strong></button><small>{item.material}</small><div className="store-cart-item-row"><div className="qty-controls"><button onClick={() => changeQty(item.id,-1)} aria-label="Diminuir">−</button><span>{item.quantity}</span><button onClick={() => changeQty(item.id,1)} aria-label="Aumentar">+</button></div><b>{formatMoney(item.price * item.quantity)}</b></div></div>
         </div>)}</div>
-        <div className="store-cart-summary"><div><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><small>Frete e descontos são calculados no checkout.</small><button className="store-primary-cta" onClick={() => { setCartOpen(false); goCheckout(); }}>Finalizar compra <ArrowRight size={16}/></button><button className="store-cart-whatsapp" onClick={() => askAboutCart(cart)}><MessageCircle size={14}/> Falar sobre o pedido</button><button className="store-cart-continue" onClick={() => setCartOpen(false)}>Continuar comprando</button></div>
+        <div className="store-cart-summary"><div><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><small>Frete e descontos são calculados no checkout.</small><CartGiftProgress missions={giftMissions} netSubtotal={subtotal - merchandiseDiscount(subtotal, appliedCoupon)} products={products} contribution={price => price - merchandiseDiscount(subtotal + price, appliedCoupon) + merchandiseDiscount(subtotal, appliedCoupon)} cartIds={new Set(cart.map(item => String(item.id)))} onAdd={addToCart} /><button className="store-primary-cta" onClick={() => { setCartOpen(false); goCheckout(); }}>Finalizar compra <ArrowRight size={16}/></button><button className="store-cart-whatsapp" onClick={() => askAboutCart(cart)}><MessageCircle size={14}/> Falar sobre o pedido</button><button className="store-cart-continue" onClick={() => setCartOpen(false)}>Continuar comprando</button></div>
       </> : <div className="store-cart-empty"><ShoppingBag size={30}/><h3>Seu carrinho está vazio.</h3><p>Escolha uma peça especial para começar.</p><button className="store-primary-cta" onClick={() => setCartOpen(false)}>Ver coleção <ArrowRight size={15}/></button></div>}
     </aside></div>}
     <main>
@@ -946,7 +970,7 @@ function ProductReviews({ productId }: { productId: number }) {
   </section>;
 }
 
-function Checkout({ customerUser, customerAuthResolved, cart, subtotal, draft, onDraftChange, onBack, onLogin, onFinish, onChangeQty, onAskWhatsApp, storefrontSettings }: { customerUser: SupabaseUser | null; customerAuthResolved: boolean; cart: CartItem[]; subtotal: number; draft: { customer: Customer; shipping: Shipping; couponCode: string }; onDraftChange: Dispatch<SetStateAction<{ customer: Customer; shipping: Shipping; couponCode: string }>>; onBack: () => void; onLogin: () => void; onFinish: (customer: Customer, shipping: Shipping, couponCode?: string) => Promise<void>; onChangeQty: (id: CatalogProduct["id"], delta: number) => void; onAskWhatsApp: (items: CartItem[], name?: string) => void; storefrontSettings: StorefrontSettings | null }) {
+function Checkout({ onCouponChange, giftMissions, products, onAddProduct, customerUser, customerAuthResolved, cart, subtotal, draft, onDraftChange, onBack, onLogin, onFinish, onChangeQty, onAskWhatsApp, storefrontSettings }: { onCouponChange: (coupon: AppliedCoupon | null) => void; giftMissions: GiftMission[]; products: CatalogProduct[]; onAddProduct: (product: CatalogProduct) => void; customerUser: SupabaseUser | null; customerAuthResolved: boolean; cart: CartItem[]; subtotal: number; draft: { customer: Customer; shipping: Shipping; couponCode: string }; onDraftChange: Dispatch<SetStateAction<{ customer: Customer; shipping: Shipping; couponCode: string }>>; onBack: () => void; onLogin: () => void; onFinish: (customer: Customer, shipping: Shipping, couponCode?: string) => Promise<void>; onChangeQty: (id: CatalogProduct["id"], delta: number) => void; onAskWhatsApp: (items: CartItem[], name?: string) => void; storefrontSettings: StorefrontSettings | null }) {
   const [customer, setCustomer] = useState<Customer>(draft.customer);
   const [shipping, setShipping] = useState<Shipping>(draft.shipping);
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
@@ -955,6 +979,9 @@ function Checkout({ customerUser, customerAuthResolved, cart, subtotal, draft, o
   const [couponCode, setCouponCode] = useState(draft.couponCode || (() => { try { return localStorage.getItem("kj-first-purchase-coupon") || ""; } catch { return ""; } })());
   const [couponBusy, setCouponBusy] = useState(false);
   const [couponError, setCouponError] = useState("");
+  const couponRequest = useRef(0);
+  const [couponType, setCouponType] = useState("");
+  const [couponValue, setCouponValue] = useState(0);
   const [couponDiscount, setCouponDiscount] = useState(0); const [couponApplied, setCouponApplied] = useState(false); const [couponGiftDescription, setCouponGiftDescription] = useState("");
   const [quickPurchaseOpen, setQuickPurchaseOpen] = useState(false);
   const [quickPurchaseBusy, setQuickPurchaseBusy] = useState(false);
@@ -1035,7 +1062,7 @@ function Checkout({ customerUser, customerAuthResolved, cart, subtotal, draft, o
   };
   useEffect(() => { onDraftChange(v => ({ ...v, customer, shipping, couponCode })); }, [customer, shipping, couponCode, onDraftChange]);
   const cartSignature = cart.map(item => item.id + ":" + item.quantity).sort().join("|");
-  useEffect(() => { setCouponDiscount(0); setCouponError(""); setCouponApplied(false); setCouponGiftDescription(""); }, [cartSignature]);
+
   const updateCustomer = (field: keyof Customer, value: string) => setCustomer(v => ({ ...v, [field]: value }));
   const updateShipping = (field: keyof Shipping, value: string) => setShipping(v => ({ ...v, [field]: value }));
   const chooseSavedAddress = (id: string) => {
@@ -1167,25 +1194,48 @@ function Checkout({ customerUser, customerAuthResolved, cart, subtotal, draft, o
   const shippingOption: ShippingOption | null = shippingOptions.find(option => String(option.id) === String(shipping.shipping_option?.id)) || shippingOptions[0] || null;
   const shippingPrice=shippingOption?.price||0;
   const beyondDeliveryRadius=isPalmas&&distanceKmValue!==null&&distanceKmValue>17.9;
-  const orderTotal=Math.max(0,subtotal-couponDiscount+shippingPrice);
+  const appliedCoupon = couponApplied ? { type: couponType, value: couponValue } : null;
+  const productDiscount = merchandiseDiscount(subtotal, appliedCoupon);
+  const shippingDiscount = couponApplied && couponType === "FREIGHT"
+    ? (couponValue > 0 ? Math.min(shippingPrice, couponValue) : shippingPrice) : 0;
+  const orderTotal=Math.max(0,subtotal-productDiscount+shippingPrice-shippingDiscount);
   const pickupSelected = false; // Retirada no local desativada temporariamente para a loja Violetta.
-  const applyCoupon = async () => {
+  const applyCoupon = async (notify = true) => {
     const code = couponCode.trim().toUpperCase();
     if (!code) return toast.error("Informe o código do cupom");
     if (!supabase) return toast.error("A loja ainda não está conectada ao Supabase.");
+    const request = ++couponRequest.current;
     setCouponBusy(true); setCouponError("");
     try {
-      const { data, error } = await supabase.functions.invoke("validate-coupon", { body: { code, items: cart.map(item => ({ product_id: Number(item.id), quantity: item.quantity })), shipping_amount: shippingPrice } });
-      if (error || !data?.valid) throw new Error(data?.error || error?.message || "Cupom inválido");
+      const { data, error } = await (customerSupabase ?? supabase).functions.invoke("validate-coupon", { body: { code, phone: customer.phone, email: customer.email, cpf: customer.recipient_code, items: cart.map(item => ({ product_id: Number(item.id), quantity: item.quantity })), shipping_amount: shippingPrice } });
+      if (error || !data?.valid) throw new Error(await getFunctionErrorMessage(error, data, "Cupom inválido"));
+      if (request !== couponRequest.current) return;
+      onCouponChange({ type: data.discount_type, value: Number(data.discount_value) || 0 });
+      setCouponType(data.discount_type); setCouponValue(Number(data.discount_value) || 0);
       setCouponDiscount(Number(data.discount_amount) || 0); setCouponCode(data.code || code); setCouponApplied(true); setCouponGiftDescription(data.gift_description || "");
-      toast.success("Cupom aplicado", { description: data.discount_type === "GIFT" ? (data.gift_description || "Brinde de primeira compra") : data.discount_type === "FREIGHT" ? "Frete grátis" : "Desconto de " + formatMoney(Number(data.discount_amount) || 0) });
-    } catch (e) { setCouponDiscount(0); setCouponApplied(false); setCouponGiftDescription(""); setCouponError(e instanceof Error ? e.message : "Cupom inválido"); toast.error("Cupom não aplicado", { description: e instanceof Error ? e.message : "Verifique o código" }); }
-    finally { setCouponBusy(false); }
+      if (notify) toast.success("Cupom aplicado", { description: data.discount_type === "GIFT" ? (data.gift_description || "Brinde de primeira compra") : data.discount_type === "FREIGHT" ? "Frete grátis" : "Desconto de " + formatMoney(Number(data.discount_amount) || 0) });
+    } catch (e) {
+      if (request !== couponRequest.current) return;
+      onCouponChange(null);
+      setCouponDiscount(0); setCouponApplied(false); setCouponGiftDescription("");
+      const message = e instanceof Error ? e.message : "Cupom inválido";
+      setCouponError(message);
+      if (notify) toast.error("Cupom não aplicado", { description: message });
+    } finally {
+      if (request === couponRequest.current) setCouponBusy(false);
+    }
   };
-  useEffect(() => { if (couponCode) void applyCoupon(); }, [shippingPrice]);
+  useEffect(() => {
+    if (!couponCode.trim() || !cart.length) return;
+    ++couponRequest.current;
+    setCouponBusy(true);
+    const timer = window.setTimeout(() => { void applyCoupon(false); }, 300);
+    return () => window.clearTimeout(timer);
+  }, [cartSignature, shippingPrice, customer.email, customer.phone, customer.recipient_code]);
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!cart.length) return toast.error("Seu carrinho está vazio");
+    if (couponCode.trim() && !couponApplied) return toast.error("Valide ou remova o cupom antes de continuar");
     if (!customer.name.trim()) return toast.error("Informe seu nome completo");
     if (!/^\S+@\S+\.\S+$/.test(customer.email.trim())) return toast.error("Informe um e-mail válido");
     const phone = normalizePhone(customer.phone);
@@ -1231,21 +1281,23 @@ function Checkout({ customerUser, customerAuthResolved, cart, subtotal, draft, o
         {<div className="checkout-final-note"><Truck size={16}/><span><strong>{distanceLoading?"Calculando frete e distância pela rota viária…":distanceKmValue!==null?`Distância da entrega: ${distanceKmValue.toFixed(1)} km`:distanceError||"Preencha os dados do endereço e clique em Calcular frete."}</strong></span></div>}<button type="button" className="shipping-quote-button" onClick={handleCalculateShipping} disabled={distanceLoading}>{distanceLoading?"Calculando frete…":"Calcular frete"}</button>{beyondDeliveryRadius&&<div className="checkout-final-note"><Truck size={16}/><span>Entrega acima da faixa automática de 17,9 km. O frete será combinado diretamente com a loja.</span></div>}{shippingOptions.length>0&&<div className="shipping-options">{shippingOptions.map(option=><label className={"shipping-option "+(shippingOption?.id===option.id?"selected":"")} key={String(option.id)}><input type="radio" name="shipping-option" checked={shippingOption?.id===option.id} onChange={()=>setShipping(v=>({...v,shipping_option:option}))}/><span><strong>{option.company} · {option.service}</strong><small>{option.service === "Retirada no local" ? "Retire seu pedido no endereço da Violetta, sem cobrança de frete." : isPalmas && option.service !== "Frete a combinar" ? "Frete calculado pela rota viária entre a loja e o seu endereço." : "Para este endereço, o frete será negociado separadamente com a loja."}</small></span><b>{option.service === "Frete a combinar" ? "À parte" : option.price > 0 ? formatMoney(option.price) : "Grátis"}</b></label>)}</div>}
         {!shippingOption&&!isPalmas&&<div className="checkout-final-note"><Truck size={16}/><span>Informe cidade e UF para visualizar como o frete será tratado.</span></div>}
       </section>
-      <section className="checkout-section"><h2><Tag size={17}/> Cupom de desconto</h2><div className="checkout-grid"><label className="wide">Código do cupom<input value={couponCode} onChange={e=>{setCouponCode(e.target.value.toUpperCase());setCouponDiscount(0);setCouponError("")}} placeholder="EX.: BEMVINDO10"/></label><button type="button" className="shipping-quote-button" onClick={applyCoupon} disabled={couponBusy}>{couponBusy?"Validando...":"Aplicar cupom"}</button></div>{couponError&&<small>{couponError}</small>}{couponApplied&&<small>Cupom aplicado: {couponGiftDescription || (couponDiscount>0 ? "desconto de "+formatMoney(couponDiscount) : "benefício de primeira compra")}</small>}</section>
+      <section className="checkout-section"><h2><Tag size={17}/> Cupom de desconto</h2><div className="checkout-grid"><label className="wide">Código do cupom<input value={couponCode} onChange={e=>{++couponRequest.current;onCouponChange(null);setCouponBusy(false);setCouponCode(e.target.value.toUpperCase());setCouponDiscount(0);setCouponApplied(false);setCouponGiftDescription("");setCouponError("")}} placeholder="EX.: BEMVINDO10"/></label><button type="button" className="shipping-quote-button" onClick={() => void applyCoupon()} disabled={couponBusy}>{couponBusy?"Validando...":"Aplicar cupom"}</button></div>{couponError&&<small>{couponError}</small>}{couponApplied&&<small>Cupom aplicado: {couponGiftDescription || (couponDiscount>0 ? "desconto de "+formatMoney(couponDiscount) : "benefício de primeira compra")}</small>}</section>
       <section className="checkout-section"><h2><ShieldCheck size={17}/> Pagamento</h2><div className="payment-placeholder"><ShoppingBag size={18}/><div><strong>Pagamento seguro pelo InfinitePay</strong><p>Ao confirmar o pedido, você será direcionada ao InfinitePay. A modalidade e o valor do frete serão definidos conforme o endereço informado.</p><div className="payment-methods"><span>PIX</span><span>Cartão</span><span>Ambiente seguro</span></div></div></div></section>
       <div className="checkout-final-note"><ShieldCheck size={16}/><span>{shippingOption?.service === "Retirada no local" ? "Retirada no local sem cobrança de frete." : shippingOption?.service === "Frete a combinar" ? (isPalmas ? "O frete será combinado diretamente com o vendedor e pago separadamente. Ele não está incluído no pagamento desta compra." : "Para entregas fora de Palmas, o frete será combinado diretamente com o vendedor e pago separadamente.") : isPalmas&&shippingOption ? "Frete de "+formatMoney(shippingPrice)+" calculado automaticamente pela distância." : !shipping.city.trim() || !shipping.state.trim() ? "Informe o CEP, número, bairro, cidade e UF para calcular ou confirmar o frete." : "O frete será confirmado pela loja para este endereço."}</span></div>
-      <button className="checkout-submit" disabled={busy||!customerAuthResolved||!cart.length||!shippingOption}>{busy?"Criando pedido...":"Confirmar pedido e pagar"}</button>
+      <button className="checkout-submit" disabled={busy||couponBusy||!customerAuthResolved||!cart.length||!shippingOption}>{busy?"Criando pedido...":"Confirmar pedido e pagar"}</button>
       <button type="button" className="checkout-whatsapp checkout-quick-purchase" onClick={() => { setQuickPurchase(v => ({ ...v, name: v.name || customer.name, phone: v.phone || customer.phone, address: v.address || [shipping.address, shipping.number && `nº ${shipping.number}`, shipping.neighborhood, shipping.city, shipping.state].filter(Boolean).join(", ") })); setQuickPurchaseOpen(true); }} disabled={!cart.length}><MessageCircle size={15}/> Comprar rápido pelo WhatsApp</button>
       <button type="button" className="checkout-whatsapp checkout-whatsapp-secondary" onClick={() => onAskWhatsApp(cart, customer.name)} disabled={!cart.length}><MessageCircle size={15}/> Apenas tirar dúvidas sobre os produtos</button>
     </form>
-    <aside className="checkout-summary"><div className="checkout-summary-head"><div><p className="store-kicker">RESUMO</p><h2>Seu pedido</h2></div><span>{cart.reduce((sum,item)=>sum+item.quantity,0)} itens</span></div>{cart.map(item=><div className="checkout-item" key={item.id}><div className="checkout-item-thumb" style={item.imageUrl?{backgroundImage:"url("+item.imageUrl+")"}:undefined}>{!item.imageUrl&&<Gem size={18}/>}</div><div className="checkout-item-main"><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span><div className="qty-controls"><button type="button" onClick={()=>onChangeQty(item.id,-1)}>−</button><span>{item.quantity}</span><button type="button" onClick={()=>onChangeQty(item.id,1)}>+</button></div></div><b>{formatMoney(item.price*item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total"><span>Frete</span><strong>{shippingOption?.service === "Retirada no local" || shippingOption?.service === "Frete a combinar" ? "À parte" : shippingOption ? formatMoney(shippingOption.price) : !hasCompleteShippingAddress ? "A calcular" : "A confirmar"}</strong></div>{couponDiscount>0&&<div className="checkout-total"><span>Desconto</span><strong>- {formatMoney(couponDiscount)}</strong></div>}<div className="checkout-total grand"><span>Total no InfinitePay</span><strong>{formatMoney(orderTotal)}</strong></div><p className="checkout-note">{shippingOption?.service === "Retirada no local" ? "O InfinitePay cobrará somente os produtos menos o desconto. A retirada não tem custo de frete." : shippingOption?.price ? "O InfinitePay cobrará os produtos, desconto e frete calculado para Palmas." : !hasCompleteShippingAddress ? "O frete será definido após informar o CEP e preencher o endereço completo." : "O InfinitePay cobrará somente os produtos menos o desconto. O frete, quando aplicável, será combinado e pago separadamente."}</p></aside>
+    <aside className="checkout-summary"><div className="checkout-summary-head"><div><p className="store-kicker">RESUMO</p><h2>Seu pedido</h2></div><span>{cart.reduce((sum,item)=>sum+item.quantity,0)} itens</span></div>{cart.map(item=><div className="checkout-item" key={item.id}><div className="checkout-item-thumb" style={item.imageUrl?{backgroundImage:"url("+item.imageUrl+")"}:undefined}>{!item.imageUrl&&<Gem size={18}/>}</div><div className="checkout-item-main"><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span><div className="qty-controls"><button type="button" onClick={()=>onChangeQty(item.id,-1)}>−</button><span>{item.quantity}</span><button type="button" onClick={()=>onChangeQty(item.id,1)}>+</button></div></div><b>{formatMoney(item.price*item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total"><span>Frete</span><strong>{shippingOption?.service === "Retirada no local" || shippingOption?.service === "Frete a combinar" ? "À parte" : shippingOption ? formatMoney(shippingOption.price) : !hasCompleteShippingAddress ? "A calcular" : "A confirmar"}</strong></div>{couponDiscount>0&&<div className="checkout-total"><span>Desconto</span><strong>- {formatMoney(couponDiscount)}</strong></div>}<CartGiftProgress missions={giftMissions} netSubtotal={subtotal - productDiscount} products={products} cartIds={new Set(cart.map(item => String(item.id)))} onAdd={onAddProduct} contribution={price => price - merchandiseDiscount(subtotal + price, appliedCoupon) + productDiscount} /><div className="checkout-total grand"><span>Total no InfinitePay</span><strong>{formatMoney(orderTotal)}</strong></div><p className="checkout-note">{shippingOption?.service === "Retirada no local" ? "O InfinitePay cobrará somente os produtos menos o desconto. A retirada não tem custo de frete." : shippingOption?.price ? "O InfinitePay cobrará os produtos, desconto e frete calculado para Palmas." : !hasCompleteShippingAddress ? "O frete será definido após informar o CEP e preencher o endereço completo." : "O InfinitePay cobrará somente os produtos menos o desconto. O frete, quando aplicável, será combinado e pago separadamente."}</p></aside>
     </main>
     {quickPurchaseOpen && <div className="quick-purchase-overlay" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setQuickPurchaseOpen(false); }}><section className="quick-purchase-modal" role="dialog" aria-modal="true" aria-labelledby="quick-purchase-title"><button type="button" className="quick-purchase-close" onClick={() => setQuickPurchaseOpen(false)} aria-label="Fechar">×</button><p className="store-kicker">COMPRA MAIS RÁPIDA</p><h2 id="quick-purchase-title">Resolva pelo WhatsApp</h2><p className="quick-purchase-intro">Informe só o essencial. A equipe confirma disponibilidade, frete e envia o link ou as opções de pagamento.</p><form onSubmit={submitQuickPurchase}><label>Nome completo <span style={{color:"#c0392b"}}>*</span><input autoFocus required autoComplete="name" value={quickPurchase.name} onChange={event => setQuickPurchase(v => ({ ...v, name: event.target.value }))} /></label><label>WhatsApp com DDD <span style={{color:"#c0392b"}}>*</span><input required autoComplete="tel" inputMode="tel" value={quickPurchase.phone} onChange={event => setQuickPurchase(v => ({ ...v, phone: formatPhone(event.target.value) }))} placeholder="(63) 99999-9999" /></label><label>Endereço de entrega <span style={{color:"#c0392b"}}>*</span><textarea required rows={3} value={quickPurchase.address} onChange={event => setQuickPurchase(v => ({ ...v, address: event.target.value }))} placeholder="Rua, número, bairro, cidade e UF" /></label><small className="quick-purchase-note">Não precisa informar e-mail, CPF ou preencher o checkout completo.</small><button className="quick-purchase-submit" disabled={quickPurchaseBusy || !storeWhatsApp}><MessageCircle size={16}/>{quickPurchaseBusy ? "Preparando mensagem..." : "Continuar pelo WhatsApp"}</button></form></section></div>}
   </div>;
 }
 
-function OrderSuccess({ order, onStore, onPay, onTrack, onReview, paymentLoading, trackingLoading }: { order: { order_number: string; total_amount: number; payment_status?: string; status?: string; shipment?: { carrier?: string | null; service?: string | null; tracking_code?: string | null; tracking_url?: string | null; shipping_status?: string | null } | null; items?: Array<{ id:string; product_id:number; product_name:string; quantity:number; unit_price:number; total_price:number }>; reviews?: Array<{ order_item_id:string; status:string }> }; onStore: () => void; onPay: () => void; onTrack: () => void; onReview: (orderItemId: string, rating: number, comment: string) => Promise<void>; paymentLoading: boolean; trackingLoading: boolean }) {
+function OrderSuccess({ order, onStore, onPay, onTrack, onReview, paymentLoading, trackingLoading }: { order: { order_number: string; total_amount: number; created_at?: string; payment_status?: string; status?: string; shipment?: { carrier?: string | null; service?: string | null; tracking_code?: string | null; tracking_url?: string | null; shipping_status?: string | null } | null; items?: Array<{ id:string; product_id:number; product_name:string; quantity:number; unit_price:number; total_price:number }>; reviews?: Array<{ order_item_id:string; status:string }> }; onStore: () => void; onPay: () => void; onTrack: () => void; onReview: (orderItemId: string, rating: number, comment: string) => Promise<void>; paymentLoading: boolean; trackingLoading: boolean }) {
   const steps = [["PENDING_PAYMENT","Pedido recebido"],["PAID","Pagamento confirmado"],["PROCESSING","Preparando pedido"],["READY_TO_SHIP","Pronto para envio"],["SHIPPED","Pedido enviado"],["DELIVERED","Entregue"]] as const;
+  const pending = order.payment_status === "PENDING" && order.status === "PENDING_PAYMENT";
+  const reservation = useReservationCountdown(order.created_at, pending);
   const terminal = order.status === "CANCELLED" || order.status === "REFUNDED";
   const statusIndex = terminal ? -1 : Math.max(0, steps.findIndex(([status]) => status === order.status));
   const paymentLabels: Record<string,string> = { PAID:"Pagamento confirmado", APPROVED:"Pagamento confirmado", PENDING:"Pagamento pendente", IN_PROCESS:"Pagamento em análise", REFUNDED:"Pagamento reembolsado", FAILED:"Pagamento recusado", REJECTED:"Pagamento recusado" };
@@ -1268,7 +1320,8 @@ function OrderSuccess({ order, onStore, onPay, onTrack, onReview, paymentLoading
     {!terminal&&<div className="order-timeline">{steps.map(([status,label],index)=><div className={index<=statusIndex?"timeline-step done":"timeline-step"} key={status}><span>{index<statusIndex?"✓":index+1}</span><div><strong>{label}</strong><small>{index===statusIndex?"Status atual":index<statusIndex?"Concluído":"Aguardando"}</small></div></div>)}</div>}
     {order.shipment?.tracking_code&&<div className="shipping-tracking-card"><p className="store-kicker">RASTREAMENTO</p><h2>{order.status==="DELIVERED"?"Pedido entregue":"Seu pedido está a caminho"}</h2><p><strong>{order.shipment.carrier||"Transportadora"}</strong>{order.shipment.service?` · ${order.shipment.service}`:""}</p><div className="tracking-code"><span>Código de rastreio</span><strong>{order.shipment.tracking_code}</strong></div><button type="button" className="shipping-quote-button" onClick={async()=>{try{await navigator.clipboard.writeText(order.shipment?.tracking_code||"");toast.success("Código de rastreio copiado");}catch{toast.error("Não foi possível copiar");}}}>Copiar rastreio</button>{order.shipment.shipping_status&&<small>Status da entrega: {order.shipment.shipping_status}</small>}{order.shipment.tracking_url&&<a className="store-primary-cta" href={order.shipment.tracking_url} target="_blank" rel="noreferrer">Acompanhar entrega <ArrowRight size={16}/></a>}</div>}
     {order.status==="DELIVERED"&&order.items?.length&&<section className="order-review-section"><p className="store-kicker">COMPRA VERIFICADA</p><h2>Conte como foi sua experiência</h2><p>Você pode avaliar cada peça deste pedido. A avaliação só fica disponível depois da entrega.</p>{order.items.map(item=>{const existing=order.reviews?.find(review=>review.order_item_id===item.id);const draft=reviewDrafts[item.id]||{rating:0,comment:"",busy:false};return <article className="order-review-card" key={item.id}><strong>{item.product_name}</strong><span>{item.quantity} unidade{item.quantity===1?"":"s"}</span>{existing?<div className="review-submitted"><Check size={17}/>{existing.status==="PUBLISHED"?"Avaliação publicada.":"Avaliação enviada para aprovação."}</div>:<><div className="review-rating-picker">{[1,2,3,4,5].map(star=><button type="button" key={star} aria-label={`${star} estrela${star===1?"":"s"}`} onClick={()=>setReviewDrafts(v=>({...v,[item.id]:{...draft,rating:star}}))} disabled={draft.busy}><Star size={24} fill={star<=draft.rating?"currentColor":"none"}/></button>)}</div><textarea value={draft.comment} maxLength={1200} onChange={e=>setReviewDrafts(v=>({...v,[item.id]:{...draft,comment:e.target.value}}))} placeholder="Conte o que você achou da peça (opcional)" disabled={draft.busy}/><div className="review-form-footer"><small>{draft.comment.length}/1200</small><button type="button" className="store-primary-cta" onClick={()=>submit(item.id)} disabled={draft.busy}>{draft.busy?"Enviando...":"Enviar avaliação"}</button></div></>}</article>})}</section>}
-    {!["PAID","APPROVED"].includes(String(order.payment_status||"").toUpperCase())&&order.status!=="CANCELLED"&&order.status!=="REFUNDED"&&<button className="checkout-submit" onClick={onPay} disabled={paymentLoading}>{paymentLoading?"Gerando pagamento...":"Continuar para pagamento"}</button>}
+    {reservation && <p>{reservation.expired ? "O prazo da reserva terminou." : `Tempo para pagar: ${reservation.time}`}</p>}
+    {pending && !reservation?.expired && <button className="checkout-submit" onClick={onPay} disabled={paymentLoading}>{paymentLoading?"Gerando pagamento...":"Continuar para pagamento"}</button>}
     <p className="order-refresh-hint">Você pode atualizar o status sempre que quiser para conferir as novidades do pedido.</p><button className="store-primary-cta" onClick={onStore}>Voltar para a loja <ArrowRight size={16}/></button>
   </main></div>;
 }

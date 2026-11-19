@@ -25,14 +25,29 @@ Deno.serve(async (req) => {
     const serviceKey = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const handle = (Deno.env.get("INFINITEPAY_HANDLE") || "violettaprataesemijoias").replace(/^\$/, "").trim();
+    let apiKey = Deno.env.get("INFINITEPAY_API_KEY")?.trim() || "";
     const siteUrl = (Deno.env.get("PUBLIC_SITE_URL") || "https://violetta.com.br").replace(/\/$/, "");
     if (!serviceKey || !supabaseUrl || !handle || !siteUrl) return json({ error: "InfinitePay ainda não está configurada no servidor" }, 503);
 
+
     admin = createClient(supabaseUrl, serviceKey);
+    if (!apiKey) {
+      const { data: vaultKey, error: vaultError } = await admin.rpc("violetta_checkout_api_key_server_only");
+      if (vaultError || typeof vaultKey !== "string" || !vaultKey.startsWith("inchk_")) {
+        console.error("InfinitePay checkout credential unavailable", vaultError?.code || "missing");
+        return json({ error: "Pagamento temporariamente indisponível. Tente novamente em instantes." }, 503);
+      }
+      apiKey = vaultKey;
+    }
     const { data: order, error: orderError } = await admin.from("orders")
-      .select("id,order_number,customer_name,customer_email,customer_phone,shipping_address,total_amount,shipping_amount,discount_amount,status,payment_status,payment_provider,payment_provider_id,payment_url")
+      .select("id,order_number,customer_name,customer_email,customer_phone,shipping_address,total_amount,shipping_amount,discount_amount,created_at,status,payment_status,payment_provider,payment_provider_id,payment_url")
       .eq("order_number", orderNumber).eq("customer_email", email).maybeSingle();
     if (orderError || !order) return json({ error: "Pedido não encontrado" }, 404);
+    const expiresAt = new Date(Date.parse(order.created_at) + 2 * 60 * 60 * 1000);
+    const cutoff = () => new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+      return json({ error: "A reserva deste pedido expirou" }, 409);
+    }
     if (String(order.payment_status).toUpperCase() === "PAID") return json({ error: "Este pedido já foi pago" }, 409);
     if (["CANCELLED", "REFUNDED"].includes(String(order.status).toUpperCase())) return json({ error: "Este pedido não pode receber pagamento" }, 409);
     if (String(order.payment_provider || "").toLowerCase() === "infinitepay" && order.payment_url && String(order.payment_status).toUpperCase() === "PENDING") {
@@ -46,7 +61,7 @@ Deno.serve(async (req) => {
     const { data: claimed, error: claimError } = await admin.from("orders").update({
       payment_creation_token: claimToken,
       payment_creation_started_at: new Date().toISOString(),
-    }).eq("id", order.id).eq("payment_status", "PENDING").is("payment_provider_id", null)
+    }).eq("id", order.id).eq("payment_status", "PENDING").gt("created_at", cutoff()).is("payment_provider_id", null)
       .or("payment_creation_token.is.null,payment_creation_started_at.lt." + new Date(Date.now() - 15 * 60 * 1000).toISOString())
       .select("id").maybeSingle();
     if (claimError) {
@@ -127,10 +142,16 @@ Deno.serve(async (req) => {
       redirect_url: siteUrl + "/loja/pedido",
       webhook_url: supabaseUrl + "/functions/v1/infinitepay-webhook",
       items: paymentItems,
+      options: {
+        assured_installments: expectedCents < 15000 ? 2 : 3,
+        single_payment: true,
+        valid_until: expiresAt.toISOString(),
+        payment_methods_enabled: ["credit_card", "pix"],
+      },
     };
     const requestLink = (payload: object) => fetch("https://api.checkout.infinitepay.io/links", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      headers: { "Content-Type": "application/json", "Accept": "application/json", ...(apiKey ? { "X-Api-Key": apiKey } : {}) },
       body: JSON.stringify(payload),
     });
 
@@ -159,7 +180,7 @@ Deno.serve(async (req) => {
       payment_method: "infinitepay",
       payment_creation_token: null,
       payment_creation_started_at: null,
-    }).eq("id", order.id).eq("payment_creation_token", claimToken).select("id").maybeSingle();
+    }).eq("id", order.id).eq("payment_creation_token", claimToken).eq("payment_status", "PENDING").gt("created_at", cutoff()).select("id").maybeSingle();
     if (saveError || !saved) {
       console.error("InfinitePay link created but could not be persisted", saveError);
       return json({ error: "O link foi gerado, mas não conseguimos salvar o pagamento com segurança. Não tente pagar novamente; contate a loja." }, 500);
