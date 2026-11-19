@@ -313,3 +313,19 @@
  .storefront .product-detail-buy-actions button{width:100%;min-width:0}
  .storefront .product-detail-actions{grid-template-columns:minmax(0,1fr)}
 }
+
+/* Galeria ampliada para clientes: responsiva e acessível. */
+.storefront .product-detail-image{position:relative}
+.product-zoom-trigger{position:absolute;bottom:16px;right:16px;display:flex;align-items:center;gap:7px;border:1px solid #e8d6de;border-radius:999px;background:rgba(255,255,255,.96);color:#47333d;padding:10px 14px;font-weight:700;font-size:13px;cursor:zoom-in;box-shadow:0 4px 16px #0002;z-index:2}
+.product-zoom-trigger:hover{background:#fff}
+.product-image-lightbox{position:fixed;inset:0;z-index:99999;background:rgba(19,16,20,.97);display:flex;align-items:center;justify-content:center;color:#fff;overscroll-behavior:contain}
+.product-image-lightbox-toolbar{position:absolute;top:max(14px,env(safe-area-inset-top));right:16px;display:flex;align-items:center;gap:8px;z-index:3}
+.product-image-lightbox-toolbar span{font-size:13px;margin-right:8px}
+.product-image-lightbox-toolbar button,.product-lightbox-prev,.product-lightbox-next{display:flex;align-items:center;justify-content:center;width:42px;height:42px;border:1px solid #ffffff55;border-radius:50%;background:#ffffff20;color:#fff;cursor:pointer}
+.product-image-lightbox-toolbar button:disabled{opacity:.35;cursor:not-allowed}
+.product-image-lightbox-stage{width:min(85vw,1000px);height:min(78vh,900px);display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:pan-x pan-y}
+.product-image-lightbox-stage img{width:100%;height:100%;object-fit:contain;transition:transform .18s ease;user-select:none}
+.product-lightbox-prev,.product-lightbox-next{position:absolute;top:50%;transform:translateY(-50%);z-index:3}
+.product-lightbox-prev{left:12px}.product-lightbox-next{right:12px}
+.product-image-lightbox-hint{position:absolute;bottom:max(16px,env(safe-area-inset-bottom));left:12px;right:12px;text-align:center;font-size:12px;color:#ffffffb3;margin:0}
+@media(max-width:600px){.product-image-lightbox-stage{width:100vw;height:72vh}.product-lightbox-prev{left:4px}.product-lightbox-next{right:4px}.product-image-lightbox-toolbar{right:10px}.product-zoom-trigger{bottom:10px;right:10px;font-size:12px;padding:9px 12px}}
