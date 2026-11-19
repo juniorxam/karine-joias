@@ -1,9 +1,11 @@
 import { useReservationCountdown } from "./lib/reservation";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Check, Clock3, CreditCard, Eye, LogOut, Package, ShieldCheck, Truck, UserRound, X, Save, LockKeyhole } from "lucide-react";
+import { ArrowLeft, Check, Clock3, CreditCard, Gift, Eye, LogOut, Package, ShieldCheck, Truck, UserRound, X, Save, LockKeyhole } from "lucide-react";
 import { toast } from "sonner";
 import { customerSupabase } from "./lib/supabase";
 
+type AccountGiftMission = {id:string;gift_name:string;threshold_amount:number};
+type AccountGiftClaim = {id:string;mission_id:string;qualifying_order_id:string|null;status:string};
 type SavedAddress = { id:string; label:string; recipient:string; postal_code:string; address:string; number:string; complement:string; neighborhood:string; city:string; state:string; is_default:boolean };
 type StatusHistory = { id:string; status:string; note?:string|null; created_at:string };
 type Order = {
@@ -39,10 +41,12 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   const [confirmPassword,setConfirmPassword]=useState("");
   const [busy,setBusy]=useState(false);
   const [orders,setOrders]=useState<Order[]>([]);
+  const [giftMissions,setGiftMissions]=useState<AccountGiftMission[]>([]);
+  const [giftClaims,setGiftClaims]=useState<AccountGiftClaim[]>([]);
   const [selected,setSelected]=useState<Order|null>(null);
   const pending = selected?.payment_status === "PENDING" && selected.status === "PENDING_PAYMENT";
   const reservation = useReservationCountdown(selected?.created_at, pending);
-  const [activeTab,setActiveTab]=useState<"overview"|"orders"|"profile"|"addresses">("overview");
+  const [activeTab,setActiveTab]=useState<"overview"|"orders"|"profile"|"gifts"|"addresses">("overview");
   const [search,setSearch]=useState("");
   const [orderFilter,setOrderFilter]=useState("ALL");
   const [profileName,setProfileName]=useState("");
@@ -129,6 +133,20 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
     return()=>{cancelled=true;};
   },[session?.user?.id]);
 
+  useEffect(()=>{
+    if(!session?.user?.id||!customerSupabase){setGiftClaims([]);return;}
+    let cancelled=false;
+    Promise.all([
+      customerSupabase.rpc("violetta_cart_gifts"),
+      customerSupabase.from("reward_claims").select("id,mission_id,qualifying_order_id,status").eq("customer_user_id",session.user.id)
+    ]).then(([missions,claims])=>{
+      if(cancelled)return;
+      if(!missions.error)setGiftMissions((missions.data||[]) as AccountGiftMission[]);
+      if(!claims.error)setGiftClaims((claims.data||[]) as AccountGiftClaim[]);
+    });
+    return()=>{cancelled=true;};
+  },[session?.user?.id]);
+
   const filteredOrders=useMemo(()=>orders.filter(order=>{
     const q=search.trim().toLowerCase();
     return (!q||order.order_number.toLowerCase().includes(q))&&(orderFilter==="ALL"||order.status===orderFilter);
@@ -138,6 +156,13 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   const activeOrders=orders.filter(o=>!["DELIVERED","CANCELLED","REFUNDED"].includes(o.status));
   const paidOrders=orders.filter(o=>["PAID","APPROVED"].includes(String(o.payment_status||"").toUpperCase()) && !["CANCELLED","REFUNDED"].includes(String(o.status||"").toUpperCase()));
   const totalSpent=paidOrders.reduce((sum,o)=>sum+Number(o.total_amount||0),0);
+
+  const completedGiftClaims=giftClaims.filter(claim=>!["cancelled","canceled","refunded"].includes(claim.status.toLowerCase()) && paidOrders.some(order=>order.id===claim.qualifying_order_id));
+  const achievedGiftIds=new Set(completedGiftClaims.map(claim=>claim.mission_id));
+  const availableGiftMissions=[...giftMissions].sort((a,b)=>Number(a.threshold_amount)-Number(b.threshold_amount));
+  const nextGift=availableGiftMissions.find(mission=>!achievedGiftIds.has(mission.id));
+  const giftProgressBase=Math.max(0,...paidOrders.map(order=>Math.max(0,Number(order.subtotal_amount||0)-Number(order.discount_amount||0))));
+  const giftMissing=nextGift?Math.max(0,Number(nextGift.threshold_amount)-giftProgressBase):0;
 
   const submitAuth=async(e:React.FormEvent)=>{
     e.preventDefault(); if(!customerSupabase)return;
@@ -331,6 +356,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       <button className={activeTab==="overview"?"active":""} onClick={()=>setActiveTab("overview")}>Visão geral</button>
       <button className={activeTab==="orders"?"active":""} onClick={()=>setActiveTab("orders")}>Meus pedidos <b>{orders.length}</b></button>
       <button className={activeTab==="profile"?"active":""} onClick={()=>setActiveTab("profile")}>Meu perfil</button>
+      <button className={activeTab==="gifts"?"active":""} onClick={()=>setActiveTab("gifts")}><Gift size={15}/> Minhas metas</button>
       <button className={activeTab==="addresses"?"active":""} onClick={()=>setActiveTab("addresses")}>Meus endereços <b>{savedAddresses.length}</b></button>
     </div>}
 
@@ -365,6 +391,14 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       {savedAddresses.map(a=><div key={a.id} className="customer-detail-panel" style={{marginTop:12,border:"1px solid #eadfe7"}}><div style={{display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}><strong>{a.label} {a.is_default&&<span>· Padrão</span>}</strong><div style={{display:"flex",gap:10,flexWrap:"wrap"}}>{!a.is_default&&<button type="button" className="customer-text-button" onClick={()=>setDefaultAddress(a.id)}>Definir padrão</button>}<button type="button" className="customer-text-button" onClick={()=>deleteAddress(a.id)}>Excluir</button></div></div><p>{a.address}, {a.number}{a.complement?", "+a.complement:""}</p><small>{a.neighborhood} · {a.city}/{a.state} · CEP {a.postal_code}</small></div>)}
       <h3 style={{marginTop:24}}>Adicionar endereço</h3><div className="customer-form"><label>Nome do endereço<input value={addressDraft.label} onChange={e=>setAddressDraft(v=>({...v,label:e.target.value}))} placeholder="Casa, trabalho..."/></label><label>Destinatário<input value={addressDraft.recipient} onChange={e=>setAddressDraft(v=>({...v,recipient:e.target.value}))} placeholder={profileName}/></label><label>CEP<input inputMode="numeric" maxLength={9} value={addressDraft.postal_code} onChange={e=>setAddressDraft(v=>({...v,postal_code:e.target.value.replace(/\D/g,"").slice(0,8)}))} onBlur={e=>lookupAddressByCep(e.target.value)} placeholder="77001-570"/>{cepLookupBusy&&<small>Localizando endereço…</small>}</label><label>Logradouro<input value={addressDraft.address} onChange={e=>setAddressDraft(v=>({...v,address:e.target.value}))}/></label><label>Número<input value={addressDraft.number} onChange={e=>setAddressDraft(v=>({...v,number:e.target.value}))}/></label><label>Complemento<input value={addressDraft.complement} onChange={e=>setAddressDraft(v=>({...v,complement:e.target.value}))}/></label><label>Bairro<input value={addressDraft.neighborhood} onChange={e=>setAddressDraft(v=>({...v,neighborhood:e.target.value}))}/></label><label>Cidade<input value={addressDraft.city} onChange={e=>setAddressDraft(v=>({...v,city:e.target.value}))}/></label><label>UF<input maxLength={2} value={addressDraft.state} onChange={e=>setAddressDraft(v=>({...v,state:e.target.value.toUpperCase()}))}/></label><button className="store-primary-cta" type="button" onClick={saveAddressDraft} disabled={addressBusy}><Save size={16}/>{addressBusy?"Salvando…":"Salvar endereço"}</button></div>
       </div></div>
+    :activeTab==="gifts"?<div className="customer-profile-panel customer-gifts-panel">
+      <div className="customer-detail-panel"><p className="store-kicker">MIMOS VIOLETTA</p><h2>Minhas metas</h2>
+        <p>Conquiste mimos especiais ao atingir as metas em uma compra. O valor considerado é o dos produtos após descontos, sem frete.</p>
+        <div className="customer-metrics"><div><Gift/><span>Metas conquistadas</span><strong>{completedGiftClaims.length}</strong></div><div><ShieldCheck/><span>Tipos de mimo conquistados</span><strong>{achievedGiftIds.size}</strong></div></div>
+        {nextGift?<div className="cart-gift-progress"><strong>Próxima meta: {nextGift.gift_name}</strong><p>Meta de {money(Number(nextGift.threshold_amount))} em um único pedido.</p><p>{giftMissing>0?`Faltam ${money(giftMissing)} em relação à sua maior compra confirmada. No próximo pedido, a meta começa do zero.`:"Você já alcançou esse valor em uma compra. A conquista depende da confirmação e das condições da campanha."}</p><progress value={Math.min(giftProgressBase,Number(nextGift.threshold_amount))} max={Math.max(1,Number(nextGift.threshold_amount))}/></div>:<p>{availableGiftMissions.length?"Você já conquistou todas as metas atualmente disponíveis!":"Nenhuma nova meta está disponível no momento."}</p>}
+        {availableGiftMissions.length>0&&<div className="customer-gift-list">{availableGiftMissions.map(mission=><div key={mission.id} className="customer-gift-row"><Gift size={18}/><div><strong>{mission.gift_name}</strong><p>Meta por compra: {money(Number(mission.threshold_amount))}</p></div><span>{achievedGiftIds.has(mission.id)?"Conquistada":"Disponível"}</span></div>)}</div>}
+      </div>
+    </div>
     :activeTab==="orders"?<div>
       <div className="customer-orders-toolbar"><input placeholder="Buscar por número do pedido..." value={search} onChange={e=>setSearch(e.target.value)}/><select value={orderFilter} onChange={e=>setOrderFilter(e.target.value)}><option value="ALL">Todos os status</option>{Object.entries(statusLabels).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></div>
       {!filteredOrders.length?<div className="customer-empty"><Package size={28}/><h3>Nenhum pedido encontrado.</h3><p>Tente alterar a busca ou o filtro.</p></div>:<div className="customer-orders-list">{filteredOrders.map(order=><button className="customer-order-row" key={order.id} onClick={()=>setSelected(order)}><span className="customer-order-icon"><Package size={19}/></span><span className="customer-order-main"><strong>{order.order_number}</strong><small>{new Date(order.created_at).toLocaleDateString("pt-BR")} · {displayStatus(order.status)}</small></span><strong>{money(order.total_amount)}</strong><span className="customer-order-arrow">›</span></button>)}</div>}
