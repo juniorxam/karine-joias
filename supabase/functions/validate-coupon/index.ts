@@ -16,7 +16,8 @@ Deno.serve(async (req) => {
     if (!items.length || items.length > 30) throw new Error("Carrinho inválido");
 
     const url = Deno.env.get("SUPABASE_URL")!;
-    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
+    const key = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!url || !key) throw new Error("Servidor não configurado");
     const db = createClient(url, key);
 
