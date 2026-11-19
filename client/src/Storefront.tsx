@@ -597,13 +597,13 @@ export default function Storefront() {
     localStorage.setItem("kj-last-order-email", customer.email.trim().toLowerCase());
     localStorage.setItem("kj-last-order-number", data.order_number);
     if (data.tracking_token) localStorage.setItem("kj-last-order-token", data.tracking_token);
-    setCart([]);
-    localStorage.removeItem(checkoutDraftKey);
-    checkoutIdempotencyKey.current = null;
     setRedirectingToPayment(true);
     const payment = await customerSupabase.functions.invoke("create-infinitepay-payment", { body: { order_number: data.order_number, email: customer.email } });
     if (payment.data?.url) {
-      window.location.href = payment.data.url;
+      setCart([]);
+      localStorage.removeItem(checkoutDraftKey);
+      checkoutIdempotencyKey.current = null;
+      window.location.assign(payment.data.url);
       return;
     }
     setRedirectingToPayment(false);
@@ -613,9 +613,9 @@ export default function Storefront() {
     } else {
       toast.success("Pedido criado", { description: "Você já pode acompanhar o pedido e tentar o pagamento novamente." });
     }
-    window.history.pushState({}, "", "/loja/pedido");
-    setView("success");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    // Keep the checkout visible and preserve the cart when the payment provider fails.
+    // The idempotency key allows a retry without creating another order.
+    setView("checkout");
   };
 
   if (view === "account") {
