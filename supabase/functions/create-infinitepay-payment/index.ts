@@ -25,8 +25,10 @@ Deno.serve(async (req) => {
     const serviceKey = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const handle = (Deno.env.get("INFINITEPAY_HANDLE") || "violettaprataesemijoias").replace(/^\$/, "").trim();
+    const apiKey = Deno.env.get("INFINITEPAY_API_KEY")?.trim();
     const siteUrl = (Deno.env.get("PUBLIC_SITE_URL") || "https://violetta.com.br").replace(/\/$/, "");
     if (!serviceKey || !supabaseUrl || !handle || !siteUrl) return json({ error: "InfinitePay ainda não está configurada no servidor" }, 503);
+    if (!apiKey) return json({ error: "Pagamento temporariamente indisponível: configuração segura de parcelamento pendente." }, 503);
 
     admin = createClient(supabaseUrl, serviceKey);
     const { data: order, error: orderError } = await admin.from("orders")
@@ -123,12 +125,13 @@ Deno.serve(async (req) => {
 
     const response = await fetch("https://api.checkout.infinitepay.io/links", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      headers: { "Content-Type": "application/json", "Accept": "application/json", "X-Api-Key": apiKey },
       body: JSON.stringify({
         handle, order_nsu: order.order_number,
         redirect_url: siteUrl + "/loja/pedido",
         webhook_url: supabaseUrl + "/functions/v1/infinitepay-webhook",
         items: paymentItems,
+        options: { assured_installments: expectedCents < 15000 ? 2 : 3, single_payment: true },
         customer,
         ...(Object.keys(address).length ? { address } : {}),
       }),
