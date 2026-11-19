@@ -134,8 +134,10 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
     return (!q||order.order_number.toLowerCase().includes(q))&&(orderFilter==="ALL"||order.status===orderFilter);
   }),[orders,search,orderFilter]);
   const latestOrder=orders[0];
+  const latestPaidOrder=orders.find(o=>["PAID","APPROVED"].includes(String(o.payment_status||"").toUpperCase()) && !["CANCELLED","REFUNDED"].includes(String(o.status||"").toUpperCase()));
   const activeOrders=orders.filter(o=>!["DELIVERED","CANCELLED","REFUNDED"].includes(o.status));
-  const totalSpent=orders.reduce((sum,o)=>sum+Number(o.total_amount||0),0);
+  const paidOrders=orders.filter(o=>["PAID","APPROVED"].includes(String(o.payment_status||"").toUpperCase()) && !["CANCELLED","REFUNDED"].includes(String(o.status||"").toUpperCase()));
+  const totalSpent=paidOrders.reduce((sum,o)=>sum+Number(o.total_amount||0),0);
 
   const submitAuth=async(e:React.FormEvent)=>{
     e.preventDefault(); if(!customerSupabase)return;
@@ -355,7 +357,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
     </div>
     :activeTab==="overview"?<div>
       <div className="customer-metrics"><div><Package/><span>Pedidos</span><strong>{orders.length}</strong></div><div><Truck/><span>Em andamento</span><strong>{activeOrders.length}</strong></div><div><CreditCard/><span>Total comprado</span><strong>{money(totalSpent)}</strong></div></div>
-      {latestOrder?<div className="customer-latest"><div className="customer-section-head"><div><p className="store-kicker">COMPRA MAIS RECENTE</p><h2>{latestOrder.order_number}</h2></div><button onClick={()=>setSelected(latestOrder)}>Ver pedido <Eye size={16}/></button></div><div className="customer-latest-meta"><span>{new Date(latestOrder.created_at).toLocaleDateString("pt-BR")}</span><b>{displayStatus(latestOrder.status)}</b><strong>{money(latestOrder.total_amount)}</strong></div></div>:<div className="customer-empty"><Package size={30}/><h3>Você ainda não tem pedidos.</h3><p>Faça sua primeira compra e acompanhe tudo por aqui.</p><button className="store-primary-cta" onClick={onBack}>Começar a comprar</button></div>}
+      {latestPaidOrder?<div className="customer-latest"><div className="customer-section-head"><div><p className="store-kicker">COMPRA MAIS RECENTE</p><h2>{latestPaidOrder.order_number}</h2></div><button onClick={()=>setSelected(latestPaidOrder)}>Ver pedido <Eye size={16}/></button></div><div className="customer-latest-meta"><span>{new Date(latestPaidOrder.created_at).toLocaleDateString("pt-BR")}</span><b>{displayStatus(latestPaidOrder.status)}</b><strong>{money(latestPaidOrder.total_amount)}</strong></div></div>:<div className="customer-empty"><Package size={30}/><h3>Você ainda não tem pedidos.</h3><p>Faça sua primeira compra e acompanhe tudo por aqui.</p><button className="store-primary-cta" onClick={onBack}>Começar a comprar</button></div>}
     </div>
     :activeTab==="addresses"?<div className="customer-profile-panel">
       <div className="customer-detail-panel"><p className="store-kicker">ENTREGA</p><h2>Meus endereços</h2><p>Salve mais de um endereço e escolha qual será usado como padrão nas próximas compras.</p>
