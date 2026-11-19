@@ -313,3 +313,42 @@
  .storefront .product-detail-buy-actions button{width:100%;min-width:0}
  .storefront .product-detail-actions{grid-template-columns:minmax(0,1fr)}
 }
+
+.cart-gift-progress {
+  display: grid !important;
+  gap: .5rem;
+  margin: .85rem 0;
+  padding: .85rem;
+  border: 1px solid currentColor;
+  border-radius: .75rem;
+}
+
+.cart-gift-progress p,
+.cart-gift-progress ul {
+  margin: 0;
+}
+
+.cart-gift-progress progress {
+  width: 100%;
+  accent-color: #80546b;
+}
+
+.cart-gift-progress ul {
+  display: grid;
+  gap: .45rem;
+  padding: 0;
+  list-style: none;
+}
+
+.cart-gift-progress li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .7rem;
+}
+
+.cart-gift-progress button {
+  padding: .35rem .55rem;
+  border: 1px solid currentColor;
+  border-radius: .35rem;
+}

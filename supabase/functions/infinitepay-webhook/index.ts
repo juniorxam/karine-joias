@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceKey);
 
     const { data: order, error: orderError } = await admin.from("orders")
-      .select("id,order_number,total_amount,payment_status,payment_provider").eq("order_number", orderNumber).maybeSingle();
+      .select("id,order_number,total_amount,payment_status,payment_provider,payment_provider_id").eq("order_number", orderNumber).maybeSingle();
     if (orderError) {
       console.error("Falha ao consultar pedido InfinitePay", orderError);
       return json({ error: "Falha ao consultar pedido" }, 500);
@@ -66,23 +66,21 @@ Deno.serve(async (req) => {
       return json({ success: true, paid: false, message: "Valor divergente; pedido não marcado como pago" });
     }
 
-    if (String(order.payment_status).toUpperCase() !== "PAID") {
-      const { data: markedPaid, error: markError } = await admin.rpc("mark_order_paid_service", { p_order_id: order.id });
-      if (markError) {
-        console.error("Falha ao marcar pedido como pago", markError);
-        return json({ error: "Falha ao atualizar pedido" }, 500);
-      }
-      if (!markedPaid) console.log("Pedido já pago ou transição ignorada", orderNumber);
+    const { data: outcome, error: reconcileError } = await admin.rpc("reconcile_violetta_payment", {
+      p_order_id: order.id,
+      p_provider: "infinitepay",
+      p_transaction_id: transactionNsu,
+      p_method: String(checked.capture_method || "unknown").toLowerCase(),
+    });
+    if (reconcileError) {
+      console.error("Falha ao conciliar pagamento InfinitePay", reconcileError);
+      return json({ error: "Falha ao atualizar pedido" }, 500);
     }
-    const method = String(checked.capture_method || body.capture_method || "unknown").toLowerCase();
-    const { error: detailsError } = await admin.from("orders").update({
-      payment_provider: "infinitepay",
-      payment_provider_id: transactionNsu,
-      payment_method: method,
-    }).eq("id", order.id);
-    if (detailsError) {
-      console.error("Falha ao salvar detalhes InfinitePay", detailsError);
-      return json({ error: "Pagamento validado, mas os detalhes não foram salvos" }, 500);
+    if (outcome !== "paid") {
+      const { error: reviewError } = await admin.from("payment_events").update({ event_type: outcome })
+        .eq("provider", "infinitepay").eq("provider_event_id", eventId);
+      if (reviewError) return json({ error: "Falha ao registrar pagamento para revisão" }, 500);
+      return json({ success: true, paid: false, requires_review: true });
     }
     return json({ success: true, paid: true });
   } catch (error) {
