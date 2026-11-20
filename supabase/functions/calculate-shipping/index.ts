@@ -1,3 +1,4 @@
+import { palmasLotsGzip } from "./palmas-lots.ts";
 import { palmasCeps } from "./palmas-ceps.ts";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -22,11 +23,27 @@ type Address = {
   state: string;
   postalCode: string;
 };
-type GeoPoint = { lon: number; lat: number; source: string };
+type GeoPoint = { lon: number; lat: number; source: string; precision?: "lot" | "address" | "cep" };
+type LotIndex = Record<string, Record<string, [number, number]>>;
+let lotsPromise: Promise<LotIndex> | undefined;
 
-async function get(url: string, init: RequestInit = {}) {
+function loadLots() {
+  lotsPromise ??= (async () => {
+    const bytes = Uint8Array.from(atob(palmasLotsGzip), char => char.charCodeAt(0));
+    const decompressed = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+    return await new Response(decompressed).json() as LotIndex;
+  })();
+  return lotsPromise;
+}
+
+function lotNumber(value: string) {
+  const match = /^(?:(?:lt|lote|n[.º°]?)\s*)?0*([1-9][0-9]*)\s*([a-z]?)$/i.exec(value.trim());
+  return match ? (match[1] + match[2]).toLowerCase() : "";
+}
+
+async function get(url: string, init: RequestInit = {}, timeoutMs = 12000) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, { ...init, signal: controller.signal });
     if (!response.ok) return null;
@@ -65,18 +82,24 @@ async function geo(address: Address, allowCensusReference = false): Promise<GeoP
     "77059002": [-48.3144243, -10.2965523],
     "77064002": [-48.2877673, -10.3333855],
   };
-  const reference = references[address.postalCode];
-  if (reference) {
-    return { lon: reference[0], lat: reference[1], source: "referência de CEP validada" };
+  const lot = allowCensusReference ? lotNumber(address.number) : "";
+  if (lot) {
+    const point = (await loadLots())[address.postalCode]?.[lot];
+    if (point) {
+      return { lon: point[0] / 100000, lat: point[1] / 100000, source: "lote do IBGE", precision: "lot" };
+    }
   }
 
-  // Only use a postal reference when observed coordinates span a small area.
+  const reference = references[address.postalCode];
   const census = allowCensusReference ? palmasCeps[address.postalCode] : null;
   // The known NS 15 segment in ARNO 33 has four census points within 184 m.
   const radiusLimit = address.postalCode === "77001386" && /\bns[\s-]*15\b/.test(norm(address.street)) ? 200 : 150;
-  if (census && census[2] <= radiusLimit && census[3] >= 2) {
-    return { lon: census[0], lat: census[1], source: "referência de CEP do IBGE" };
-  }
+  const postalPoint: GeoPoint | null = reference
+    ? { lon: reference[0], lat: reference[1], source: "referência de CEP validada", precision: "cep" }
+    : census && census[2] <= radiusLimit && census[3] >= 2
+      ? { lon: census[0], lat: census[1], source: "referência de CEP do IBGE", precision: "cep" }
+      : null;
+  if (!lot && postalPoint) return postalPoint;
 
   const streetWords = norm(address.street).split(/[^a-z0-9]+/).filter((word) => word.length >= 3 && !/^\d+$/.test(word));
   if (!streetWords.length) {
@@ -89,7 +112,7 @@ async function geo(address: Address, allowCensusReference = false): Promise<GeoP
     [address.street, address.neighborhood, address.city, address.state, "Brasil"],
   ].map((parts) => parts.filter(Boolean).join(", "));
 
-  for (const query of queries) {
+  for (const [index, query] of queries.entries()) {
     const params = new URLSearchParams({
       q: query,
       format: "jsonv2",
@@ -101,9 +124,9 @@ async function geo(address: Address, allowCensusReference = false): Promise<GeoP
     });
     const data = await get(`https://nominatim.openstreetmap.org/search?${params}`, {
       headers: { Accept: "application/json", "User-Agent": "ViolettaStoreShipping/1.1" },
-    });
+    }, 2800).catch(() => null);
     const results = Array.isArray(data) ? data : [];
-    const match = results.find((item: any) => {
+    const matches = results.filter((item: any) => {
       const lat = Number(item?.lat);
       const lon = Number(item?.lon);
       const resultAddress = item?.address || {};
@@ -125,8 +148,19 @@ async function geo(address: Address, allowCensusReference = false): Promise<GeoP
         lon >= box.minLon && lon <= box.maxLon && lat >= box.minLat && lat <= box.maxLat &&
         cityMatches && stateMatches && postalMatches && hasStreetMatch;
     });
+    const exact = lot && matches.find((item: any) =>
+      lotNumber(String(item.address?.house_number ?? "")) === lot &&
+      dig(item.address?.postcode) === address.postalCode &&
+      streetWords.some(word => !["avenida", "alameda", "rua", "quadra", "norte", "sul"].includes(word) &&
+        norm(item.address?.road).split(/[^a-z0-9]+/).includes(word)),
+    );
+    if (exact) {
+      return { lon: Number(exact.lon), lat: Number(exact.lat), source: "lote do OpenStreetMap", precision: "lot" };
+    }
+    if (index === 0 && postalPoint) return postalPoint;
+    const match = matches[0];
     if (match) {
-      return { lon: Number(match.lon), lat: Number(match.lat), source: "OpenStreetMap/Nominatim" };
+      return { lon: Number(match.lon), lat: Number(match.lat), source: "OpenStreetMap/Nominatim", precision: "address" };
     }
   }
 
@@ -292,6 +326,7 @@ Deno.serve(async (request: Request) => {
 
     return json({
       distance_km: distance.km,
+      distance_precision: destinationPoint.precision ?? "address",
       straight_line_km: distance.straight_line_km,
       route_ratio: distance.route_ratio,
       serviceable,
