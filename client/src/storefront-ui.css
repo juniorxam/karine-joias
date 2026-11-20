@@ -331,3 +331,75 @@
   border: 1px solid currentColor;
   border-radius: .35rem;
 }
+
+.cart-gift-progress.cart-gift-offer {
+  gap: 7px;
+  margin: 12px 0;
+  padding: 12px;
+  border-color: #ead2dc;
+  background: #fcf5f8;
+  font-size: .875rem;
+  line-height: 1.4;
+}
+
+.cart-gift-offer > strong {
+  font-size: .9375rem;
+}
+
+.cart-gift-offer progress {
+  display: block;
+  appearance: none;
+  height: 6px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: #ebd7e0;
+}
+
+.cart-gift-offer progress::-webkit-progress-bar {
+  background: #ebd7e0;
+  border-radius: 999px;
+}
+
+.cart-gift-offer progress::-webkit-progress-value {
+  background: #b45d7e;
+  border-radius: 999px;
+}
+
+.cart-gift-offer progress::-moz-progress-bar {
+  background: #b45d7e;
+  border-radius: 999px;
+}
+
+.cart-gift-offer li {
+  padding-top: 6px;
+}
+
+.cart-gift-offer li div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cart-gift-offer li b {
+  display: block;
+  margin-top: 2px;
+}
+
+.cart-gift-offer li button {
+  flex: none;
+  min-height: 44px;
+  padding: 0 10px;
+  border-color: #d4a1b6;
+  background: #fff;
+  color: #883d5b;
+  font: inherit;
+  font-weight: 600;
+}
+
+.cart-gift-offer summary {
+  width: fit-content;
+  padding: 6px 0;
+  color: #883d5b;
+  cursor: pointer;
+  font-weight: 600;
+}
