@@ -314,11 +314,18 @@ Deno.serve(async (request: Request) => {
           { min_km: 16, max_km: 16.9, price: 26 },
           { min_km: 17, max_km: 17.9, price: 28 },
         ];
-    const rule = rules.find((item: any) => {
-      const min = Number(item?.min_km);
-      const max = item?.max_km == null || item?.max_km === "" ? Infinity : Number(item.max_km);
-      return Number.isFinite(min) && Number.isFinite(Number(item?.price)) && distance.km >= min && distance.km <= max;
-    });
+    const bands = rules.map((item: any) => ({
+      min: Number(item?.min_km),
+      max: item?.max_km == null || item?.max_km === "" ? Infinity : Number(item.max_km),
+      price: Number(item?.price),
+    })).filter(band => Number.isFinite(band.min) && band.max >= band.min && Number.isFinite(band.price));
+    let rule = bands.find(band => distance.km >= band.min && distance.km <= band.max);
+    if (!rule) {
+      const previous = bands.filter(band => band.max < distance.km).sort((a, b) => b.max - a.max)[0];
+      const next = bands.filter(band => band.min > distance.km).sort((a, b) => a.min - b.min)[0];
+      // Keep the lower price between successive tenths, without widening the delivery radius.
+      if (previous && next && next.min - previous.max <= 0.100001) rule = previous;
+    }
     const serviceable = Boolean(rule);
     const subtotal = Math.max(0, Number(body?.subtotal) || 0);
     const freeAbove = Number(settings.shipping_palmas_free_above) || 0;
