@@ -779,7 +779,7 @@ export default function Storefront() {
       <section className="store-hero" id="inicio">
         <div className="store-hero-copy">
           <p className="store-kicker"><Sparkles size={13} /> NOVA COLEÇÃO VIOLETTA JOIAS</p>
-          <h1>{storefrontSettings?.hero_title || "Seu brilho, seu momento."}</h1>
+          {storefrontSettings?.hero_title?.trim() && <h1>{storefrontSettings.hero_title.trim()}</h1>}
           <p className="store-hero-text">{storefrontSettings?.hero_subtitle || "Descubra peças escolhidas para valorizar cada detalhe. Elegância, delicadeza e personalidade em uma só vitrine."}</p>
           <div className="store-hero-actions"><a className="store-primary-cta" href={products.length ? (launches.length ? "#lancamentos" : "#colecao") : "#em-breve"}>{products.length ? (storefrontSettings?.hero_cta || "Comprar agora") : "Em breve"} <ArrowRight size={16} /></a><a className="store-text-link" href="#categorias">Ver categorias</a></div>
         </div>
