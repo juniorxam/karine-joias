@@ -218,6 +218,11 @@
   border-radius: 6px;
   background: #fff;
 }
+.store-footer .payment-mark-amex {
+  height: 39px;
+  padding: 3px;
+  object-fit: contain;
+}
 .store-footer .footer-payment-note { color: #81767b; font-size: 11px; }
 @media (max-width: 760px) {
   .store-footer .footer-card-brands { gap: 7px; }
