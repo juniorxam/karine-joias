@@ -3,7 +3,7 @@ import "./cart-stock.css";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { toast } from "sonner";
-import { ArrowRight, ArrowLeft, CalendarDays, Check, CreditCard, Gem, Heart, Instagram, Menu, Search, ShoppingBag, Sparkles, X, User, Truck, Tag, ShieldCheck, Star, MessageCircle } from "lucide-react";
+import { ArrowRight, ArrowLeft, CalendarDays, Check, CreditCard, Gem, Heart, Instagram, Menu, Search, ShoppingBag, ShoppingCart, Sparkles, X, User, Truck, Tag, ShieldCheck, Star, MessageCircle } from "lucide-react";
 import { formatMoney, type CatalogProduct } from "./lib/catalog";
 type ShippingDistanceRule = { min_km:number; max_km:number|null; price:number };
 type AppliedCoupon = { type: string; value: number };
@@ -946,9 +946,9 @@ export function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured 
         </div>
         
         <div className="product-actions" onClick={event => event.stopPropagation()}>
-          <button className="product-interest" onClick={() => onAsk(product)} aria-label={`Tenho interesse em ${product.name} pelo WhatsApp`}><MessageCircle size={15} /><span>WhatsApp</span></button>
-          <button className="product-add-cart" onClick={() => onAdd(product)} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Adicionar ao carrinho" : "Esgotado"}</button>
           <button className="product-buy-now" onClick={() => onBuyNow(product)} disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? "Comprar agora" : "Indisponível"}</button>
+          <button className="product-add-cart" onClick={() => onAdd(product)} aria-label={`Adicionar ${product.name} ao carrinho`} title="Adicionar ao carrinho" disabled={Number(product.stock ?? 0) <= 0}>{Number(product.stock ?? 0) > 0 ? <ShoppingCart size={22} aria-hidden="true" /> : "Esgotado"}</button>
+          <button className="product-interest" onClick={() => onAsk(product)} title="WhatsApp" aria-label={`Tenho interesse em ${product.name} pelo WhatsApp`}><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.65 15L2 22l5.13-1.32A10 10 0 1 0 12 2Zm0 18.2a8.17 8.17 0 0 1-4.17-1.14l-.32-.19-2.91.75.77-2.82-.21-.33A8.2 8.2 0 1 1 12 20.2Zm4.52-6.13c-.25-.12-1.47-.72-1.7-.8-.22-.09-.39-.13-.55.12-.17.25-.64.8-.78.97-.14.16-.29.18-.53.06-.25-.12-1.05-.38-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.15-.25-.02-.38.1-.5.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.17.04-.31-.02-.43-.07-.12-.56-1.35-.77-1.85-.2-.48-.4-.41-.55-.42h-.47c-.16 0-.43.06-.66.31-.22.25-.86.85-.86 2.08s.89 2.41 1.02 2.58c.12.16 1.75 2.67 4.24 3.74.59.25 1.05.41 1.41.52.59.19 1.13.16 1.56.1.48-.07 1.47-.6 1.67-1.17.21-.58.21-1.08.15-1.18-.06-.11-.23-.17-.48-.29Z"/></svg></button>
         </div>
       </div>
     </div>
