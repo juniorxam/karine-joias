@@ -921,7 +921,7 @@ export function ProductCard({ product, onAdd, onBuyNow, onAsk, onOpen, featured 
   const compareAtPrice = Number(product.compareAtPrice ?? 0);
   const hasDiscount = compareAtPrice > product.price;
   const discountPercent = Number(product.discountPercent ?? (hasDiscount ? Math.round((1 - product.price / compareAtPrice) * 100) : 0));
-  const maxNoInterestInstallments = Number(product.installmentCount || (Number(product.price) < 150 ? 2 : 3));
+  const maxNoInterestInstallments = 3;
   const pixDisplayPrice = Number(product.pixPrice || (Number(product.price) * 0.95));
   const installmentNote = `Até ${maxNoInterestInstallments}x sem juros no InfinitePay, conforme condições do checkout`;
   const primaryImage = product.imageUrls?.[0] || product.imageUrl;
@@ -973,7 +973,7 @@ export function ProductDetail({ product, relatedProducts, onBack, onAdd, onBuyNo
       </div>
       <div className="product-detail-copy">
         <p className="store-kicker">{product.category}</p><p className="product-material">{product.material}</p><h1>{product.name}</h1>
-        <strong className="product-detail-price">{formatMoney(product.price)}</strong><span className="product-installment-note">No Pix: <b>{formatMoney(Number(product.pixPrice || (Number(product.price) * 0.95)))}</b> (5% de desconto)</span><span className="product-installment-note">Até {Number(product.installmentCount || (Number(product.price) < 150 ? 2 : 3))}x sem juros, conforme opções disponíveis no InfinitePay</span><span className="product-detail-payment-note"><ShieldCheck size={14}/> Pagamento seguro pelo InfinitePay</span><span className={available ? "product-stock-note" : "product-stock-note sold-out"}>{available ? "Disponível para envio" : "Produto temporariamente esgotado"}</span>
+        <strong className="product-detail-price">{formatMoney(product.price)}</strong><span className="product-installment-note">No Pix: <b>{formatMoney(Number(product.pixPrice || (Number(product.price) * 0.95)))}</b> (5% de desconto)</span><span className="product-installment-note">Até {3}x sem juros, conforme opções disponíveis no InfinitePay</span><span className="product-detail-payment-note"><ShieldCheck size={14}/> Pagamento seguro pelo InfinitePay</span><span className={available ? "product-stock-note" : "product-stock-note sold-out"}>{available ? "Disponível para envio" : "Produto temporariamente esgotado"}</span>
         <p className="product-detail-description">{product.description || "Uma peça escolhida para trazer delicadeza, presença e brilho aos seus momentos."}</p>
         <div className="product-detail-meta">
           <div><Gem size={17}/><span><b>Material</b><small>{product.material}</small></span></div>
@@ -1034,6 +1034,7 @@ function Checkout({ checkoutBlocked, ownsCurrentReservation, onRemove, onCouponC
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
   const [zipLoading, setZipLoading] = useState(false);
+  const zipRequest = useRef(0);
   const [couponCode, setCouponCode] = useState(draft.couponCode || (() => { try { return localStorage.getItem("kj-first-purchase-coupon") || ""; } catch { return ""; } })());
   const [couponBusy, setCouponBusy] = useState(false);
   const [couponError, setCouponError] = useState("");
@@ -1076,11 +1077,11 @@ function Checkout({ checkoutBlocked, ownsCurrentReservation, onRemove, onCouponC
       });
     }
   }, [customerUser]);
-  const [distanceKmValue, setDistanceKmValue] = useState<number|null>(null);
+  const [quotedKm, setDistanceKmValue] = useState<number|null>(null);
   const [distanceLoading, setDistanceLoading] = useState(false);
   const [distanceRequest, setDistanceRequest] = useState(0);
-  const [distanceError, setDistanceError] = useState("");
-  const [serverShippingQuote, setServerShippingQuote] = useState<{ shipping_price: number | null; serviceable: boolean; service?: string; precision?: "lot" | "cep" | "address" } | null>(null);
+  const [quotedError, setDistanceError] = useState("");
+  const [quote, setServerShippingQuote] = useState<{ shipping_price: number | null; serviceable: boolean; service?: string; precision?: "lot" | "cep" | "address" } | null>(null);
   const handleCalculateShipping = async () => {
     const cep = shipping.postal_code.replace(/\D/g, "");
     if (cep.length !== 8 || !shipping.address.trim() || !shipping.number.trim() || !shipping.neighborhood.trim() || !shipping.city.trim() || !shipping.state.trim()) {
@@ -1145,23 +1146,33 @@ function Checkout({ checkoutBlocked, ownsCurrentReservation, onRemove, onCouponC
   };
   const fetchZip = async (value: string) => {
     const postal_code = value.replace(/\D/g, "").slice(0, 8);
+    const request = ++zipRequest.current;
     updateShipping("postal_code", postal_code);
-    if (postal_code.length !== 8) return;
+    if (postal_code.length !== 8) { setZipLoading(false); return; }
     setZipLoading(true);
     try {
       const response = await fetch("https://viacep.com.br/ws/" + postal_code + "/json/");
       const data = await response.json();
       if (data.erro) throw new Error("CEP não encontrado");
-      setShipping(v => ({ ...v, postal_code, address: data.logradouro || v.address, neighborhood: data.bairro || v.neighborhood, city: data.localidade || v.city, state: data.uf || v.state }));
-    } catch { toast.error("Não foi possível localizar o CEP"); }
-    finally { setZipLoading(false); }
+      if (request !== zipRequest.current) return;
+      setShipping(v => v.postal_code.replace(/\D/g, "") !== postal_code ? v : ({ ...v, postal_code, address: data.logradouro || v.address, neighborhood: data.bairro || v.neighborhood, city: data.localidade || v.city, state: data.uf || v.state }));
+    } catch { if (request === zipRequest.current) toast.error("Não foi possível localizar o CEP"); }
+    finally { if (request === zipRequest.current) setZipLoading(false); }
   };
   const isPalmas = shipping.city.trim().toLowerCase() === "palmas" && shipping.state.trim().toUpperCase() === "TO";
+  const quoteKey = JSON.stringify([shipping.postal_code, shipping.address, shipping.number, shipping.neighborhood,
+    shipping.city, shipping.state, storefrontSettings?.shipping_origin_postal_code, subtotal, distanceRequest, zipLoading]);
+  const [resolvedQuoteKey, setResolvedQuoteKey] = useState("");
+  const quoteCurrent = resolvedQuoteKey === quoteKey;
+  const serverShippingQuote = quoteCurrent ? quote : null;
+  const distanceKmValue = quoteCurrent ? quotedKm : null;
+  const distanceError = quoteCurrent ? quotedError : "";
+
   useEffect(() => {
     let cancelled = false;
     const calculate = async () => {
       const cep = shipping.postal_code.replace(/\D/g, "");
-      if (!isPalmas || cep.length !== 8 || !storefrontSettings?.shipping_palmas_enabled) {
+      if (zipLoading || !isPalmas || cep.length !== 8 || !storefrontSettings?.shipping_palmas_enabled) {
         setDistanceKmValue(null);
         setServerShippingQuote(null);
         setDistanceError("");
@@ -1179,6 +1190,7 @@ function Checkout({ checkoutBlocked, ownsCurrentReservation, onRemove, onCouponC
         setDistanceKmValue(null);
         setServerShippingQuote(null);
         setDistanceError("Serviço de cálculo de rota indisponível no momento");
+        setResolvedQuoteKey(quoteKey);
         return;
       }
       setDistanceLoading(true);
@@ -1219,6 +1231,7 @@ function Checkout({ checkoutBlocked, ownsCurrentReservation, onRemove, onCouponC
         const km = Number(data?.distance_km);
         if (!Number.isFinite(km) || km <= 0) throw new Error("O serviço de rotas retornou uma distância inválida");
         if (!cancelled) {
+          setResolvedQuoteKey(quoteKey);
           setDistanceKmValue(km);
           setServerShippingQuote({ shipping_price: data.shipping_price === null ? null : Number(data.shipping_price), serviceable: data.serviceable === true, service: String(data.service || ""), precision: data.distance_precision });
         }
@@ -1232,6 +1245,7 @@ function Checkout({ checkoutBlocked, ownsCurrentReservation, onRemove, onCouponC
         if (!cancelled) {
           setDistanceKmValue(null);
           setServerShippingQuote(null);
+          setResolvedQuoteKey(quoteKey);
           setDistanceError(message);
         }
       } finally {
@@ -1246,9 +1260,10 @@ function Checkout({ checkoutBlocked, ownsCurrentReservation, onRemove, onCouponC
       // Se o endereço mudar durante a consulta, libera o botão para permitir nova tentativa.
       setDistanceLoading(false);
     };
-  }, [isPalmas, shipping.postal_code, shipping.address, shipping.number, shipping.neighborhood, shipping.city, shipping.state, storefrontSettings?.shipping_palmas_enabled, storefrontSettings?.shipping_origin_postal_code, distanceRequest, subtotal]);
+  }, [isPalmas, shipping.postal_code, shipping.address, shipping.number, shipping.neighborhood, shipping.city, shipping.state, storefrontSettings?.shipping_palmas_enabled, storefrontSettings?.shipping_origin_postal_code, distanceRequest, subtotal, quoteKey]);
   const hasCompleteShippingAddress = shipping.postal_code.replace(/\D/g, "").length === 8 && Boolean(shipping.address.trim() && shipping.number.trim() && shipping.neighborhood.trim() && shipping.city.trim() && shipping.state.trim());
-  const shippingOptions: ShippingOption[] = hasCompleteShippingAddress ? (isPalmas ? [
+  const quotePending = hasCompleteShippingAddress && isPalmas && Boolean(storefrontSettings?.shipping_palmas_enabled) && !quoteCurrent;
+  const shippingOptions: ShippingOption[] = hasCompleteShippingAddress && !zipLoading ? (isPalmas ? [
     ...(storefrontSettings?.shipping_palmas_enabled && serverShippingQuote?.serviceable && serverShippingQuote.shipping_price !== null ? [{id:"palmas-server-quote",company:"Violetta",service:serverShippingQuote.service || (serverShippingQuote.shipping_price === 0 ? "Entrega em Palmas · frete grátis" : "Entrega em Palmas · "+distanceKmValue!.toFixed(1)+" km"),price:Number(serverShippingQuote.shipping_price),delivery_time:0}] : []),
     ...((!storefrontSettings?.shipping_palmas_enabled || serverShippingQuote?.serviceable === false || Boolean(distanceError)) ? [{id:"palmas-combine",company:"Violetta",service:"Frete a combinar",price:0,delivery_time:0}] : []),
   ] : [{id:"outside-palmas",company:"Violetta",service:"Frete a combinar",price:0,delivery_time:0}]) : [];
@@ -1307,6 +1322,7 @@ function Checkout({ checkoutBlocked, ownsCurrentReservation, onRemove, onCouponC
     if (postalCode.length !== 8) return toast.error("Informe um CEP válido");
     if (!pickupSelected && (!shipping.address.trim() || !shipping.number.trim() || !shipping.neighborhood.trim())) return toast.error("Complete o endereço para entrega");
     if (!shipping.city.trim() || shipping.state.trim().length !== 2) return toast.error("Confira cidade e UF");
+    if (zipLoading || quotePending) return toast.error("Aguarde a cotação do frete para este endereço.");
     if (!shippingOption) return toast.error("Informe sua cidade para definir a modalidade de entrega");
     setBusy(true);
     try { await onFinish({ ...customer, name: customer.name.trim(), email: customer.email.trim().toLowerCase(), phone }, { ...shipping, postal_code: postalCode, state: shipping.state.trim().toUpperCase(), shipping_option: shippingOption }, couponApplied ? couponCode : ""); }
@@ -1350,7 +1366,7 @@ function Checkout({ checkoutBlocked, ownsCurrentReservation, onRemove, onCouponC
         )}
       </div> : <label>CPF <span style={{color:"#c0392b"}}>*</span><input required inputMode="numeric" maxLength={14} autoComplete="off" value={customer.recipient_code} onChange={e=>updateCustomer("recipient_code",formatCPF(e.target.value))} placeholder="000.000.000-00"/></label>}</div></section>
       <section className="checkout-section"><h2><Truck size={17}/> Entrega</h2>{savedAddresses.length>0&&<label style={{display:"block",marginBottom:14}}>Usar endereço salvo<select value="" onChange={e=>chooseSavedAddress(e.target.value)}><option value="">Selecionar outro endereço salvo…</option>{savedAddresses.map((address:any)=><option key={address.id} value={address.id}>{address.label||"Endereço"}{address.is_default?" (padrão)":""} — {address.address}, {address.number} · {address.city}/{address.state}</option>)}</select><small>O endereço padrão já foi preenchido. Você pode escolher outro salvo.</small></label>}<div className="checkout-grid"><label>CEP <span style={{color:"#c0392b"}}>*</span><input required inputMode="numeric" value={shipping.postal_code} onChange={e=>fetchZip(e.target.value)} placeholder="00000-000"/>{zipLoading&&<small>Consultando CEP...</small>}</label><label className="wide">Endereço <span style={{color:"#c0392b"}}>*</span><input required={!pickupSelected} value={shipping.address} onChange={e=>updateShipping("address",e.target.value)}/></label><label>{isPalmas ? "Número do lote" : "Número"} <span style={{color:"#c0392b"}}>*</span><input required={!pickupSelected} value={shipping.number} onChange={e=>updateShipping("number",e.target.value)}/></label><label>Complemento<input value={shipping.complement} onChange={e=>updateShipping("complement",e.target.value)}/></label><label>Bairro <span style={{color:"#c0392b"}}>*</span><input required={!pickupSelected} value={shipping.neighborhood} onChange={e=>updateShipping("neighborhood",e.target.value)}/></label><label>Cidade <span style={{color:"#c0392b"}}>*</span><input required value={shipping.city} onChange={e=>updateShipping("city",e.target.value)}/></label><label>UF <span style={{color:"#c0392b"}}>*</span><input required maxLength={2} value={shipping.state} onChange={e=>updateShipping("state",e.target.value.toUpperCase())}/></label></div>
-        {<div className="checkout-final-note"><Truck size={16}/><span><strong>{distanceLoading?"Calculando frete e distância pela rota viária…":distanceKmValue!==null?`${serverShippingQuote?.precision === "lot" ? "Distância até o lote" : serverShippingQuote?.precision === "cep" ? "Distância estimada pelo CEP" : "Distância estimada pelo endereço"}: ${distanceKmValue.toFixed(2).replace(".", ",")} km`:distanceError||"Preencha os dados do endereço e clique em Calcular frete."}</strong></span></div>}<button type="button" className="shipping-quote-button" onClick={handleCalculateShipping} disabled={distanceLoading}>{distanceLoading?"Calculando frete…":"Calcular frete"}</button>{beyondDeliveryRadius&&<div className="checkout-final-note"><Truck size={16}/><span>Entrega acima da faixa automática de 17,9 km. O frete será combinado diretamente com a loja.</span></div>}{shippingOptions.length>0&&<div className="shipping-options">{shippingOptions.map(option=><label className={"shipping-option "+(shippingOption?.id===option.id?"selected":"")} key={String(option.id)}><input type="radio" name="shipping-option" checked={shippingOption?.id===option.id} onChange={()=>setShipping(v=>({...v,shipping_option:option}))}/><span><strong>{option.company} · {option.service}</strong><small>{option.service === "Retirada no local" ? "Retire seu pedido no endereço da Violetta, sem cobrança de frete." : isPalmas && option.service !== "Frete a combinar" ? "Frete calculado pela rota viária entre a loja e o seu endereço." : "Para este endereço, o frete será negociado separadamente com a loja."}</small></span><b>{option.service === "Frete a combinar" ? "À parte" : option.price > 0 ? formatMoney(option.price) : "Grátis"}</b></label>)}</div>}
+        {<div className="checkout-final-note"><Truck size={16}/><span><strong>{(quotePending || distanceLoading)?"Calculando frete e distância pela rota viária…":distanceKmValue!==null?`${serverShippingQuote?.precision === "lot" ? "Distância até o lote" : serverShippingQuote?.precision === "cep" ? "Distância estimada pelo CEP" : "Distância estimada pelo endereço"}: ${distanceKmValue.toFixed(2).replace(".", ",")} km`:distanceError||"Preencha os dados do endereço e clique em Calcular frete."}</strong></span></div>}<button type="button" className="shipping-quote-button" onClick={handleCalculateShipping} disabled={distanceLoading}>{distanceLoading?"Calculando frete…":"Calcular frete"}</button>{beyondDeliveryRadius&&<div className="checkout-final-note"><Truck size={16}/><span>Entrega acima da faixa automática de 17,9 km. O frete será combinado diretamente com a loja.</span></div>}{shippingOptions.length>0&&<div className="shipping-options">{shippingOptions.map(option=><label className={"shipping-option "+(shippingOption?.id===option.id?"selected":"")} key={String(option.id)}><input type="radio" name="shipping-option" checked={shippingOption?.id===option.id} onChange={()=>setShipping(v=>({...v,shipping_option:option}))}/><span><strong>{option.company} · {option.service}</strong><small>{option.service === "Retirada no local" ? "Retire seu pedido no endereço da Violetta, sem cobrança de frete." : isPalmas && option.service !== "Frete a combinar" ? "Frete calculado pela rota viária entre a loja e o seu endereço." : "Para este endereço, o frete será negociado separadamente com a loja."}</small></span><b>{option.service === "Frete a combinar" ? "À parte" : option.price > 0 ? formatMoney(option.price) : "Grátis"}</b></label>)}</div>}
         {!shippingOption&&!isPalmas&&<div className="checkout-final-note"><Truck size={16}/><span>Informe cidade e UF para visualizar como o frete será tratado.</span></div>}
       </section>
       <section className="checkout-section"><h2><Tag size={17}/> Cupom de desconto</h2><div className="checkout-grid"><label className="wide">Código do cupom<input value={couponCode} onChange={e=>{++couponRequest.current;onCouponChange(null);setCouponBusy(false);setCouponCode(e.target.value.toUpperCase());setCouponDiscount(0);setCouponApplied(false);setCouponGiftDescription("");setCouponError("")}} placeholder="EX.: BEMVINDO10"/></label><button type="button" className="shipping-quote-button" onClick={() => void applyCoupon()} disabled={couponBusy}>{couponBusy?"Validando...":"Aplicar cupom"}</button></div>{couponError&&<small>{couponError}</small>}{couponApplied&&<small>Cupom aplicado: {couponGiftDescription || (couponDiscount>0 ? "desconto de "+formatMoney(couponDiscount) : "benefício de primeira compra")}</small>}</section>
@@ -1360,7 +1376,7 @@ function Checkout({ checkoutBlocked, ownsCurrentReservation, onRemove, onCouponC
       <button type="button" className="checkout-whatsapp checkout-quick-purchase" onClick={() => { setQuickPurchase(v => ({ ...v, name: v.name || customer.name, phone: v.phone || customer.phone, address: v.address || [shipping.address, shipping.number && `nº ${shipping.number}`, shipping.neighborhood, shipping.city, shipping.state].filter(Boolean).join(", ") })); setQuickPurchaseOpen(true); }} disabled={!cart.length}><MessageCircle size={15}/> Comprar rápido pelo WhatsApp</button>
       <button type="button" className="checkout-whatsapp checkout-whatsapp-secondary" onClick={() => onAskWhatsApp(cart, customer.name)} disabled={!cart.length}><MessageCircle size={15}/> Apenas tirar dúvidas sobre os produtos</button>
     </form>
-    <aside className="checkout-summary"><div className="checkout-summary-head"><div><p className="store-kicker">RESUMO</p><h2>Seu pedido</h2></div><span>{cart.reduce((sum,item)=>sum+item.quantity,0)} itens</span></div>{cart.map(item=><div className="checkout-item" key={item.id}><div className="checkout-item-thumb" style={item.imageUrl?{backgroundImage:"url("+item.imageUrl+")"}:undefined}>{!item.imageUrl&&<Gem size={18}/>}</div><div className="checkout-item-main"><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span>{!ownsCurrentReservation && cartStockNotice(item) && <p className="cart-stock-notice" role="status">{cartStockNotice(item)}</p>}<button type="button" aria-label={`Remover ${item.name}`} onClick={() => onRemove(item.id)}>Remover</button><div className="qty-controls"><button type="button" onClick={()=>onChangeQty(item.id,-1)}>−</button><span>{item.quantity}</span><button type="button" onClick={()=>onChangeQty(item.id,1)} disabled={item.quantity >= Math.min(item.stock ?? 0, 20)}>+</button></div></div><b>{!ownsCurrentReservation && cartStockNotice(item) ? "Fora do subtotal" : formatMoney(item.price*item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total"><span>Frete</span><strong>{shippingOption?.service === "Retirada no local" || shippingOption?.service === "Frete a combinar" ? "À parte" : shippingOption ? formatMoney(shippingOption.price) : !hasCompleteShippingAddress ? "A calcular" : "A confirmar"}</strong></div>{couponDiscount>0&&<div className="checkout-total"><span>Desconto</span><strong>- {formatMoney(couponDiscount)}</strong></div>}<CartGiftProgress missions={giftMissions} netSubtotal={subtotal - productDiscount} products={products} cartIds={new Set(cart.map(item => String(item.id)))} onAdd={onAddProduct} contribution={price => price - merchandiseDiscount(subtotal + price, appliedCoupon) + productDiscount} /><div className="checkout-total grand"><span>Total no InfinitePay</span><strong>{formatMoney(orderTotal)}</strong></div><p className="checkout-note">{shippingOption?.service === "Retirada no local" ? "O InfinitePay cobrará somente os produtos menos o desconto. A retirada não tem custo de frete." : shippingOption?.price ? "O InfinitePay cobrará os produtos, desconto e frete calculado para Palmas." : !hasCompleteShippingAddress ? "O frete será definido após informar o CEP e preencher o endereço completo." : "O InfinitePay cobrará somente os produtos menos o desconto. O frete, quando aplicável, será combinado e pago separadamente."}</p></aside>
+    <aside className="checkout-summary"><div className="checkout-summary-head"><div><p className="store-kicker">RESUMO</p><h2>Seu pedido</h2></div><span>{cart.reduce((sum,item)=>sum+item.quantity,0)} itens</span></div>{cart.map(item=><div className="checkout-item" key={item.id}><div className="checkout-item-thumb" style={item.imageUrl?{backgroundImage:"url("+item.imageUrl+")"}:undefined}>{!item.imageUrl&&<Gem size={18}/>}</div><div className="checkout-item-main"><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span>{!ownsCurrentReservation && cartStockNotice(item) && <p className="cart-stock-notice" role="status">{cartStockNotice(item)}</p>}<button type="button" aria-label={`Remover ${item.name}`} onClick={() => onRemove(item.id)}>Remover</button><div className="qty-controls"><button type="button" onClick={()=>onChangeQty(item.id,-1)}>−</button><span>{item.quantity}</span><button type="button" onClick={()=>onChangeQty(item.id,1)} disabled={item.quantity >= Math.min(item.stock ?? 0, 20)}>+</button></div></div><b>{!ownsCurrentReservation && cartStockNotice(item) ? "Fora do subtotal" : formatMoney(item.price*item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total"><span>Frete</span><strong>{shippingOption?.service === "Retirada no local" || shippingOption?.service === "Frete a combinar" ? "À parte" : shippingOption ? formatMoney(shippingOption.price) : !hasCompleteShippingAddress ? "A calcular" : "A confirmar"}</strong></div>{couponDiscount>0&&<div className="checkout-total"><span>Desconto</span><strong>- {formatMoney(couponDiscount)}</strong></div>}<CartGiftProgress missions={giftMissions} netSubtotal={subtotal - productDiscount} products={products} cartIds={new Set(cart.map(item => String(item.id)))} onAdd={onAddProduct} contribution={price => price - merchandiseDiscount(subtotal + price, appliedCoupon) + productDiscount} /><div className="checkout-total grand"><span>Total no InfinitePay</span><strong>{formatMoney(orderTotal)}</strong></div><small>Até 3x sem juros no cartão. A partir de 4x, a InfinitePay informa os juros antes de pagar.</small><p className="checkout-note">{shippingOption?.service === "Retirada no local" ? "O InfinitePay cobrará somente os produtos menos o desconto. A retirada não tem custo de frete." : shippingOption?.price ? "O InfinitePay cobrará os produtos, desconto e frete calculado para Palmas." : !hasCompleteShippingAddress ? "O frete será definido após informar o CEP e preencher o endereço completo." : "O InfinitePay cobrará somente os produtos menos o desconto. O frete, quando aplicável, será combinado e pago separadamente."}</p></aside>
     </main>
     {quickPurchaseOpen && <div className="quick-purchase-overlay" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setQuickPurchaseOpen(false); }}><section className="quick-purchase-modal" role="dialog" aria-modal="true" aria-labelledby="quick-purchase-title"><button type="button" className="quick-purchase-close" onClick={() => setQuickPurchaseOpen(false)} aria-label="Fechar">×</button><p className="store-kicker">COMPRA MAIS RÁPIDA</p><h2 id="quick-purchase-title">Resolva pelo WhatsApp</h2><p className="quick-purchase-intro">Informe só o essencial. A equipe confirma disponibilidade, frete e envia o link ou as opções de pagamento.</p><form onSubmit={submitQuickPurchase}><label>Nome completo <span style={{color:"#c0392b"}}>*</span><input autoFocus required autoComplete="name" value={quickPurchase.name} onChange={event => setQuickPurchase(v => ({ ...v, name: event.target.value }))} /></label><label>WhatsApp com DDD <span style={{color:"#c0392b"}}>*</span><input required autoComplete="tel" inputMode="tel" value={quickPurchase.phone} onChange={event => setQuickPurchase(v => ({ ...v, phone: formatPhone(event.target.value) }))} placeholder="(63) 99999-9999" /></label><label>Endereço de entrega <span style={{color:"#c0392b"}}>*</span><textarea required rows={3} value={quickPurchase.address} onChange={event => setQuickPurchase(v => ({ ...v, address: event.target.value }))} placeholder="Rua, número, bairro, cidade e UF" /></label><small className="quick-purchase-note">Não precisa informar e-mail, CPF ou preencher o checkout completo.</small><button className="quick-purchase-submit" disabled={quickPurchaseBusy || !storeWhatsApp}><MessageCircle size={16}/>{quickPurchaseBusy ? "Preparando mensagem..." : "Continuar pelo WhatsApp"}</button></form></section></div>}
   </div>;

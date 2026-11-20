@@ -59,14 +59,17 @@ Deno.serve(async (req) => {
         }
       : null;
 
-    const [{ data: items }, { data: history }, { data: reviews }] = await Promise.all([
+    const [{ data: items }, { data: shipment }, { data: history }, { data: reviews }] = await Promise.all([
       db.from("order_items").select("id,product_id,product_name,quantity,unit_price,total_price").eq("order_id", order.id),
+      db.from("shipments").select("carrier,service,tracking_code,tracking_url,shipping_status,created_at,updated_at").eq("order_id", order.id).maybeSingle(),
       db.from("order_status_history").select("status,created_at,note").eq("order_id", order.id).order("created_at", { ascending: true }),
       db.from("product_reviews").select("order_item_id,status").eq("order_id", order.id),
     ]);
-    const shipment = order.tracking_code
-      ? { carrier: null, service: "Rastreamento informado manualmente", tracking_code: order.tracking_code, tracking_url: null, shipping_status: null, created_at: order.created_at, updated_at: order.created_at }
-      : null;
+
+    const manualCode = order.tracking_code?.trim();
+    const tracking = manualCode && manualCode !== shipment?.tracking_code
+      ? { carrier: null, service: "Rastreamento informado manualmente", tracking_code: manualCode, tracking_url: null, shipping_status: null }
+      : shipment;
 
     return Response.json({
       order: {
@@ -80,7 +83,7 @@ Deno.serve(async (req) => {
         shipping_address: safeShipping,
       },
       items: items || [],
-      shipment: shipment || null,
+      shipment: tracking || null,
       history: history || [],
       reviews: reviews || [],
     }, { headers: cors });
