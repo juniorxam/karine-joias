@@ -1,5 +1,5 @@
 import { useReservationCountdown } from "./lib/reservation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Clock3, CreditCard, Gift, Eye, LogOut, Package, ShieldCheck, Truck, UserRound, X, Save, LockKeyhole } from "lucide-react";
 import { toast } from "sonner";
 import { customerSupabase } from "./lib/supabase";
@@ -10,7 +10,7 @@ type SavedAddress = { id:string; label:string; recipient:string; postal_code:str
 type StatusHistory = { id:string; status:string; note?:string|null; created_at:string };
 type Order = {
   id:string; order_number:string; total_amount:number; subtotal_amount:number; shipping_amount:number; discount_amount:number;
-  payment_status:string; status:string; created_at:string; payment_url?:string|null;
+  payment_status:string; status:string; created_at:string; customer_email?:string|null;
   shipping_address?: { postal_code?:string; address?:string; number?:string; complement?:string; neighborhood?:string; city?:string; state?:string; shipping_option?:{service?:string;price?:number} }|null;
   order_items?: Array<{id:string;product_name:string;quantity:number;unit_price:number;total_price:number}>;
   shipments?: Array<{carrier?:string|null;service?:string|null;tracking_code?:string|null;tracking_url?:string|null;shipping_status?:string|null}>;
@@ -46,6 +46,55 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   const [selected,setSelected]=useState<Order|null>(null);
   const pending = selected?.payment_status === "PENDING" && selected.status === "PENDING_PAYMENT";
   const reservation = useReservationCountdown(selected?.created_at, pending);
+  const [resumingOrder, setResumingOrder] = useState<string | null>(null);
+  const [paymentError, setPaymentError] = useState("");
+  const paymentRequest = useRef<object | null>(null);
+  const selectedOrderId = selected?.id;
+  const accountUserId = session?.user?.id;
+
+  useEffect(() => {
+    setPaymentError("");
+    setResumingOrder(null);
+    return () => { paymentRequest.current = null; };
+  }, [selectedOrderId, accountUserId]);
+
+  const resumePayment = async () => {
+    if (!selected || !customerSupabase || !accountUserId || !pending ||
+        !reservation || reservation.expired || paymentRequest.current) return;
+    const order = selected;
+    const request = {};
+    paymentRequest.current = request;
+    setResumingOrder(order.id);
+    setPaymentError("");
+    try {
+      const { data, error } = await customerSupabase.functions.invoke("create-infinitepay-payment", {
+        body: { order_number: order.order_number, email: order.customer_email || session.user.email },
+      });
+      if (paymentRequest.current !== request) return;
+      if (!error && typeof data?.url === "string" && /^https:\/\//i.test(data.url)) {
+        window.location.assign(data.url);
+        return;
+      }
+
+      const body = await error?.context?.clone?.().json().catch(() => null);
+      if (paymentRequest.current !== request) return;
+      const message = typeof body?.error === "string" ? body.error : "Não foi possível abrir o pagamento. Tente novamente.";
+      setPaymentError(message);
+      const { data: current } = await customerSupabase.from("orders")
+        .select("status,payment_status").eq("id", order.id).eq("customer_user_id", accountUserId).maybeSingle();
+      if (paymentRequest.current === request && current) {
+        setOrders(items => items.map(item => item.id === order.id ? { ...item, ...current } : item));
+        setSelected(item => item?.id === order.id ? { ...item, ...current } : item);
+      }
+    } catch {
+      if (paymentRequest.current === request) setPaymentError("Não foi possível abrir o pagamento. Tente novamente.");
+    } finally {
+      if (paymentRequest.current === request) {
+        paymentRequest.current = null;
+        setResumingOrder(null);
+      }
+    }
+  };
   const [activeTab,setActiveTab]=useState<"overview"|"orders"|"profile"|"gifts"|"addresses">("overview");
   const [search,setSearch]=useState("");
   const [orderFilter,setOrderFilter]=useState("ALL");
@@ -123,7 +172,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
     let cancelled=false;
     (async()=>{
       const {data,error}=await customerSupabase.from("orders")
-        .select("id,order_number,total_amount,subtotal_amount,shipping_amount,discount_amount,payment_status,status,created_at,payment_url,shipping_address,order_items(id,product_name,quantity,unit_price,total_price),shipments(carrier,service,tracking_code,tracking_url,shipping_status),order_status_history(id,status,note,created_at)")
+        .select("id,order_number,total_amount,subtotal_amount,shipping_amount,discount_amount,payment_status,status,created_at,customer_email,shipping_address,order_items(id,product_name,quantity,unit_price,total_price),shipments(carrier,service,tracking_code,tracking_url,shipping_status),order_status_history(id,status,note,created_at)")
         .eq("customer_user_id",session.user.id)
         .order("created_at",{ascending:false});
       if(cancelled)return;
@@ -371,6 +420,11 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
         return <div className={"customer-step "+(done?"done":"")} key={String(key)}><span className="customer-step-dot"><Icon size={15}/></span><div><strong>{String(label)}</strong><small>{event?new Date(event.created_at).toLocaleString("pt-BR"):done?"Concluído":"Aguardando"}</small></div>{i<5&&<span className="customer-step-line"/>}</div>;
       })}</div>
       <div className="customer-status-box"><strong>{displayStatus(selected.status)}</strong><span>{paymentLabels[selected.payment_status]||selected.payment_status}</span></div>
+      {reservation && <p>{reservation.expired ? "O prazo da reserva terminou." : `Tempo para pagar: ${reservation.time}`}</p>}
+      {pending && reservation && !reservation.expired && <button type="button" className="checkout-submit customer-pay" onClick={() => void resumePayment()} disabled={resumingOrder === selected.id}>
+        <CreditCard size={17}/> {resumingOrder === selected.id ? "Abrindo pagamento…" : "Continuar pagamento"}
+      </button>}
+      {paymentError && <p role="alert">{paymentError}</p>}
       <div className="customer-detail-grid">
         <div className="customer-detail-panel"><h3>Produtos</h3><div className="customer-order-items">{(selected.order_items||[]).map(item=><div key={item.id}><span>{item.quantity}× {item.product_name}</span><strong>{money(Number(item.total_price||item.unit_price*item.quantity))}</strong></div>)}</div></div>
         <div className="customer-detail-panel"><h3>Resumo</h3><div className="customer-summary-row"><span>Subtotal</span><strong>{money(selected.subtotal_amount)}</strong></div><div className="customer-summary-row"><span>Frete</span><strong>{Number(selected.shipping_amount)>0?money(selected.shipping_amount):"À parte / grátis"}</strong></div>{Number(selected.discount_amount)>0&&<div className="customer-summary-row"><span>Desconto</span><strong>- {money(selected.discount_amount)}</strong></div>}<div className="customer-total"><span>Total</span><strong>{money(selected.total_amount)}</strong></div></div>
@@ -378,8 +432,6 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       {selected.shipping_address&&<div className="customer-detail-panel" style={{marginTop:14}}><h3>Entrega</h3><p>{selected.shipping_address.shipping_option?.service||"Entrega"} · {selected.shipping_address.address||""}{selected.shipping_address.number?", "+selected.shipping_address.number:""}{selected.shipping_address.complement?" · "+selected.shipping_address.complement:""}</p><small>{selected.shipping_address.neighborhood||""} · {selected.shipping_address.city||""}/{selected.shipping_address.state||""} · CEP {selected.shipping_address.postal_code||""}</small></div>}
       {selected.order_status_history?.length&&<div className="customer-detail-panel" style={{marginTop:14}}><h3>Histórico do pedido</h3>{selected.order_status_history.map(event=><div className="customer-summary-row" key={event.id}><span>{displayStatus(event.status)}{event.note?" · "+event.note:""}</span><small>{new Date(event.created_at).toLocaleString("pt-BR")}</small></div>)}</div>}
       {selected.shipments?.[0]?.tracking_code&&<div className="customer-tracking"><Truck size={20}/><div><strong>{selected.shipments[0].carrier||"Entrega"}</strong><span>{selected.shipments[0].tracking_code}</span>{selected.shipments[0].tracking_url&&<a href={selected.shipments[0].tracking_url} target="_blank" rel="noreferrer">Acompanhar entrega ↗</a>}</div></div>}
-      {reservation && <p>{reservation.expired ? "O prazo da reserva terminou." : `Tempo para pagar: ${reservation.time}`}</p>}
-      {pending && !reservation?.expired && selected.payment_url && <a className="checkout-submit customer-pay" href={selected.payment_url}>Continuar pagamento</a>}
     </div>
     :activeTab==="overview"?<div>
       <div className="customer-metrics"><div><Package/><span>Pedidos</span><strong>{orders.length}</strong></div><div><Truck/><span>Em andamento</span><strong>{activeOrders.length}</strong></div><div><CreditCard/><span>Total comprado</span><strong>{money(totalSpent)}</strong></div></div>
