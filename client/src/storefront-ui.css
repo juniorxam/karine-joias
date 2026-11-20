@@ -239,9 +239,6 @@
 .store-footer .payment-apple svg { width: 18px; height: 18px; }
 .store-footer .payment-google { font: 600 12px/1 Arial,sans-serif; }
 .store-footer .payment-google strong { font: 800 19px/1 Arial,sans-serif; background: linear-gradient(120deg,#4285f4 0 28%,#34a853 30% 48%,#fbbc05 50% 68%,#ea4335 70%); color: transparent; background-clip: text; }
-.store-footer .payment-samsung { display: grid; gap: 2px; align-content: center; text-align: left; }
-.store-footer .payment-samsung b { color: #1428a0; font: 800 7px/1 Arial,sans-serif; letter-spacing: .3px; }
-.store-footer .payment-samsung strong { color: #242424; font: 600 11px/1 Arial,sans-serif; }
 .store-footer .footer-payment-note { color: #81767b; font-size: 11px; }
 @media (max-width: 760px) {
   .store-footer .footer-card-brands { gap: 7px; }
