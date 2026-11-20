@@ -1,3 +1,4 @@
+import "./customer-payment.css";
 import { useReservationCountdown } from "./lib/reservation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Clock3, CreditCard, Gift, Eye, LogOut, Package, ShieldCheck, Truck, UserRound, X, Save, LockKeyhole } from "lucide-react";
@@ -412,6 +413,17 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
     {selected?<div className="customer-order-detail">
       <button className="customer-back" onClick={()=>setSelected(null)}><ArrowLeft size={16}/> Voltar aos pedidos</button>
       <div className="customer-order-title"><div><p className="store-kicker">DETALHES DO PEDIDO</p><h2>{selected.order_number}</h2><small>{new Date(selected.created_at).toLocaleString("pt-BR")}</small></div><strong>{money(selected.total_amount)}</strong></div>
+      {reservation && <section className="customer-payment-action" aria-label="Pagamento do pedido">
+        <div>
+          <strong>{reservation.expired ? "Reserva expirada" : "Aguardando pagamento"}</strong>
+          <p>{reservation.expired ? "O prazo da reserva terminou." : `Tempo para pagar: ${reservation.time}`}</p>
+        </div>
+        {!reservation.expired && <button type="button" className="customer-resume-payment" onClick={() => void resumePayment()} disabled={resumingOrder === selected.id}>
+          <CreditCard size={19}/> {resumingOrder === selected.id ? "Abrindo pagamento…" : "Continuar pagamento"}
+        </button>}
+        {paymentError && <p className="customer-payment-error" role="alert">{paymentError}</p>}
+      </section>}
+      {!reservation && paymentError && <p role="alert">{paymentError}</p>}
       <div className="customer-timeline">{[["PENDING_PAYMENT","Pedido recebido",Package],["PAID","Pagamento confirmado",CreditCard],["PROCESSING","Em preparação",Clock3],["READY_TO_SHIP","Pronto para envio",Package],["SHIPPED","Enviado",Truck],["DELIVERED","Entregue",Check]].map(([key,label,Icon],i)=>{
         const history=selected.order_status_history||[];
         const event=history.find(item=>item.status===key);
@@ -420,11 +432,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
         return <div className={"customer-step "+(done?"done":"")} key={String(key)}><span className="customer-step-dot"><Icon size={15}/></span><div><strong>{String(label)}</strong><small>{event?new Date(event.created_at).toLocaleString("pt-BR"):done?"Concluído":"Aguardando"}</small></div>{i<5&&<span className="customer-step-line"/>}</div>;
       })}</div>
       <div className="customer-status-box"><strong>{displayStatus(selected.status)}</strong><span>{paymentLabels[selected.payment_status]||selected.payment_status}</span></div>
-      {reservation && <p>{reservation.expired ? "O prazo da reserva terminou." : `Tempo para pagar: ${reservation.time}`}</p>}
-      {pending && reservation && !reservation.expired && <button type="button" className="checkout-submit customer-pay" onClick={() => void resumePayment()} disabled={resumingOrder === selected.id}>
-        <CreditCard size={17}/> {resumingOrder === selected.id ? "Abrindo pagamento…" : "Continuar pagamento"}
-      </button>}
-      {paymentError && <p role="alert">{paymentError}</p>}
+
       <div className="customer-detail-grid">
         <div className="customer-detail-panel"><h3>Produtos</h3><div className="customer-order-items">{(selected.order_items||[]).map(item=><div key={item.id}><span>{item.quantity}× {item.product_name}</span><strong>{money(Number(item.total_price||item.unit_price*item.quantity))}</strong></div>)}</div></div>
         <div className="customer-detail-panel"><h3>Resumo</h3><div className="customer-summary-row"><span>Subtotal</span><strong>{money(selected.subtotal_amount)}</strong></div><div className="customer-summary-row"><span>Frete</span><strong>{Number(selected.shipping_amount)>0?money(selected.shipping_amount):"À parte / grátis"}</strong></div>{Number(selected.discount_amount)>0&&<div className="customer-summary-row"><span>Desconto</span><strong>- {money(selected.discount_amount)}</strong></div>}<div className="customer-total"><span>Total</span><strong>{money(selected.total_amount)}</strong></div></div>

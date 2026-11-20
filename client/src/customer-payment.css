@@ -1,0 +1,54 @@
+.customer-payment-action {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin: 18px 0;
+  padding: 16px 18px;
+  border: 1px solid #ddd0c5;
+  border-radius: 14px;
+  background: #f8f1eb;
+}
+
+.customer-payment-action p {
+  margin: 4px 0 0;
+}
+
+.customer-resume-payment {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 10px 22px;
+  border: 1px solid #503a2d;
+  border-radius: 10px;
+  background-color: #503a2d;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.customer-resume-payment:hover:not(:disabled) {
+  background-color: #3d2c22;
+}
+
+.customer-resume-payment:focus-visible {
+  outline: 2px solid #503a2d;
+  outline-offset: 3px;
+}
+
+.customer-resume-payment:disabled {
+  cursor: wait;
+}
+
+.customer-payment-action .customer-payment-error {
+  flex-basis: 100%;
+  color: #842b37;
+}
+
+@media (max-width: 640px) {
+  .customer-resume-payment { width: 100%; }
+}
