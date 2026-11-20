@@ -39,7 +39,7 @@ const getProductType = (product: CatalogProduct) => {
   const name = normalizeCatalogText(product.name);
   return productTypeDefinitions.find(type => type.terms.some(term => name.includes(term)))?.key;
 };
-const storeWhatsApp = (import.meta.env.VITE_STORE_WHATSAPP as string | undefined)?.replace(/\D/g, "") || "63999945488";
+const storeWhatsApp = "556399945488";
 const storeInstagram = (import.meta.env.VITE_STORE_INSTAGRAM as string | undefined)?.trim() || "https://www.instagram.com/violettapratasesemijoias/";
 const logoSrc = "/logo-violetta.jpeg";
 
