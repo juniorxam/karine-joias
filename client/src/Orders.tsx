@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Clock3, PackageCheck, RefreshCw, ShieldCheck, Truck, X } from "lucide-react";
 import { toast } from "sonner";
+import { useReservationCountdown } from "./lib/reservation";
 import { supabase } from "./lib/supabase";
 
 type OrderItem = { id: string; product_name: string; quantity: number; unit_price: number; total_price: number };
@@ -34,6 +35,9 @@ type Order = {
   customer_email: string;
   customer_phone: string;
   total_amount: number;
+  subtotal_amount: number;
+  discount_amount: number;
+  review_events?: { event_type: string }[];
   status: string;
   payment_status: string;
   payment_method: string;
@@ -66,9 +70,27 @@ const statusTransitions: Record<string,string[]> = {
 };
 
 const money=(n:number)=>Number(n).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
-const date=(v:string)=>new Date(v).toLocaleString("pt-BR");
+const date=(v:string)=>new Date(v).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
 const paymentMethodLabel=(id:string|null|undefined)=>{const map:Record<string,string>={pix:"PIX",credit_card:"Cartão de crédito",debit_card:"Cartão de débito",account_money:"Saldo Mercado Pago",bank_transfer:"Transferência bancária",ticket:"Boleto"};return id?map[id]||id:"—";};
 const paymentStatusLabel=(id:string|null|undefined)=>{const map:Record<string,string>={PAID:"Pago",PENDING:"Pendente",APPROVED:"Aprovado",REFUNDED:"Reembolsado",FAILED:"Falhou",CANCELLED:"Cancelado",REJECTED:"Recusado",IN_PROCESS:"Em análise"};return id?map[String(id).toUpperCase()]||id:"—";};
+const reviewLabels: Record<string, string> = {
+  late_payment_review: "Pagamento após o prazo",
+  duplicate_payment_review: "Possível pagamento duplicado",
+  provider_mismatch: "Provedor de pagamento divergente",
+  amount_mismatch: "Valor do pagamento divergente",
+};
+const reviewTypes = Object.keys(reviewLabels);
+const paymentEventLabel = (type: string | null) => type ? reviewLabels[type] || type : "Evento de pagamento";
+const orderFields = "id,order_number,customer_name,customer_email,customer_phone,total_amount,subtotal_amount,discount_amount,status,payment_status,payment_method,payment_provider,payment_provider_id,payment_url,created_at,shipping_address,shipping_amount,tracking_code";
+
+function shippingLabel(order: Order) {
+  const service = String(order.shipping_address?.shipping_option?.service || "").toLowerCase();
+  if (service.includes("retirada")) return "Retirada no local";
+  if (Number(order.shipping_amount) > 0) return money(order.shipping_amount);
+  if (service.includes("grátis") || service.includes("entrega em palmas")) return "Frete grátis";
+  return "Frete a combinar";
+}
+
 const paymentPayload=(payload:Record<string,any>|null)=>{if(!payload)return {}; const nested=payload.data && typeof payload.data==="object"?payload.data:{}; return {...payload,...nested};};
 
 export default function Orders({ ownerId }: { ownerId?: string }) {
@@ -80,6 +102,10 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
   const [query,setQuery]=useState("");
   const [sort,setSort]=useState("RECENTES");
   const [selected,setSelected]=useState<Order|null>(null);
+  const activeOrderId = useRef<string | null>(null);
+  const detailRequest = useRef(0);
+  const listRequest = useRef(0);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [items,setItems]=useState<OrderItem[]>([]);
   const [history,setHistory]=useState<History[]>([]);
   const [payment,setPayment]=useState<PaymentDetails|null>(null);
@@ -93,29 +119,29 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
     const channel=client.channel("orders-management-"+ownerId)
       .on("postgres_changes",{event:"*",schema:"public",table:"orders",filter:"owner_id=eq."+ownerId},()=>{
         void load();
-        if(selected) {
-          void (async()=>{
-            const {data}=await client.from("orders").select("id,order_number,customer_name,customer_email,customer_phone,total_amount,status,payment_status,payment_method,payment_provider,payment_provider_id,payment_url,created_at,shipping_address,shipping_amount,tracking_code").eq("id",selected.id).eq("owner_id",ownerId).maybeSingle();
-            if(data) await openOrder(data as Order);
-          })();
-        }
+        if (activeOrderId.current) void loadDetails(activeOrderId.current);
       })
       .on("postgres_changes",{event:"*",schema:"public",table:"payment_events"},()=>{
-        if(selected) void openOrder(selected);
+        void load();
+        if (activeOrderId.current) void loadDetails(activeOrderId.current);
       })
       .on("postgres_changes",{event:"*",schema:"public",table:"order_status_history"},()=>{
-        if(selected) void openOrder(selected);
+        if (activeOrderId.current) void loadDetails(activeOrderId.current);
       })
       .subscribe();
-    return()=>{void client.removeChannel(channel)};
-  },[ownerId,selected?.id]);
+    return()=>{++detailRequest.current; ++listRequest.current; void client.removeChannel(channel)};
+  },[ownerId]);
 
   const load=async()=>{
     if(!supabase||!ownerId)return;
+    const request = ++listRequest.current;
     setLoading(true);
-    const {data,error}=await supabase.from("orders").select("id,order_number,customer_name,customer_email,customer_phone,total_amount,shipping_amount,shipping_address,status,payment_status,payment_method,payment_provider,payment_provider_id,payment_url,created_at,tracking_code").eq("owner_id",ownerId).order("created_at",{ascending:false});
+    const {data,error}=await supabase.from("orders")
+      .select(orderFields + ",review_events:payment_events(event_type)")
+      .eq("owner_id",ownerId).in("review_events.event_type",reviewTypes).order("created_at",{ascending:false});
+    if (request !== listRequest.current) return;
     if(error)toast.error("Não foi possível carregar os pedidos",{description:error.message});
-    else setOrders((data??[]) as Order[]);
+    else setOrders((data??[]) as unknown as Order[]);
     setLoading(false);
   };
 
@@ -124,7 +150,7 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
   useEffect(()=>{
     if(!selected)return;
     const onKeyDown=(event:KeyboardEvent)=>{
-      if(event.key==="Escape")setSelected(null);
+      if(event.key==="Escape")closeOrder();
     };
     window.addEventListener("keydown",onKeyDown);
     return()=>window.removeEventListener("keydown",onKeyDown);
@@ -157,23 +183,49 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
     else toast.error("Diagnóstico encontrou pendências");
   };
 
-  const openOrder=async(order:Order)=>{
-    if(!supabase)return;
-    setSelected(order); setTracking(order.tracking_code||"");
-    const [i,h,p]=await Promise.all([
-      supabase.from("order_items").select("id,product_name,quantity,unit_price,total_price").eq("order_id",order.id),
-      supabase.from("order_status_history").select("id,status,note,created_at").eq("order_id",order.id).order("created_at",{ascending:false}),
-      supabase.from("payment_events").select("id,provider,provider_event_id,event_type,payload,created_at").eq("order_id",order.id).order("created_at",{ascending:false})
+  const closeOrder = () => {
+    activeOrderId.current = null;
+    ++detailRequest.current;
+    setSelected(null);
+  };
+
+  const openOrder=(order:Order)=>{
+    activeOrderId.current = order.id;
+    setSelected(order);
+    setTracking(order.tracking_code || "");
+    setItems([]);
+    setHistory([]);
+    setPayment(null);
+    setDetailLoading(true);
+    void loadDetails(order.id);
+  };
+
+  const loadDetails=async(id:string)=>{
+    if(!supabase || !ownerId || activeOrderId.current !== id)return;
+    const request = ++detailRequest.current;
+    const [o,i,h,p]=await Promise.all([
+      supabase.from("orders").select(orderFields).eq("id",id).eq("owner_id",ownerId).single(),
+      supabase.from("order_items").select("id,product_name,quantity,unit_price,total_price").eq("order_id",id),
+      supabase.from("order_status_history").select("id,status,note,created_at").eq("order_id",id).order("created_at",{ascending:false}),
+      supabase.from("payment_events").select("id,provider,provider_event_id,event_type,payload,created_at").eq("order_id",id).order("created_at",{ascending:false})
     ]);
-    if(i.error||h.error||p.error) toast.error("Não foi possível carregar os detalhes do pedido");
-    setItems((i.data||[]) as OrderItem[]); setHistory((h.data||[]) as History[]);
+    if (request !== detailRequest.current || activeOrderId.current !== id) return;
+    setDetailLoading(false);
+    if(o.error||i.error||h.error||p.error) {
+      toast.error("Não foi possível carregar os detalhes do pedido");
+      return;
+    }
+    const order = o.data as unknown as Order;
+    setSelected(order);
+    setItems((i.data||[]) as OrderItem[]);
+    setHistory((h.data||[]) as History[]);
     const latest=paymentPayload((p.data?.[0]?.payload||null) as Record<string,any>|null);
     setPayment({
       provider: order.payment_provider || latest.provider || null,
       provider_id: order.payment_provider_id || (latest.id?String(latest.id):null),
-      payment_url: order.payment_url || latest.point_of_interaction?.transaction_data?.ticket_url || null,
+      payment_url: order.payment_url || null,
       method: latest.payment_method_id || latest.payment_type_id || order.payment_method || null,
-      status: latest.status || order.payment_status || null,
+      status: order.payment_status || null,
       status_detail: latest.status_detail || null,
       transaction_id: latest.transaction_details?.transaction_id || latest.point_of_interaction?.transaction_data?.e2e_id || latest.transaction_nsu || latest.verified?.transaction_nsu || null,
       amount: latest.transaction_amount ?? (latest.verified?.amount != null ? Number(latest.verified.amount) / 100 : (latest.amount != null ? Number(latest.amount) / 100 : null)),
@@ -188,7 +240,6 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
       expiration_date: latest.date_of_expiration || null,
       events: (p.data||[]) as PaymentEvent[]
     });
-    setTracking(order.tracking_code||"");
   };
 
   const saveTracking=async()=>{
@@ -196,8 +247,7 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
     const {error}=await supabase.from("orders").update({tracking_code:tracking.trim()||null}).eq("id",selected.id).eq("owner_id",ownerId);
     if(error){toast.error("Não foi possível salvar o rastreio",{description:error.message});return;}
     toast.success("Rastreamento atualizado");
-    await load();
-    await openOrder({...selected,tracking_code:tracking.trim()||null});
+    await Promise.all([load(), loadDetails(selected.id)]);
   };
 
   const updateStatus=async(order:Order,status:string)=>{
@@ -257,10 +307,10 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
 
     setOrders(v=>v.map(x=>x.id===order.id?{...x,status}:x));
     toast.success("Pedido atualizado");
-    await openOrder({...order,status});
+    await Promise.all([load(), loadDetails(order.id)]);
   };
 
-  const visible=orders.filter(x=>{const statusOk=filter==="TODOS"||x.status===filter;const paymentOk=paymentFilter==="TODOS"||String(x.payment_status||"").toUpperCase()===paymentFilter;const queryOk=!query.trim()||`${x.order_number} ${x.customer_name} ${x.customer_email}`.toLowerCase().includes(query.toLowerCase());const days=period==="TODOS"?Infinity:Number(period);const periodOk=period==="TODOS"||((Date.now()-new Date(x.created_at).getTime())<=days*86400000);return statusOk&&paymentOk&&queryOk&&periodOk;});
+  const visible=orders.filter(x=>{const statusOk=filter==="TODOS"||x.status===filter;const paymentOk=paymentFilter==="REVIEW"?Boolean(x.review_events?.length):paymentFilter==="TODOS"||String(x.payment_status||"").toUpperCase()===paymentFilter;const queryOk=!query.trim()||`${x.order_number} ${x.customer_name} ${x.customer_email}`.toLowerCase().includes(query.toLowerCase());const days=period==="TODOS"?Infinity:Number(period);const periodOk=period==="TODOS"||((Date.now()-new Date(x.created_at).getTime())<=days*86400000);return statusOk&&paymentOk&&queryOk&&periodOk;});
   const totalVisible=visible.reduce((sum,x)=>sum+Number(x.total_amount||0),0);
   const paidVisible=visible.filter(x=>["PAID","APPROVED"].includes(String(x.payment_status||"").toUpperCase())).reduce((sum,x)=>sum+Number(x.total_amount||0),0);
   const pendingVisible=visible.filter(x=>["PENDING","IN_PROCESS"].includes(String(x.payment_status||"").toUpperCase())).reduce((sum,x)=>sum+Number(x.total_amount||0),0);
@@ -281,7 +331,7 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
     setPeriod("TODOS");
     setQuery("");
     if(type==="READY")setFilter("READY_TO_SHIP");
-    if(type==="ATTENTION")setPaymentFilter("PENDING");
+    if(type==="ATTENTION")setFilter("PENDING_PAYMENT");
   };
   const exportVisibleCsv=()=>{
     const header=["Pedido","Cliente","E-mail","Data","Pagamento","Método","Total","Status"];
@@ -293,14 +343,11 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
   };
 
   const resetFilters=()=>{setFilter("TODOS");setPaymentFilter("TODOS");setPeriod("TODOS");setQuery("");setSort("RECENTES");};
-  const timeline=[...(history||[]).map(h=>({kind:"status",date:h.created_at,title:statusLabel[h.status]||h.status,detail:h.note||"Atualização do pedido"})),...(payment?.events||[]).map(e=>({kind:"payment",date:e.created_at,title:e.event_type||"Evento de pagamento",detail:e.provider_event_id?((e.provider||"Mercado Pago")+" · "+e.provider_event_id):(e.provider||"Mercado Pago")}))].sort((a,b)=>new Date(b.date).getTime()-new Date(a.date).getTime());
+  const timeline=[...(history||[]).map(h=>({kind:"status",date:h.created_at,title:statusLabel[h.status]||h.status,detail:h.note||"Atualização do pedido"})),...(payment?.events||[]).map(e=>({kind:"payment",date:e.created_at,title:paymentEventLabel(e.event_type),detail:e.provider_event_id?((e.provider||"Mercado Pago")+" · "+e.provider_event_id):(e.provider||"Mercado Pago")}))].sort((a,b)=>new Date(b.date).getTime()-new Date(a.date).getTime());
 
   const refreshSelected=async()=>{
     if(!selected)return;
-    await load();
-    const current=orders.find(x=>x.id===selected.id)||selected;
-    await openOrder(current);
-    toast.success("Detalhes atualizados");
+    await Promise.all([load(), loadDetails(selected.id)]);
   };
 
   const openCustomerWhatsApp=()=>{if(!selected)return;openWhatsApp(selected);};  const openStatusWhatsApp=(order:Order)=>{
@@ -319,11 +366,18 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
   };
   const icon=(status:string)=>status==="SHIPPED"?<Truck size={16}/>:status==="DELIVERED"?<CheckCircle2 size={16}/>:status==="PAID"||status==="PROCESSING"?<PackageCheck size={16}/>:<Clock3 size={16}/>;
 
+  const pendingReservation = selected?.status === "PENDING_PAYMENT" && selected.payment_status === "PENDING";
+  const reservation = useReservationCountdown(selected?.created_at, pendingReservation);
+  const expired = history.some(entry => entry.status === "CANCELLED" && entry.note?.startsWith("Reserva de 2 horas"));
+  const paymentLink = pendingReservation && reservation && !reservation.expired ? payment?.payment_url : null;
+  const reviewEvents = payment?.events.filter(event => event.event_type && reviewTypes.includes(event.event_type)) ?? [];
+  const reviewCount = orders.filter(order => order.review_events?.length).length;
+
   return <><div className="page-head"><div><p className="eyebrow">E-COMMERCE</p><h2>Pedidos online</h2><p>Acompanhe pagamentos, preparação e entrega dos pedidos da loja.</p></div><div style={{display:"flex",gap:8,alignItems:"center"}}><button className="secondary" onClick={()=>void runProductionHealthcheck()} disabled={healthLoading}><ShieldCheck size={14}/> {healthLoading?"Diagnosticando...":"Diagnóstico de produção"}</button><button className="secondary" onClick={()=>void load()}><RefreshCw size={14}/> Atualizar</button></div></div>
     {health&&<section style={{margin:"0 0 18px",padding:16,border:"1px solid rgba(0,0,0,.1)",borderRadius:14,background:"rgba(255,255,255,.7)"}}><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",marginBottom:10}}><strong>{health.ok?"Produção sem falhas críticas":"Produção com pendências"}</strong><small>{new Date(health.checked_at).toLocaleString("pt-BR")}</small></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8}}>{(health.checks||[]).map((check)=><div key={check.name} style={{padding:"10px 12px",borderRadius:10,border:"1px solid rgba(0,0,0,.08)"}}><div style={{fontWeight:700}}>{check.ok?"✓":"!"} {check.name}</div><small>{check.detail||check.message||"Verificado"}</small></div>)}</div></section>}
     <div className="orders-kpi-grid">
       <div className="stat orders-stat"><small>Pedidos filtrados</small><strong>{visible.length}</strong><span>{openVisible} em andamento · {attentionVisible} com atenção</span></div>
-      <div className="stat orders-stat orders-stat-money"><small>Faturamento filtrado</small><strong>{money(totalVisible)}</strong><span>ticket médio {visible.length?money(totalVisible/visible.length):money(0)}</span></div>
+      <div className="stat orders-stat orders-stat-money"><small>Valor dos pedidos filtrados</small><strong>{money(totalVisible)}</strong><span>ticket médio {visible.length?money(totalVisible/visible.length):money(0)}</span></div>
       <div className="stat orders-stat orders-stat-money"><small>Pagamentos confirmados</small><strong>{money(paidVisible)}</strong><span>{visible.filter(x=>["PAID","APPROVED"].includes(String(x.payment_status||"").toUpperCase())).length} pedidos</span></div>
       <div className="stat orders-stat orders-stat-money"><small>Pagamentos pendentes</small><strong>{money(pendingVisible)}</strong><span>{visible.filter(x=>["PENDING","IN_PROCESS"].includes(String(x.payment_status||"").toUpperCase())).length} pedidos</span></div>
     </div>
@@ -341,19 +395,23 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
     <div className="orders-toolbar">
       <div className="orders-quick-actions"><button className="secondary" onClick={()=>quickFilter("ATTENTION")}>Pendentes</button><button className="secondary" onClick={()=>quickFilter("READY")}>Prontos para envio</button><button className="secondary" onClick={()=>quickFilter("PENDING")}>Pagamento pendente</button></div>
       <button className="secondary" onClick={exportVisibleCsv}>Exportar CSV</button>
-    </div><div style={{display:"grid",gridTemplateColumns:"minmax(220px,1fr) 160px 160px 170px auto",gap:8,marginBottom:14}}><input placeholder="Buscar pedido, cliente ou e-mail" value={query} onChange={e=>setQuery(e.target.value)}/><select value={paymentFilter} onChange={e=>setPaymentFilter(e.target.value)}><option value="TODOS">Todos pagamentos</option><option value="PAID">Pago</option><option value="PENDING">Pendente</option><option value="REFUNDED">Reembolsado</option><option value="FAILED">Falhou</option></select><select value={period} onChange={e=>setPeriod(e.target.value)}><option value="TODOS">Todo período</option><option value="7">Últimos 7 dias</option><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option></select><select value={sort} onChange={e=>setSort(e.target.value)}><option value="RECENTES">Mais recentes</option><option value="MAIOR_VALOR">Maior valor</option><option value="MENOR_VALOR">Menor valor</option><option value="CLIENTE">Cliente (A-Z)</option></select><button className="secondary" onClick={resetFilters}>Limpar filtros</button></div>
+    </div><div style={{display:"grid",gridTemplateColumns:"minmax(220px,1fr) 160px 160px 170px auto",gap:8,marginBottom:14}}><input placeholder="Buscar pedido, cliente ou e-mail" value={query} onChange={e=>setQuery(e.target.value)}/><select value={paymentFilter} onChange={e=>setPaymentFilter(e.target.value)}><option value="TODOS">Todos pagamentos</option><option value="REVIEW">Pagamentos para revisar ({reviewCount})</option><option value="PAID">Pago</option><option value="PENDING">Pendente</option><option value="REFUNDED">Reembolsado</option><option value="FAILED">Falhou</option></select><select value={period} onChange={e=>setPeriod(e.target.value)}><option value="TODOS">Todo período</option><option value="7">Últimos 7 dias</option><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option></select><select value={sort} onChange={e=>setSort(e.target.value)}><option value="RECENTES">Mais recentes</option><option value="MAIOR_VALOR">Maior valor</option><option value="MENOR_VALOR">Menor valor</option><option value="CLIENTE">Cliente (A-Z)</option></select><button className="secondary" onClick={resetFilters}>Limpar filtros</button></div>
     <div className="table-wrap"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Data</th><th>Pagamento</th><th>Total</th><th>Status</th><th>Ação</th></tr></thead><tbody>
-      {loading?<tr><td colSpan={7}>Carregando pedidos...</td></tr>:visible.length===0?<tr><td colSpan={7}>Nenhum pedido encontrado.</td></tr>:sortedVisible.map(order=><tr key={order.id}><td><button className="order-link" onClick={()=>void openOrder(order)}><strong>{order.order_number}</strong></button></td><td><strong>{order.customer_name}</strong><small className="order-email">{order.customer_email}</small></td><td>{date(order.created_at)}</td><td><span className="payment-pill">{paymentStatusLabel(order.payment_status)}</span></td><td><strong>{money(order.total_amount)}</strong></td><td><span className="order-status">{icon(order.status)} {statusLabel[order.status]||order.status}</span></td><td><div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+      {loading?<tr><td colSpan={7}>Carregando pedidos...</td></tr>:visible.length===0?<tr><td colSpan={7}>Nenhum pedido encontrado.</td></tr>:sortedVisible.map(order=><tr key={order.id}><td><button className="order-link" onClick={()=>void openOrder(order)}><strong>{order.order_number}</strong></button></td><td><strong>{order.customer_name}</strong><small className="order-email">{order.customer_email}</small></td><td>{date(order.created_at)}</td><td><span className="payment-pill">{paymentStatusLabel(order.payment_status)}</span>{Boolean(order.review_events?.length)&&<small className="order-email">Pagamento para revisar</small>}</td><td><strong>{money(order.total_amount)}</strong></td><td><span className="order-status">{icon(order.status)} {statusLabel[order.status]||order.status}</span></td><td><div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
         <select className="order-select" value={order.status} onChange={e=>void updateStatus(order,e.target.value)}>{statusOptions.filter(s=>s===order.status||(statusTransitions[order.status]||[]).includes(s)).map(s=><option key={s} value={s}>{statusLabel[s]||s}</option>)}</select>
         <button className="secondary" title="Abrir pedido" onClick={()=>void openOrder(order)}>Abrir</button>
         <button className="secondary" title="Copiar número do pedido" onClick={()=>void copyText(order.order_number,"Número do pedido")}>Copiar</button>
         <button className="secondary" title="WhatsApp do cliente" onClick={()=>openWhatsApp(order)}>WhatsApp</button>
       </div></td></tr>)}
     </tbody></table></div>
-    {selected&&<div className="order-detail-backdrop" onMouseDown={()=>setSelected(null)}><aside className="order-detail" onMouseDown={e=>e.stopPropagation()}><button className="close order-close" onClick={()=>setSelected(null)}><X size={18}/></button><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,paddingRight:34}}><p className="eyebrow" style={{margin:0}}>PEDIDO ONLINE</p><button className="secondary" onClick={()=>void refreshSelected()} title="Atualizar detalhes"><RefreshCw size={14}/> Atualizar</button></div><h2>{selected.order_number}</h2><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}><span className="payment-pill">{String(selected.shipping_address?.shipping_option?.service||"").includes("Retirada no local") ? "Retirada no local" : Number(selected.shipping_amount||0)===0 ? "Frete a combinar" : "Frete " + money(Number(selected.shipping_amount||0))}</span></div><p className="order-customer"><strong>{selected.customer_name}</strong><br/>{selected.customer_email}<br/>{selected.customer_phone}</p><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}><button className="secondary" onClick={()=>void copyText(selected.order_number,"Número do pedido")}>Copiar pedido</button><button className="secondary" onClick={()=>openWhatsApp(selected)}>WhatsApp</button><button className="secondary" onClick={()=>void copyAddress(selected)}>Copiar endereço</button><button className="secondary" onClick={()=>openStatusWhatsApp(selected)}>Mensagem de status</button>{payment?.payment_url&&<button className="secondary" onClick={()=>window.open(payment.payment_url as string,"_blank","noopener,noreferrer")}>Abrir pagamento</button>}</div><h3>Itens</h3>{items.map(item=><div className="order-item-row" key={item.id}><span>{item.quantity}× {item.product_name}</span><strong>{money(item.total_price)}</strong></div>)}<div className="order-detail-total"><span>Produtos</span><strong>{money(selected.total_amount-Number(selected.shipping_amount||0))}</strong></div><div className="order-detail-total"><span>Frete</span><strong>{Number(selected.shipping_amount||0)===0 ? "À parte" : money(Number(selected.shipping_amount||0))}</strong></div><div className="order-detail-total grand"><span>Total</span><strong>{money(selected.total_amount)}</strong></div><h3>Pagamento</h3><div style={{padding:"12px 14px",border:"1px solid rgba(0,0,0,.08)",borderRadius:12,background:"rgba(0,0,0,.02)",marginBottom:16}}>
+    {selected&&<div className="order-detail-backdrop" onMouseDown={()=>closeOrder()}><aside className="order-detail" onMouseDown={e=>e.stopPropagation()}><button className="close order-close" onClick={()=>closeOrder()}><X size={18}/></button><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,paddingRight:34}}><p className="eyebrow" style={{margin:0}}>PEDIDO ONLINE</p><button className="secondary" onClick={()=>void refreshSelected()} title="Atualizar detalhes"><RefreshCw size={14}/> Atualizar</button></div><h2>{selected.order_number}</h2>
+      {detailLoading && <p role="status">Carregando detalhes do pedido…</p>}
+      {reservation && <p>{reservation.expired ? "Prazo da reserva encerrado" : `Reserva até ${date(new Date(Date.parse(selected.created_at) + 7200000).toISOString())} · ${reservation.time} restantes`}</p>}
+      {expired && <p><strong>Cancelado por expiração da reserva</strong></p>}
+      {reviewEvents.length > 0 && <section className="panel" role="status"><strong>Pagamento precisa de revisão</strong><ul>{reviewEvents.map(event => <li key={event.id}>{paymentEventLabel(event.event_type)} · {event.provider_event_id || "sem ID"}</li>)}</ul><p>Confira a transação na InfinitePay antes de tomar qualquer ação no pedido.</p></section>}<div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}><span className="payment-pill">{shippingLabel(selected)}</span></div><p className="order-customer"><strong>{selected.customer_name}</strong><br/>{selected.customer_email}<br/>{selected.customer_phone}</p><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}><button className="secondary" onClick={()=>void copyText(selected.order_number,"Número do pedido")}>Copiar pedido</button><button className="secondary" onClick={()=>openWhatsApp(selected)}>WhatsApp</button><button className="secondary" onClick={()=>void copyAddress(selected)}>Copiar endereço</button><button className="secondary" onClick={()=>openStatusWhatsApp(selected)}>Mensagem de status</button>{paymentLink&&<button className="secondary" onClick={()=>window.open(paymentLink,"_blank","noopener,noreferrer")}>Abrir pagamento</button>}</div><h3>Itens</h3>{items.map(item=><div className="order-item-row" key={item.id}><span>{item.quantity}× {item.product_name}</span><strong>{money(item.total_price)}</strong></div>)}<div className="order-detail-total"><span>Subtotal dos produtos</span><strong>{money(selected.subtotal_amount ?? selected.total_amount - Number(selected.shipping_amount || 0))}</strong></div>{Number(selected.discount_amount)>0&&<div className="order-detail-total"><span>Desconto</span><strong>− {money(selected.discount_amount)}</strong></div>}<div className="order-detail-total"><span>Frete</span><strong>{shippingLabel(selected)}</strong></div><div className="order-detail-total grand"><span>Total</span><strong>{money(selected.total_amount)}</strong></div><h3>Pagamento</h3><div style={{padding:"12px 14px",border:"1px solid rgba(0,0,0,.08)",borderRadius:12,background:"rgba(0,0,0,.02)",marginBottom:16}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
         <div><small>Provedor</small><strong style={{display:"block"}}>{payment?.provider==="mercadopago"?"Mercado Pago":payment?.provider||"—"}</strong></div>
-        <div><small>Status</small><strong style={{display:"block"}}>{payment?.status||"—"}{payment?.status_detail?(" · "+payment.status_detail):""}</strong></div>
+        <div><small>Status</small><strong style={{display:"block"}}>{paymentStatusLabel(payment?.status)}{payment?.status_detail?(" · "+payment.status_detail):""}</strong></div>
         <div><small>Método</small><strong style={{display:"block"}}>{paymentMethodLabel(payment?.method)}</strong></div>
         <div><small>ID do pagamento</small><strong style={{display:"block",wordBreak:"break-all"}}>{payment?.provider_id||"—"}</strong>{payment?.provider_id&&<button className="secondary" style={{marginTop:4}} onClick={()=>void copyText(payment.provider_id as string,"ID do pagamento")}>Copiar</button>}</div><div><small>ID transação</small><strong style={{display:"block",wordBreak:"break-all"}}>{payment?.transaction_id||"—"}</strong></div>
         <div><small>Valor processado</small><strong style={{display:"block"}}>{payment?.amount!=null?money(payment.amount):"—"}</strong></div>
@@ -363,9 +421,9 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
       </div>
       {(payment?.payer_name||payment?.payer_email)&&<p style={{margin:"12px 0 0"}}><strong>Pagador:</strong> {payment?.payer_name||"—"}{payment?.payer_email?(" · "+payment.payer_email):""}</p>}
       {(payment?.date_approved||payment?.expiration_date)&&<p style={{margin:"8px 0 0"}}><small>{payment?.date_approved?("Aprovado em "+date(payment.date_approved)):""}{payment?.expiration_date?(" · Expira em "+date(payment.expiration_date)):""}</small></p>}
-      {payment?.payment_url&&<p style={{margin:"12px 0 0"}}><a href={payment.payment_url} target="_blank" rel="noreferrer">Abrir pagamento/checkout ↗</a></p>}
+      {paymentLink&&<p style={{margin:"12px 0 0"}}><a href={paymentLink} target="_blank" rel="noreferrer">Abrir pagamento/checkout ↗</a></p>}
       <h4 style={{margin:"16px 0 8px"}}>Eventos do pagamento</h4>
-      {payment?.buyer_paid_amount!=null&&<div><small>Valor pago pelo comprador</small><strong style={{display:"block"}}>{money(payment.buyer_paid_amount)}</strong></div>}{payment?.receipt_url&&<p style={{margin:"12px 0 0"}}><a href={payment.receipt_url} target="_blank" rel="noreferrer">Abrir comprovante InfinitePay ↗</a></p>}{payment?.events?.length ? payment.events.map(e=><div key={e.id} style={{padding:"8px 0",borderTop:"1px solid rgba(0,0,0,.06)"}}><strong>{e.event_type||"Evento"}</strong><small style={{display:"block"}}>{e.provider||"Provedor de pagamento"} · {e.provider_event_id||"sem ID"} · {date(e.created_at)}</small></div>) : <small>Nenhum evento registrado para este pedido.</small>}
-    </div><h3>Entrega</h3><p>{selected.shipping_address?.address}, {selected.shipping_address?.number}<br/>{selected.shipping_address?.neighborhood}<br/>{selected.shipping_address?.city} - {selected.shipping_address?.state}<br/>CEP {selected.shipping_address?.postal_code}</p><h3>Entrega e frete</h3><div style={{padding:"12px 14px",border:"1px solid rgba(0,0,0,.08)",borderRadius:12,background:"rgba(0,0,0,.02)",marginBottom:16}}><strong>{String(selected.shipping_address?.shipping_option?.service||"").includes("Retirada no local") ? "Retirada no local" : Number(selected.shipping_amount||0)===0 ? "Frete a combinar" : "Frete calculado"}</strong><p style={{margin:"6px 0 0"}}>{String(selected.shipping_address?.shipping_option?.service||"").includes("Retirada no local") ? "Cliente fará a retirada no local, sem cobrança de frete." : String(selected.shipping_address?.shipping_option?.service||"").includes("Entrega em Palmas") ? "Entrega em Palmas: frete calculado automaticamente pela distância." : "O frete não foi calculado automaticamente e será negociado diretamente com a loja."}</p></div><h3>Rastreamento</h3><div className="tracking-edit"><input placeholder="Código de rastreio (opcional)" value={tracking} onChange={e=>setTracking(e.target.value)}/><button className="primary" onClick={()=>void saveTracking()}>Salvar</button>{tracking&&<button className="secondary" onClick={()=>void copyText(tracking,"Código de rastreio")}>Copiar</button>}</div><p style={{marginTop:8}}><small>O rastreamento é informado manualmente pela loja. Nenhuma integração automática de transportadora é utilizada.</small></p><h3>Linha do tempo</h3>{timeline.length?timeline.map((event,index)=><div className="history-row" key={event.kind+"-"+event.date+"-"+index}><strong>{event.kind==="payment"?"💳 ":""}{event.title}</strong><small>{date(event.date)} · {event.detail}</small></div>):<small>Nenhuma movimentação registrada.</small>}</aside></div>}
+      {payment?.buyer_paid_amount!=null&&<div><small>Valor pago pelo comprador</small><strong style={{display:"block"}}>{money(payment.buyer_paid_amount)}</strong></div>}{payment?.receipt_url&&<p style={{margin:"12px 0 0"}}><a href={payment.receipt_url} target="_blank" rel="noreferrer">Abrir comprovante InfinitePay ↗</a></p>}{payment?.events?.length ? payment.events.map(e=><div key={e.id} style={{padding:"8px 0",borderTop:"1px solid rgba(0,0,0,.06)"}}><strong>{paymentEventLabel(e.event_type)}</strong><small style={{display:"block"}}>{e.provider||"Provedor de pagamento"} · {e.provider_event_id||"sem ID"} · {date(e.created_at)}</small></div>) : <small>Nenhum evento registrado para este pedido.</small>}
+    </div><h3>Entrega</h3><p>{selected.shipping_address?.address}, {selected.shipping_address?.number}<br/>{selected.shipping_address?.neighborhood}<br/>{selected.shipping_address?.city} - {selected.shipping_address?.state}<br/>CEP {selected.shipping_address?.postal_code}</p><h3>Entrega e frete</h3><div style={{padding:"12px 14px",border:"1px solid rgba(0,0,0,.08)",borderRadius:12,background:"rgba(0,0,0,.02)",marginBottom:16}}><strong>{shippingLabel(selected)}</strong><p style={{margin:"6px 0 0"}}>{String(selected.shipping_address?.shipping_option?.service||"").includes("Retirada no local") ? "Cliente fará a retirada no local, sem cobrança de frete." : String(selected.shipping_address?.shipping_option?.service||"").includes("Entrega em Palmas") ? "Entrega em Palmas: frete calculado automaticamente pela distância." : "O frete não foi calculado automaticamente e será negociado diretamente com a loja."}</p></div><h3>Rastreamento</h3><div className="tracking-edit"><input placeholder="Código de rastreio (opcional)" value={tracking} onChange={e=>setTracking(e.target.value)}/><button className="primary" onClick={()=>void saveTracking()}>Salvar</button>{tracking&&<button className="secondary" onClick={()=>void copyText(tracking,"Código de rastreio")}>Copiar</button>}</div><p style={{marginTop:8}}><small>O rastreamento é informado manualmente pela loja. Nenhuma integração automática de transportadora é utilizada.</small></p><h3>Linha do tempo</h3>{timeline.length?timeline.map((event,index)=><div className="history-row" key={event.kind+"-"+event.date+"-"+index}><strong>{event.kind==="payment"?"💳 ":""}{event.title}</strong><small>{date(event.date)} · {event.detail}</small></div>):<small>Nenhuma movimentação registrada.</small>}</aside></div>}
   </>;
 }
