@@ -40,8 +40,17 @@ const normalizeStoreCategory = (category: string | null | undefined) => {
   return ["Joias", "Semi-joias", "Acessórios"].includes(category || "") ? category! : "Acessórios";
 };
 
+  // A vitrine pública não deve reutilizar a sessão persistida da área da proprietária.
+  // Uma sessão autenticada antiga pode mudar o JWT enviado ao Supabase e fazer o
+  // catálogo parecer vazio, mesmo quando a leitura anônima está funcionando.
+const publicClient = isSupabaseConfigured ? createClient(
+    import.meta.env.VITE_SUPABASE_URL as string,
+    import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+    { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } },
+  ) : null;
+
 export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
-  if (!isSupabaseConfigured) {
+  if (!publicClient) {
     try {
       const local = JSON.parse(localStorage.getItem("kj-public-products") || "[]") as CatalogProduct[];
       const published = local.filter((item: any) => item.isPublished);
@@ -50,15 +59,6 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
       return [];
     }
   }
-
-  // A vitrine pública não deve reutilizar a sessão persistida da área da proprietária.
-  // Uma sessão autenticada antiga pode mudar o JWT enviado ao Supabase e fazer o
-  // catálogo parecer vazio, mesmo quando a leitura anônima está funcionando.
-  const publicClient = createClient(
-    import.meta.env.VITE_SUPABASE_URL as string,
-    import.meta.env.VITE_SUPABASE_ANON_KEY as string,
-    { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } },
-  );
 
   const { data, error } = await publicClient
     .from("public_products")
@@ -70,8 +70,7 @@ export async function loadPublicCatalog(): Promise<CatalogProduct[]> {
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("Falha ao carregar catálogo público", error);
-    return [];
+    throw error;
   }
   if (!data?.length) return [];
   return (data as PublicRow[]).map((row) => ({

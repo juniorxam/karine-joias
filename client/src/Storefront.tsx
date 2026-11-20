@@ -1,3 +1,4 @@
+import "./cart-stock.css";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { toast } from "sonner";
@@ -57,7 +58,17 @@ async function getFunctionErrorMessage(error: unknown, data?: unknown, fallback 
   return fallback;
 }
 
-type CartItem = CatalogProduct & { quantity: number };
+import { useCustomerCart, type CartItem } from "./lib/customerCart";
+
+function cartStockNotice(item: CartItem) {
+  if (item.isPublished === false) return "Produto indisponível";
+  if (item.stock === 0) return "Produto esgotado";
+  if (item.stock != null && item.quantity > item.stock) {
+    return item.stock === 1 ? "Só resta 1 unidade. Ajuste a quantidade." : `Só restam ${item.stock} unidades. Ajuste a quantidade.`;
+  }
+  return null;
+}
+const cartFingerprint = (items: CartItem[]) => items.map(item => `${item.id}:${item.quantity}`).sort().join("|");
 type Customer = { name: string; email: string; phone: string; recipient_code: string };
 type ShippingOption = { id: number | string; company: string; service: string; price: number; delivery_time: number };
 type Shipping = { postal_code: string; address: string; number: string; complement: string; neighborhood: string; city: string; state: string; shipping_option?: ShippingOption; shipping_quote_id?: string };
@@ -91,12 +102,7 @@ function formatPhone(value: string) {
   return digits.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3").replace(/-$/, "");
 }
 
-const cartKey = "kj-cart";
 const checkoutDraftKey = "kj-checkout-draft";
-
-function readCart(): CartItem[] {
-  try { return JSON.parse(localStorage.getItem(cartKey) || "[]"); } catch { return []; }
-}
 
 function readCheckoutDraft(): { customer: Customer; shipping: Shipping; couponCode: string } {
   const empty = {
@@ -131,14 +137,17 @@ export default function Storefront() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [storefrontSettings, setStorefrontSettings] = useState<StorefrontSettings | null>(null);
+  const [catalogReady, setCatalogReady] = useState(false);
+  const catalogRequest = useRef(0);
   const refreshPublicCatalog = async () => {
+    const request = ++catalogRequest.current;
     try {
       const latest = await loadPublicCatalog();
-      setProducts(latest);
-      if (!latest.length) {
-        setCart([]);
-        localStorage.removeItem(cartKey);
+      if (request === catalogRequest.current) {
+        setProducts(latest);
+        setCatalogReady(true);
       }
+      return latest;
     } catch (error) {
       console.error("Falha ao sincronizar catálogo público", error);
     }
@@ -218,7 +227,7 @@ export default function Storefront() {
       void client.removeChannel(settingsChannel);
     };
   }, []);
-  const [cart, setCart] = useState<CartItem[]>(readCart);
+
   const [checkoutDraft, setCheckoutDraft] = useState(readCheckoutDraft);
   const returnParams = new URLSearchParams(window.location.search);
   const returnedOrder = returnParams.get("order");
@@ -233,12 +242,28 @@ export default function Storefront() {
   const [trackingLoading, setTrackingLoading] = useState(false);
   const [customerUser, setCustomerUser] = useState<SupabaseUser | null>(null);
   const [customerAuthResolved, setCustomerAuthResolved] = useState(!customerSupabase);
+  const { items: savedCart, edit: setCart, removePurchased, ready: cartReady, error: cartSyncError, refresh: refreshCart, isWriting: cartUpdating } =
+    useCustomerCart(customerUser?.id, customerAuthResolved);
+  const cart = useMemo(() => {
+    const catalog = new Map(products.map(product => [String(product.id), product]));
+    return savedCart.map(item => {
+      const product = catalog.get(String(item.id));
+      return product ? { ...item, ...product, quantity: item.quantity } : { ...item, stock: catalogReady ? 0 : undefined, isPublished: catalogReady ? false : undefined };
+    });
+  }, [savedCart, products, catalogReady]);
   const customerSignedIn = Boolean(customerUser);
   const customerName = String(customerUser?.user_metadata?.full_name || "").trim();
   const [hasMadeFirstPurchase, setHasMadeFirstPurchase] = useState(() => localStorage.getItem("violetta-first-purchase-made") === "true");
   const [firstPurchaseCheckComplete, setFirstPurchaseCheckComplete] = useState(false);
   const returnToCheckoutRef = useRef(false);
   const checkoutIdempotencyKey = useRef<string | null>(null);
+  const checkoutReservation = useRef<{ fingerprint: string; expiresAt: number; account?: string } | null>(null);
+  const checkoutFingerprint = cartFingerprint(cart);
+  const reservedCheckout = checkoutReservation.current;
+  const ownsCurrentReservation = reservedCheckout?.account === customerUser?.id &&
+    reservedCheckout?.fingerprint === checkoutFingerprint && reservedCheckout.expiresAt > Date.now();
+  const cartHasStockIssue = cart.some(item => cartStockNotice(item));
+  const checkoutBlocked = !cartReady || !catalogReady || (cartHasStockIssue && !ownsCurrentReservation);
   const productSlug = decodeURIComponent(window.location.pathname.split("/produto/")[1] || "");
   const selectedProduct = view === "product" ? products.find(product => (product.slug || String(product.id)) === productSlug || String(product.id) === productSlug) : null;
 
@@ -384,26 +409,13 @@ export default function Storefront() {
   }, [view, returnedOrder]);
 
   useEffect(() => {
-    localStorage.setItem(cartKey, JSON.stringify(cart));
-  }, [cart]);
-
-  useEffect(() => {
-    if (!products.length) return;
-    setCart(current => {
-      const validIds = new Set(products.map(product => String(product.id)));
-      const next = current
-        .filter(item => validIds.has(String(item.id)))
-        .map(item => {
-          const latest = products.find(product => String(product.id) === String(item.id));
-          if (!latest) return item;
-          const available = Number(latest.stock ?? 0);
-          return { ...item, ...latest, quantity: Math.min(item.quantity, Math.max(0, available)) };
-        })
-        .filter(item => item.quantity > 0);
-      const changed = next.length !== current.length || next.some((item, index) => item.quantity !== current[index]?.quantity || item.price !== current[index]?.price);
-      return changed ? next : current;
-    });
-  }, [products]);
+    if (!cartOpen && view !== "checkout") return;
+    const refresh = () => { if (!document.hidden) void refreshPublicCatalog(); };
+    refresh();
+    const timer = window.setInterval(refresh, 10000);
+    window.addEventListener("focus", refresh);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", refresh); };
+  }, [cartOpen, view]);
 
   useEffect(() => {
     localStorage.setItem(checkoutDraftKey, JSON.stringify(checkoutDraft));
@@ -471,12 +483,12 @@ export default function Storefront() {
   const homeSectionOrder = Array.isArray(storefrontSettings?.home_section_order) && storefrontSettings.home_section_order.length ? storefrontSettings.home_section_order : ["launches", "quick_categories", "best_sellers", "collection_banner", "latest", "gifts"];
   const sectionStyle = (key: string) => ({ order: Math.max(0, homeSectionOrder.indexOf(key)) });
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const subtotal = cart.reduce((sum, item) => sum + (cartStockNotice(item) && !ownsCurrentReservation ? 0 : item.price * item.quantity), 0);
 
   const addToCart = (product: CatalogProduct) => {
-    const available = Number(product.stock ?? 0);
+    const available = Math.min(20, Number(product.stock ?? 0));
     if (available <= 0) return toast.error("Produto indisponível", { description: product.name });
-    setCart(items => {
+    const changed = setCart(items => {
       const current = items.find(item => String(item.id) === String(product.id));
       if (current && current.quantity >= available) {
         toast.error("Limite de estoque atingido", { description: `Há ${available} unidade(s) disponível(is).` });
@@ -486,14 +498,14 @@ export default function Storefront() {
         ? items.map(item => String(item.id) === String(product.id) ? { ...item, quantity: Math.min(available, item.quantity + 1) } : item)
         : [...items, { ...product, quantity: 1 }];
     });
-    toast.success("Produto adicionado ao carrinho", { description: product.name });
+    if (changed && !customerUser) toast.success("Produto adicionado ao carrinho", { description: product.name });
   };
 
   const addToCartQuantity = (product: CatalogProduct, quantity: number) => {
-    const available = Number(product.stock ?? 0);
+    const available = Math.min(20, Number(product.stock ?? 0));
     const requested = Math.max(1, Math.min(available, Math.floor(quantity || 1)));
     if (available <= 0) return toast.error("Produto indisponível", { description: product.name });
-    setCart(items => {
+    const changed = setCart(items => {
       const current = items.find(item => String(item.id) === String(product.id));
       const nextQuantity = Math.min(available, (current?.quantity || 0) + requested);
       if (current && nextQuantity === current.quantity) {
@@ -504,19 +516,20 @@ export default function Storefront() {
         ? items.map(item => String(item.id) === String(product.id) ? { ...item, quantity: nextQuantity } : item)
         : [...items, { ...product, quantity: requested }];
     });
-    toast.success(requested > 1 ? `${requested} unidades adicionadas ao carrinho` : "Produto adicionado ao carrinho", { description: product.name });
+    if (changed && !customerUser) toast.success(requested > 1 ? `${requested} unidades adicionadas ao carrinho` : "Produto adicionado ao carrinho", { description: product.name });
   };
 
   const buyNowQuantity = (product: CatalogProduct, quantity: number) => {
-    const available = Number(product.stock ?? 0);
+    const available = Math.min(20, Number(product.stock ?? 0));
     const requested = Math.max(1, Math.min(available, Math.floor(quantity || 1)));
     if (available <= 0) return toast.error("Produto indisponível", { description: product.name });
-    setCart(items => {
+    const changed = setCart(items => {
       const current = items.find(item => String(item.id) === String(product.id));
       return current
         ? items.map(item => String(item.id) === String(product.id) ? { ...item, quantity: requested } : item)
         : [...items, { ...product, quantity: requested }];
     });
+    if (!changed) return;
     window.history.pushState({}, "", "/loja/checkout");
     setView("checkout");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -527,10 +540,11 @@ export default function Storefront() {
   const changeQty = (id: CatalogProduct["id"], delta: number) => {
     setCart(items => items.flatMap(item => {
       if (String(item.id) !== String(id)) return [item];
-      const available = Number(item.stock ?? 0);
-      const quantity = Math.min(available, item.quantity + delta);
+      const stock = products.find(product => String(product.id) === String(id))?.stock ?? 0;
+      if (delta > 0 && item.quantity >= Math.min(20, stock)) return [item];
+      const quantity = item.quantity + delta;
       return quantity > 0 ? [{ ...item, quantity }] : [];
-    }));
+    }), "delta");
   };
 
   const askAbout = (product: CatalogProduct) => {
@@ -566,10 +580,12 @@ export default function Storefront() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const openCart = () => setCartOpen(true);
+  const removeFromCart = (id: CartItem["id"]) => setCart(items => items.filter(item => String(item.id) !== String(id)));
+  const openCart = () => { void refreshCart(); setCartOpen(true); };
 
   const goCheckout = () => {
     if (!cart.length) return toast.error("Seu carrinho está vazio");
+    if (checkoutBlocked || cartUpdating()) return toast.error("Confira os itens disponíveis antes de finalizar.");
     window.history.pushState({}, "", "/loja/checkout");
     setView("checkout");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -596,6 +612,33 @@ export default function Storefront() {
       toast.error("A loja ainda não está conectada ao Supabase.");
       return;
     }
+    if (!cartReady || !cart.length || cartUpdating()) {
+      toast.error("Aguarde a atualização do carrinho.");
+      return;
+    }
+    const previous = checkoutReservation.current;
+    const account = customerUser?.id;
+    if (account) {
+      const current = await refreshCart();
+      if (!current || cartFingerprint(current) !== checkoutFingerprint) {
+        toast.error("O carrinho foi atualizado. Confira os itens antes de finalizar.");
+        return;
+      }
+    }
+    if (previous && previous.expiresAt > Date.now() && previous.account === account && previous.fingerprint !== checkoutFingerprint) {
+      toast.error("Já existe um pedido reservado deste carrinho. Restaure os itens originais ou aguarde o fim da reserva.");
+      return;
+    }
+    if (!ownsCurrentReservation) {
+      if (previous) checkoutIdempotencyKey.current = null;
+      const latest = await refreshPublicCatalog();
+      if (!latest) { toast.error("Não foi possível confirmar o estoque. Tente novamente."); return; }
+      const inventory = new Map(latest.map(product => [String(product.id), Number(product.stock ?? 0)]));
+      if (cart.some(item => (inventory.get(String(item.id)) ?? 0) < item.quantity)) {
+        toast.error("O estoque mudou. Confira os itens sinalizados no carrinho.");
+        return;
+      }
+    }
     const idempotencyKey = checkoutIdempotencyKey.current ?? (checkoutIdempotencyKey.current = crypto.randomUUID());
     const { data, error } = await customerSupabase.functions.invoke("create-order", {
       body: {
@@ -608,6 +651,7 @@ export default function Storefront() {
     });
     if (error || data?.error) {
       const message = await getFunctionErrorMessage(error, data, "Não foi possível criar o pedido.");
+      void refreshPublicCatalog();
       toast.error("Não foi possível criar o pedido", { description: message });
       return;
     }
@@ -616,6 +660,8 @@ export default function Storefront() {
       toast.error("A reserva expirou. Confirme o carrinho para criar um novo pedido.");
       return;
     }
+    const deadline = Date.parse(data.created_at) + 7200000;
+    checkoutReservation.current = { fingerprint: checkoutFingerprint, expiresAt: Number.isFinite(deadline) ? deadline : Date.now() + 7200000, account };
     setOrder(data);
     localStorage.setItem("kj-last-order-email", customer.email.trim().toLowerCase());
     localStorage.setItem("kj-last-order-number", data.order_number);
@@ -623,7 +669,9 @@ export default function Storefront() {
     setRedirectingToPayment(true);
     const payment = await customerSupabase.functions.invoke("create-infinitepay-payment", { body: { order_number: data.order_number, email: customer.email } });
     if (payment.data?.url) {
-      setCart([]);
+      const removed = await removePurchased(cart);
+      if (!removed) toast.error("Pedido criado. A lista do carrinho poderá levar um instante para atualizar.");
+      checkoutReservation.current = null;
       setAppliedCoupon(null);
       localStorage.removeItem(checkoutDraftKey);
       checkoutIdempotencyKey.current = null;
@@ -667,7 +715,7 @@ export default function Storefront() {
   }
 
   if (view === "checkout") {
-    return <Checkout onCouponChange={setAppliedCoupon} giftMissions={giftMissions} products={products} onAddProduct={addToCart} customerUser={customerUser} customerAuthResolved={customerAuthResolved} cart={cart} subtotal={subtotal} draft={checkoutDraft} onDraftChange={setCheckoutDraft} onBack={backToStore} onLogin={() => { returnToCheckoutRef.current = true; window.history.pushState({}, "", "/minha-conta"); setView("account"); window.scrollTo({ top: 0, behavior: "smooth" }); }} onFinish={finishOrder} onChangeQty={changeQty} onAskWhatsApp={askAboutCart} storefrontSettings={storefrontSettings} />;
+    return <Checkout checkoutBlocked={checkoutBlocked} ownsCurrentReservation={Boolean(ownsCurrentReservation)} onRemove={removeFromCart} onCouponChange={setAppliedCoupon} giftMissions={giftMissions} products={products} onAddProduct={addToCart} customerUser={customerUser} customerAuthResolved={customerAuthResolved} cart={cart} subtotal={subtotal} draft={checkoutDraft} onDraftChange={setCheckoutDraft} onBack={backToStore} onLogin={() => { returnToCheckoutRef.current = true; window.history.pushState({}, "", "/minha-conta"); setView("account"); window.scrollTo({ top: 0, behavior: "smooth" }); }} onFinish={finishOrder} onChangeQty={changeQty} onAskWhatsApp={askAboutCart} storefrontSettings={storefrontSettings} />;
   }
 
   if (view === "success" && order) {
@@ -724,12 +772,15 @@ export default function Storefront() {
 
     {cartOpen && <div className="store-cart-backdrop" onClick={() => setCartOpen(false)}><aside className="store-cart-drawer" onClick={e => e.stopPropagation()} aria-label="Carrinho de compras">
       <div className="store-cart-drawer-head"><div><p className="store-kicker">SEU PEDIDO</p><h2>Carrinho</h2></div><button onClick={() => setCartOpen(false)} aria-label="Fechar carrinho"><X size={19}/></button></div>
-      {cart.length ? <>
+      {!cartReady ? <div className="store-cart-empty" role="status">
+        <p>{cartSyncError ? "Não foi possível sincronizar o carrinho." : "Sincronizando carrinho…"}</p>
+        {cartSyncError && <button className="store-primary-cta" type="button" onClick={() => void refreshCart()}>Tentar novamente</button>}
+      </div> : cart.length ? <>
         <div className="store-cart-items">{cart.map(item => <div className="store-cart-item" key={item.id}>
           <button className="store-cart-thumb" onClick={() => { setCartOpen(false); openProduct(item); }} style={item.imageUrl ? {backgroundImage:`url(${item.imageUrl})`} : undefined}>{!item.imageUrl && <Gem size={24}/>}</button>
-          <div className="store-cart-item-copy"><button onClick={() => { setCartOpen(false); openProduct(item); }}><strong>{item.name}</strong></button><small>{item.material}</small><div className="store-cart-item-row"><div className="qty-controls"><button onClick={() => changeQty(item.id,-1)} aria-label="Diminuir">−</button><span>{item.quantity}</span><button onClick={() => changeQty(item.id,1)} aria-label="Aumentar">+</button></div><b>{formatMoney(item.price * item.quantity)}</b></div></div>
+          <div className="store-cart-item-copy"><button onClick={() => { setCartOpen(false); openProduct(item); }}><strong>{item.name}</strong></button><small>{item.material}</small>{!ownsCurrentReservation && cartStockNotice(item) && <p className="cart-stock-notice" role="status">{cartStockNotice(item)}</p>}<button type="button" aria-label={`Remover ${item.name}`} onClick={() => removeFromCart(item.id)}>Remover</button><div className="store-cart-item-row"><div className="qty-controls"><button onClick={() => changeQty(item.id,-1)} aria-label="Diminuir">−</button><span>{item.quantity}</span><button onClick={() => changeQty(item.id,1)} aria-label="Aumentar" disabled={item.quantity >= Math.min(item.stock ?? 0, 20)}>+</button></div><b>{!ownsCurrentReservation && cartStockNotice(item) ? "Fora do subtotal" : formatMoney(item.price * item.quantity)}</b></div></div>
         </div>)}</div>
-        <div className="store-cart-summary"><div><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><small>Frete e descontos são calculados no checkout.</small><CartGiftProgress missions={giftMissions} netSubtotal={subtotal - merchandiseDiscount(subtotal, appliedCoupon)} products={products} contribution={price => price - merchandiseDiscount(subtotal + price, appliedCoupon) + merchandiseDiscount(subtotal, appliedCoupon)} cartIds={new Set(cart.map(item => String(item.id)))} onAdd={addToCart} /><button className="store-primary-cta" onClick={() => { setCartOpen(false); goCheckout(); }}>Finalizar compra <ArrowRight size={16}/></button><button className="store-cart-whatsapp" onClick={() => askAboutCart(cart)}><MessageCircle size={14}/> Falar sobre o pedido</button><button className="store-cart-continue" onClick={() => setCartOpen(false)}>Continuar comprando</button></div>
+        <div className="store-cart-summary"><div><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><small>Frete e descontos são calculados no checkout.</small><CartGiftProgress missions={giftMissions} netSubtotal={subtotal - merchandiseDiscount(subtotal, appliedCoupon)} products={products} contribution={price => price - merchandiseDiscount(subtotal + price, appliedCoupon) + merchandiseDiscount(subtotal, appliedCoupon)} cartIds={new Set(cart.map(item => String(item.id)))} onAdd={addToCart} />{cartHasStockIssue && !ownsCurrentReservation && <p className="cart-stock-notice">Remova os itens indisponíveis ou ajuste as quantidades para finalizar.</p>}<button className="store-primary-cta" disabled={checkoutBlocked} onClick={() => { setCartOpen(false); goCheckout(); }}>Finalizar compra <ArrowRight size={16}/></button><button className="store-cart-whatsapp" onClick={() => askAboutCart(cart)}><MessageCircle size={14}/> Falar sobre o pedido</button><button className="store-cart-continue" onClick={() => setCartOpen(false)}>Continuar comprando</button></div>
       </> : <div className="store-cart-empty"><ShoppingBag size={30}/><h3>Seu carrinho está vazio.</h3><p>Escolha uma peça especial para começar.</p><button className="store-primary-cta" onClick={() => setCartOpen(false)}>Ver coleção <ArrowRight size={15}/></button></div>}
     </aside></div>}
     <main>
@@ -970,7 +1021,7 @@ function ProductReviews({ productId }: { productId: number }) {
   </section>;
 }
 
-function Checkout({ onCouponChange, giftMissions, products, onAddProduct, customerUser, customerAuthResolved, cart, subtotal, draft, onDraftChange, onBack, onLogin, onFinish, onChangeQty, onAskWhatsApp, storefrontSettings }: { onCouponChange: (coupon: AppliedCoupon | null) => void; giftMissions: GiftMission[]; products: CatalogProduct[]; onAddProduct: (product: CatalogProduct) => void; customerUser: SupabaseUser | null; customerAuthResolved: boolean; cart: CartItem[]; subtotal: number; draft: { customer: Customer; shipping: Shipping; couponCode: string }; onDraftChange: Dispatch<SetStateAction<{ customer: Customer; shipping: Shipping; couponCode: string }>>; onBack: () => void; onLogin: () => void; onFinish: (customer: Customer, shipping: Shipping, couponCode?: string) => Promise<void>; onChangeQty: (id: CatalogProduct["id"], delta: number) => void; onAskWhatsApp: (items: CartItem[], name?: string) => void; storefrontSettings: StorefrontSettings | null }) {
+function Checkout({ checkoutBlocked, ownsCurrentReservation, onRemove, onCouponChange, giftMissions, products, onAddProduct, customerUser, customerAuthResolved, cart, subtotal, draft, onDraftChange, onBack, onLogin, onFinish, onChangeQty, onAskWhatsApp, storefrontSettings }: { checkoutBlocked: boolean; ownsCurrentReservation: boolean; onRemove: (id: CartItem["id"]) => void; onCouponChange: (coupon: AppliedCoupon | null) => void; giftMissions: GiftMission[]; products: CatalogProduct[]; onAddProduct: (product: CatalogProduct) => void; customerUser: SupabaseUser | null; customerAuthResolved: boolean; cart: CartItem[]; subtotal: number; draft: { customer: Customer; shipping: Shipping; couponCode: string }; onDraftChange: Dispatch<SetStateAction<{ customer: Customer; shipping: Shipping; couponCode: string }>>; onBack: () => void; onLogin: () => void; onFinish: (customer: Customer, shipping: Shipping, couponCode?: string) => Promise<void>; onChangeQty: (id: CatalogProduct["id"], delta: number) => void; onAskWhatsApp: (items: CartItem[], name?: string) => void; storefrontSettings: StorefrontSettings | null }) {
   const [customer, setCustomer] = useState<Customer>(draft.customer);
   const [shipping, setShipping] = useState<Shipping>(draft.shipping);
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
@@ -1235,6 +1286,7 @@ function Checkout({ onCouponChange, giftMissions, products, onAddProduct, custom
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!cart.length) return toast.error("Seu carrinho está vazio");
+    if (checkoutBlocked) return toast.error("Confira os itens disponíveis para finalizar.");
     if (couponCode.trim() && !couponApplied) return toast.error("Valide ou remova o cupom antes de continuar");
     if (!customer.name.trim()) return toast.error("Informe seu nome completo");
     if (!/^\S+@\S+\.\S+$/.test(customer.email.trim())) return toast.error("Informe um e-mail válido");
@@ -1252,6 +1304,7 @@ function Checkout({ onCouponChange, giftMissions, products, onAddProduct, custom
   };
   const submitQuickPurchase = (event: React.FormEvent) => {
     event.preventDefault();
+    if (checkoutBlocked) return toast.error("Confira os itens disponíveis para continuar.");
     const name = quickPurchase.name.trim();
     const phone = normalizePhone(quickPurchase.phone);
     const address = quickPurchase.address.trim();
@@ -1275,7 +1328,7 @@ function Checkout({ onCouponChange, giftMissions, products, onAddProduct, custom
   return <div className="storefront checkout-page">
     <header className="store-header"><button className="checkout-back" onClick={onBack}><ArrowLeft size={16}/> Voltar para a loja</button><span className="store-logo"><span className="store-logo-mark"><Gem size={19}/></span><span><strong>Violetta</strong><small>PRATA 925 · SEMIJOIAS</small></span></span><span className="checkout-secure">Checkout seguro</span></header>
     <main className="checkout-layout"><form className="checkout-form" onSubmit={submit}>
-      <div className="checkout-title"><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}><span className="payment-methods"><span>1. Dados</span><span>2. Entrega</span><span>3. Pagamento</span></span></div><p className="store-kicker">FINALIZAR PEDIDO</p><h1>Quase seu.</h1><p>Preencha seus dados para reservar as peças e gerar seu pedido. O endereço será usado para organizar a entrega.</p><small style={{display:"block",marginTop:8}}><span style={{color:"#c0392b"}}>*</span> Campos obrigatórios.</small>{customerAuthResolved && !customerUser && <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:14,flexWrap:"wrap",padding:"14px 16px",marginTop:18,border:"1px solid #eadde2",borderRadius:12,background:"#fffafc"}}><div style={{minWidth:200,flex:"1 1 220px"}}><strong style={{display:"block",fontSize:14,color:"#553744"}}>Já é cliente Violetta?</strong><span style={{display:"block",fontSize:13,color:"#765e68",marginTop:4}}>Entre para preencher seus dados e usar endereços salvos. É opcional: você também pode comprar como visitante.</span></div><button type="button" className="shipping-quote-button" onClick={onLogin} style={{margin:0,whiteSpace:"nowrap"}}>Entrar ou criar conta</button></div>}</div><div className="checkout-final-note" style={{marginTop:12}}><CalendarDays size={16}/><span><strong>Prazo de entrega:</strong> pedidos confirmados até as 11h têm previsão de entrega no mesmo dia. Após as 11h, a previsão é para o próximo dia útil. À tarde, há atendimento, mas não realizamos entregas.</span></div>
+      <div className="checkout-title"><div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}><span className="payment-methods"><span>1. Dados</span><span>2. Entrega</span><span>3. Pagamento</span></span></div><p className="store-kicker">FINALIZAR PEDIDO</p><h1>Quase seu.</h1><p>Preencha seus dados para reservar as peças e gerar seu pedido. O endereço será usado para organizar a entrega.</p><small style={{display:"block",marginTop:8}}><span style={{color:"#c0392b"}}>*</span> Campos obrigatórios.</small>{customerAuthResolved && !customerUser && <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:14,flexWrap:"wrap",padding:"14px 16px",marginTop:18,border:"1px solid #eadde2",borderRadius:12,background:"#fffafc"}}><div style={{minWidth:200,flex:"1 1 220px"}}><strong style={{display:"block",fontSize:14,color:"#553744"}}>Já é cliente Violetta?</strong><span style={{display:"block",fontSize:13,color:"#765e68",marginTop:4}}>Entre para usar o mesmo carrinho em outros dispositivos e preencher seus dados. É opcional: você também pode comprar como visitante.</span></div><button type="button" className="shipping-quote-button" onClick={onLogin} style={{margin:0,whiteSpace:"nowrap"}}>Entrar ou criar conta</button></div>}</div><div className="checkout-final-note" style={{marginTop:12}}><CalendarDays size={16}/><span><strong>Prazo de entrega:</strong> pedidos confirmados até as 11h têm previsão de entrega no mesmo dia. Após as 11h, a previsão é para o próximo dia útil. À tarde, há atendimento, mas não realizamos entregas.</span></div>
       <section className="checkout-section"><h2><User size={17}/> Seus dados</h2><div className="checkout-grid"><label>Nome completo <span style={{color:"#c0392b"}}>*</span><input required autoComplete="name" value={customer.name} onChange={e=>updateCustomer("name",e.target.value)}/></label><label>E-mail <span style={{color:"#c0392b"}}>*</span><input required type="email" autoComplete="email" value={customer.email} onChange={e=>updateCustomer("email",e.target.value)}/></label><label>WhatsApp <span style={{color:"#c0392b"}}>*</span><input required autoComplete="tel" value={customer.phone} onChange={e=>updateCustomer("phone",formatPhone(e.target.value))}/></label><label>CPF <span style={{color:"#c0392b"}}>*</span><input required inputMode="numeric" maxLength={14} value={customer.recipient_code} onChange={e=>updateCustomer("recipient_code",formatCPF(e.target.value))} placeholder="000.000.000-00"/></label></div></section>
       <section className="checkout-section"><h2><Truck size={17}/> Entrega</h2>{savedAddresses.length>0&&<label style={{display:"block",marginBottom:14}}>Usar endereço salvo<select value="" onChange={e=>chooseSavedAddress(e.target.value)}><option value="">Selecionar outro endereço salvo…</option>{savedAddresses.map((address:any)=><option key={address.id} value={address.id}>{address.label||"Endereço"}{address.is_default?" (padrão)":""} — {address.address}, {address.number} · {address.city}/{address.state}</option>)}</select><small>O endereço padrão já foi preenchido. Você pode escolher outro salvo.</small></label>}<div className="checkout-grid"><label>CEP <span style={{color:"#c0392b"}}>*</span><input required inputMode="numeric" value={shipping.postal_code} onChange={e=>fetchZip(e.target.value)} placeholder="00000-000"/>{zipLoading&&<small>Consultando CEP...</small>}</label><label className="wide">Endereço <span style={{color:"#c0392b"}}>*</span><input required={!pickupSelected} value={shipping.address} onChange={e=>updateShipping("address",e.target.value)}/></label><label>Número <span style={{color:"#c0392b"}}>*</span><input required={!pickupSelected} value={shipping.number} onChange={e=>updateShipping("number",e.target.value)}/></label><label>Complemento<input value={shipping.complement} onChange={e=>updateShipping("complement",e.target.value)}/></label><label>Bairro <span style={{color:"#c0392b"}}>*</span><input required={!pickupSelected} value={shipping.neighborhood} onChange={e=>updateShipping("neighborhood",e.target.value)}/></label><label>Cidade <span style={{color:"#c0392b"}}>*</span><input required value={shipping.city} onChange={e=>updateShipping("city",e.target.value)}/></label><label>UF <span style={{color:"#c0392b"}}>*</span><input required maxLength={2} value={shipping.state} onChange={e=>updateShipping("state",e.target.value.toUpperCase())}/></label></div>
         {<div className="checkout-final-note"><Truck size={16}/><span><strong>{distanceLoading?"Calculando frete e distância pela rota viária…":distanceKmValue!==null?`Distância da entrega: ${distanceKmValue.toFixed(1)} km`:distanceError||"Preencha os dados do endereço e clique em Calcular frete."}</strong></span></div>}<button type="button" className="shipping-quote-button" onClick={handleCalculateShipping} disabled={distanceLoading}>{distanceLoading?"Calculando frete…":"Calcular frete"}</button>{beyondDeliveryRadius&&<div className="checkout-final-note"><Truck size={16}/><span>Entrega acima da faixa automática de 17,9 km. O frete será combinado diretamente com a loja.</span></div>}{shippingOptions.length>0&&<div className="shipping-options">{shippingOptions.map(option=><label className={"shipping-option "+(shippingOption?.id===option.id?"selected":"")} key={String(option.id)}><input type="radio" name="shipping-option" checked={shippingOption?.id===option.id} onChange={()=>setShipping(v=>({...v,shipping_option:option}))}/><span><strong>{option.company} · {option.service}</strong><small>{option.service === "Retirada no local" ? "Retire seu pedido no endereço da Violetta, sem cobrança de frete." : isPalmas && option.service !== "Frete a combinar" ? "Frete calculado pela rota viária entre a loja e o seu endereço." : "Para este endereço, o frete será negociado separadamente com a loja."}</small></span><b>{option.service === "Frete a combinar" ? "À parte" : option.price > 0 ? formatMoney(option.price) : "Grátis"}</b></label>)}</div>}
@@ -1284,11 +1337,11 @@ function Checkout({ onCouponChange, giftMissions, products, onAddProduct, custom
       <section className="checkout-section"><h2><Tag size={17}/> Cupom de desconto</h2><div className="checkout-grid"><label className="wide">Código do cupom<input value={couponCode} onChange={e=>{++couponRequest.current;onCouponChange(null);setCouponBusy(false);setCouponCode(e.target.value.toUpperCase());setCouponDiscount(0);setCouponApplied(false);setCouponGiftDescription("");setCouponError("")}} placeholder="EX.: BEMVINDO10"/></label><button type="button" className="shipping-quote-button" onClick={() => void applyCoupon()} disabled={couponBusy}>{couponBusy?"Validando...":"Aplicar cupom"}</button></div>{couponError&&<small>{couponError}</small>}{couponApplied&&<small>Cupom aplicado: {couponGiftDescription || (couponDiscount>0 ? "desconto de "+formatMoney(couponDiscount) : "benefício de primeira compra")}</small>}</section>
       <section className="checkout-section"><h2><ShieldCheck size={17}/> Pagamento</h2><div className="payment-placeholder"><ShoppingBag size={18}/><div><strong>Pagamento seguro pelo InfinitePay</strong><p>Ao confirmar o pedido, você será direcionada ao InfinitePay. A modalidade e o valor do frete serão definidos conforme o endereço informado.</p><div className="payment-methods"><span>PIX</span><span>Cartão</span><span>Ambiente seguro</span></div></div></div></section>
       <div className="checkout-final-note"><ShieldCheck size={16}/><span>{shippingOption?.service === "Retirada no local" ? "Retirada no local sem cobrança de frete." : shippingOption?.service === "Frete a combinar" ? (isPalmas ? "O frete será combinado diretamente com o vendedor e pago separadamente. Ele não está incluído no pagamento desta compra." : "Para entregas fora de Palmas, o frete será combinado diretamente com o vendedor e pago separadamente.") : isPalmas&&shippingOption ? "Frete de "+formatMoney(shippingPrice)+" calculado automaticamente pela distância." : !shipping.city.trim() || !shipping.state.trim() ? "Informe o CEP, número, bairro, cidade e UF para calcular ou confirmar o frete." : "O frete será confirmado pela loja para este endereço."}</span></div>
-      <button className="checkout-submit" disabled={busy||couponBusy||!customerAuthResolved||!cart.length||!shippingOption}>{busy?"Criando pedido...":"Confirmar pedido e pagar"}</button>
+      <button className="checkout-submit" disabled={busy||couponBusy||checkoutBlocked||!customerAuthResolved||!cart.length||!shippingOption}>{busy?"Criando pedido...":"Confirmar pedido e pagar"}</button>
       <button type="button" className="checkout-whatsapp checkout-quick-purchase" onClick={() => { setQuickPurchase(v => ({ ...v, name: v.name || customer.name, phone: v.phone || customer.phone, address: v.address || [shipping.address, shipping.number && `nº ${shipping.number}`, shipping.neighborhood, shipping.city, shipping.state].filter(Boolean).join(", ") })); setQuickPurchaseOpen(true); }} disabled={!cart.length}><MessageCircle size={15}/> Comprar rápido pelo WhatsApp</button>
       <button type="button" className="checkout-whatsapp checkout-whatsapp-secondary" onClick={() => onAskWhatsApp(cart, customer.name)} disabled={!cart.length}><MessageCircle size={15}/> Apenas tirar dúvidas sobre os produtos</button>
     </form>
-    <aside className="checkout-summary"><div className="checkout-summary-head"><div><p className="store-kicker">RESUMO</p><h2>Seu pedido</h2></div><span>{cart.reduce((sum,item)=>sum+item.quantity,0)} itens</span></div>{cart.map(item=><div className="checkout-item" key={item.id}><div className="checkout-item-thumb" style={item.imageUrl?{backgroundImage:"url("+item.imageUrl+")"}:undefined}>{!item.imageUrl&&<Gem size={18}/>}</div><div className="checkout-item-main"><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span><div className="qty-controls"><button type="button" onClick={()=>onChangeQty(item.id,-1)}>−</button><span>{item.quantity}</span><button type="button" onClick={()=>onChangeQty(item.id,1)}>+</button></div></div><b>{formatMoney(item.price*item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total"><span>Frete</span><strong>{shippingOption?.service === "Retirada no local" || shippingOption?.service === "Frete a combinar" ? "À parte" : shippingOption ? formatMoney(shippingOption.price) : !hasCompleteShippingAddress ? "A calcular" : "A confirmar"}</strong></div>{couponDiscount>0&&<div className="checkout-total"><span>Desconto</span><strong>- {formatMoney(couponDiscount)}</strong></div>}<CartGiftProgress missions={giftMissions} netSubtotal={subtotal - productDiscount} products={products} cartIds={new Set(cart.map(item => String(item.id)))} onAdd={onAddProduct} contribution={price => price - merchandiseDiscount(subtotal + price, appliedCoupon) + productDiscount} /><div className="checkout-total grand"><span>Total no InfinitePay</span><strong>{formatMoney(orderTotal)}</strong></div><p className="checkout-note">{shippingOption?.service === "Retirada no local" ? "O InfinitePay cobrará somente os produtos menos o desconto. A retirada não tem custo de frete." : shippingOption?.price ? "O InfinitePay cobrará os produtos, desconto e frete calculado para Palmas." : !hasCompleteShippingAddress ? "O frete será definido após informar o CEP e preencher o endereço completo." : "O InfinitePay cobrará somente os produtos menos o desconto. O frete, quando aplicável, será combinado e pago separadamente."}</p></aside>
+    <aside className="checkout-summary"><div className="checkout-summary-head"><div><p className="store-kicker">RESUMO</p><h2>Seu pedido</h2></div><span>{cart.reduce((sum,item)=>sum+item.quantity,0)} itens</span></div>{cart.map(item=><div className="checkout-item" key={item.id}><div className="checkout-item-thumb" style={item.imageUrl?{backgroundImage:"url("+item.imageUrl+")"}:undefined}>{!item.imageUrl&&<Gem size={18}/>}</div><div className="checkout-item-main"><strong>{item.name}</strong><span>{item.quantity} × {formatMoney(item.price)}</span>{!ownsCurrentReservation && cartStockNotice(item) && <p className="cart-stock-notice" role="status">{cartStockNotice(item)}</p>}<button type="button" aria-label={`Remover ${item.name}`} onClick={() => onRemove(item.id)}>Remover</button><div className="qty-controls"><button type="button" onClick={()=>onChangeQty(item.id,-1)}>−</button><span>{item.quantity}</span><button type="button" onClick={()=>onChangeQty(item.id,1)} disabled={item.quantity >= Math.min(item.stock ?? 0, 20)}>+</button></div></div><b>{!ownsCurrentReservation && cartStockNotice(item) ? "Fora do subtotal" : formatMoney(item.price*item.quantity)}</b></div>)}<div className="checkout-total"><span>Subtotal</span><strong>{formatMoney(subtotal)}</strong></div><div className="checkout-total"><span>Frete</span><strong>{shippingOption?.service === "Retirada no local" || shippingOption?.service === "Frete a combinar" ? "À parte" : shippingOption ? formatMoney(shippingOption.price) : !hasCompleteShippingAddress ? "A calcular" : "A confirmar"}</strong></div>{couponDiscount>0&&<div className="checkout-total"><span>Desconto</span><strong>- {formatMoney(couponDiscount)}</strong></div>}<CartGiftProgress missions={giftMissions} netSubtotal={subtotal - productDiscount} products={products} cartIds={new Set(cart.map(item => String(item.id)))} onAdd={onAddProduct} contribution={price => price - merchandiseDiscount(subtotal + price, appliedCoupon) + productDiscount} /><div className="checkout-total grand"><span>Total no InfinitePay</span><strong>{formatMoney(orderTotal)}</strong></div><p className="checkout-note">{shippingOption?.service === "Retirada no local" ? "O InfinitePay cobrará somente os produtos menos o desconto. A retirada não tem custo de frete." : shippingOption?.price ? "O InfinitePay cobrará os produtos, desconto e frete calculado para Palmas." : !hasCompleteShippingAddress ? "O frete será definido após informar o CEP e preencher o endereço completo." : "O InfinitePay cobrará somente os produtos menos o desconto. O frete, quando aplicável, será combinado e pago separadamente."}</p></aside>
     </main>
     {quickPurchaseOpen && <div className="quick-purchase-overlay" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setQuickPurchaseOpen(false); }}><section className="quick-purchase-modal" role="dialog" aria-modal="true" aria-labelledby="quick-purchase-title"><button type="button" className="quick-purchase-close" onClick={() => setQuickPurchaseOpen(false)} aria-label="Fechar">×</button><p className="store-kicker">COMPRA MAIS RÁPIDA</p><h2 id="quick-purchase-title">Resolva pelo WhatsApp</h2><p className="quick-purchase-intro">Informe só o essencial. A equipe confirma disponibilidade, frete e envia o link ou as opções de pagamento.</p><form onSubmit={submitQuickPurchase}><label>Nome completo <span style={{color:"#c0392b"}}>*</span><input autoFocus required autoComplete="name" value={quickPurchase.name} onChange={event => setQuickPurchase(v => ({ ...v, name: event.target.value }))} /></label><label>WhatsApp com DDD <span style={{color:"#c0392b"}}>*</span><input required autoComplete="tel" inputMode="tel" value={quickPurchase.phone} onChange={event => setQuickPurchase(v => ({ ...v, phone: formatPhone(event.target.value) }))} placeholder="(63) 99999-9999" /></label><label>Endereço de entrega <span style={{color:"#c0392b"}}>*</span><textarea required rows={3} value={quickPurchase.address} onChange={event => setQuickPurchase(v => ({ ...v, address: event.target.value }))} placeholder="Rua, número, bairro, cidade e UF" /></label><small className="quick-purchase-note">Não precisa informar e-mail, CPF ou preencher o checkout completo.</small><button className="quick-purchase-submit" disabled={quickPurchaseBusy || !storeWhatsApp}><MessageCircle size={16}/>{quickPurchaseBusy ? "Preparando mensagem..." : "Continuar pelo WhatsApp"}</button></form></section></div>}
   </div>;
