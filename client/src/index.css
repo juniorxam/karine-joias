@@ -325,17 +325,14 @@
 .checkout-summary-head h2{margin:2px 0 0}
 .checkout-summary-head>span{font-size:9px;color:var(--store-muted)}
 .checkout-summary-head .store-kicker{margin:0}
-.checkout-item{display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:10px;align-items:center}
-.checkout-item-thumb{width:54px;height:66px;border-radius:4px;background:#f2ece4 center/cover no-repeat;display:grid;place-items:center;color:#b89a5a}
+.checkout-item{display:grid;grid-template-columns:64px minmax(0,1fr);gap:12px;align-items:start}
+.checkout-item-thumb{width:64px;height:64px;border-radius:8px;background:#f2ece4 center/contain no-repeat;display:grid;place-items:center;color:#b89a5a}
 .checkout-item-main{min-width:0}
-.checkout-item-main strong{display:block;overflow:hidden;text-overflow:ellipsis}
-.checkout-item-main span{display:block;margin-top:4px}
-.checkout-item-main .qty-controls{margin-top:8px}
-.checkout-item>b{align-self:start;padding-top:2px}
-@media(max-width:800px){
- .checkout-item{grid-template-columns:48px minmax(0,1fr) auto}
- .checkout-item-thumb{width:48px;height:58px}
-}
+.checkout-item-main > strong{display:block;overflow-wrap:anywhere}
+.checkout-item-main > small{display:block;margin-top:4px}
+.checkout-item-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 10px;margin-top:8px}
+.checkout-item-row .qty-controls button{width:32px;height:32px}
+.checkout-item-main > .checkout-item-remove{margin-top:4px;padding:4px 0;border:0;background:none;color:var(--store-muted);font-size:12px;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 
 
 /* Violetta marketplace purchase actions */
@@ -500,8 +497,6 @@
  .store-header-search{display:none}
  .store-values{grid-template-columns:1fr}
  .checkout-title h1{font-size:32px}
- .checkout-item{grid-template-columns:52px minmax(0,1fr);gap:9px}
- .checkout-item>b{grid-column:2}
  .first-purchase-popup{padding-left:17px;padding-right:17px}
 }
 
