@@ -1,3 +1,4 @@
+import { palmasCeps } from "./palmas-ceps.ts";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -53,15 +54,26 @@ async function cep(value: string): Promise<Address> {
 }
 
 // Referências manuais mantidas apenas para CEPs previamente conferidos.
-async function geo(address: Address): Promise<GeoPoint> {
+async function geo(address: Address, allowCensusReference = false): Promise<GeoPoint> {
   const references: Record<string, [number, number]> = {
     "77001540": [-48.346, -10.163],
+    "77001568": [-48.35128, -10.1597],
     "77001570": [-48.3492, -10.1618],
     "77015007": [-48.33366, -10.18457],
+    "77006014": [-48.32738858571429, -10.184463542857143],
+    "77003310": [-48.3078545, -10.1559256],
+    "77059002": [-48.3144243, -10.2965523],
+    "77064002": [-48.2877673, -10.3333855],
   };
   const reference = references[address.postalCode];
   if (reference) {
     return { lon: reference[0], lat: reference[1], source: "referência de CEP validada" };
+  }
+
+  // Only use a postal reference when observed coordinates span a small area.
+  const census = allowCensusReference ? palmasCeps[address.postalCode] : null;
+  if (census && census[2] <= 150 && census[3] >= 2) {
+    return { lon: census[0], lat: census[1], source: "referência de CEP do IBGE" };
   }
 
   const streetWords = norm(address.street).split(/[^a-z0-9]+/).filter((word) => word.length >= 3 && !/^\d+$/.test(word));
@@ -244,7 +256,7 @@ Deno.serve(async (request: Request) => {
     };
 
     const originPoint = await geo(origin);
-    const destinationPoint = await geo(destination);
+    const destinationPoint = await geo(destination, true);
     const distance = await route(originPoint, destinationPoint);
     const rules = Array.isArray(settings.shipping_palmas_distance_rules)
       ? settings.shipping_palmas_distance_rules
