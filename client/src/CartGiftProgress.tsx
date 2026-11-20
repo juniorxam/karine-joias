@@ -25,9 +25,9 @@ export default function CartGiftProgress({ missions, netSubtotal, products, cart
     .sort((a, b) => Number(a.distance < 0) - Number(b.distance < 0) || Math.abs(a.distance) - Math.abs(b.distance))
     .slice(0, 3) : [];
 
-  return <section className="cart-gift-progress" aria-label="Meta de mimo">
+  return <section className="cart-gift-progress" aria-label="Mimos">
     <strong>{target.gift_name}</strong>
-    <p>{missing ? `Faltam ${formatMoney(missing / 100)} para atingir a meta de ${formatMoney(threshold / 100)}.` : "Você atingiu a meta do mimo!"}</p>
+    <p>{missing ? `Faltam ${formatMoney(missing / 100)} para ganhar o mimo.` : "Seu pedido já tem direito ao mimo!"}</p>
     <progress aria-label={`Progresso para ${target.gift_name}`} value={Math.min(cents, threshold)} max={threshold} />
     {suggestions.length > 0 && <ul>{suggestions.map(({ product }) => <li key={product.id}>
       <span>{product.name} · {formatMoney(product.price)}</span>

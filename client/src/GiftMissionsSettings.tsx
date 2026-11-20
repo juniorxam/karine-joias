@@ -67,12 +67,12 @@ export default function GiftMissionsSettings({ ownerId }: { ownerId: string }) {
     const { data, error } = await query.select(fields).single();
     setBusy(false);
     if (error || !data) {
-      toast.error("Não foi possível salvar a meta", { description: error?.message });
+      toast.error("Não foi possível salvar o mimo", { description: error?.message });
       return;
     }
     setMissions(current => [...current.filter(mission => mission.id !== data.id), data]);
     reset();
-    toast.success(editing ? "Meta atualizada" : "Meta salva. Ative para mostrar na loja.");
+    toast.success(editing ? "Mimo atualizado" : "Mimo salvo. Ative para mostrar na loja.");
   };
 
   const toggle = async (mission: Mission) => {
@@ -81,30 +81,30 @@ export default function GiftMissionsSettings({ ownerId }: { ownerId: string }) {
     const { data, error } = await supabase.from("reward_missions").update({ is_active: !mission.is_active })
       .eq("owner_id", ownerId).eq("id", mission.id).eq("is_active", mission.is_active).select(fields).single();
     setBusy(false);
-    if (error || !data) { toast.error("Não foi possível alterar a meta", { description: error?.message }); return; }
+    if (error || !data) { toast.error("Não foi possível alterar o mimo", { description: error?.message }); return; }
     setMissions(current => current.map(item => item.id === data.id ? data : item));
   };
 
   return <section className="panel">
-    <h3>Metas de mimos por pedido</h3>
-    <p>O valor mínimo considera os produtos após descontos, sem frete. Cadastre a meta e ative quando estiver pronta.</p>
-    {loadState === "error" && <p role="alert">Não foi possível carregar as metas. Atualize a página para tentar novamente.</p>}
-    {loadState === "loading" && <p role="status">Carregando metas…</p>}
+    <h3>Mimos por pedido</h3>
+    <p>O valor mínimo considera os produtos após descontos, sem frete. Cadastre o mimo e ative quando estiver pronta.</p>
+    {loadState === "error" && <p role="alert">Não foi possível carregar os mimos. Atualize a página para tentar novamente.</p>}
+    {loadState === "loading" && <p role="status">Carregando mimos…</p>}
     {loadState === "ready" && <>
       <form onSubmit={save}>
         <fieldset disabled={busy} className="form-grid" style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend>{editing ? "Editar meta" : "Nova meta"}</legend>
+          <legend>{editing ? "Editar mimo" : "Novo mimo"}</legend>
           <label>Nome da campanha<input required minLength={3} maxLength={120} value={form.title} onChange={event => setForm({ ...form, title: event.target.value })} /></label>
           <label>Brinde<input required minLength={2} maxLength={160} value={form.gift_name} onChange={event => setForm({ ...form, gift_name: event.target.value })} /></label>
           <label>Valor mínimo (R$)<input required type="number" min=".01" step=".01" value={form.threshold_amount} onChange={event => setForm({ ...form, threshold_amount: event.target.value })} /></label>
           <label>Quantidade de brindes<input required type="number" min={editing?.reserved_gifts ?? 0} max="2147483647" step="1" value={form.gift_stock} onChange={event => setForm({ ...form, gift_stock: event.target.value })} /></label>
           <label>Início (horário de Brasília)<input type="datetime-local" value={form.starts_at} onChange={event => setForm({ ...form, starts_at: event.target.value })} /></label>
           <label>Fim (horário de Brasília)<input type="datetime-local" value={form.ends_at} onChange={event => setForm({ ...form, ends_at: event.target.value })} /></label>
-          <div><button className="primary" type="submit">{busy ? "Salvando…" : "Salvar meta"}</button>{editing && <button className="secondary" type="button" onClick={reset}>Cancelar edição</button>}</div>
+          <div><button className="primary" type="submit">{busy ? "Salvando…" : "Salvar mimo"}</button>{editing && <button className="secondary" type="button" onClick={reset}>Cancelar edição</button>}</div>
         </fieldset>
       </form>
       <div className="table-wrap"><table><thead><tr><th>Campanha</th><th>Valor mínimo</th><th>Quantidade</th><th>Vigência</th><th>Status</th><th>Ações</th></tr></thead>
-        <tbody>{missions.length === 0 ? <tr><td colSpan={6}>Nenhuma meta cadastrada.</td></tr> : [...missions].sort((a,b) => a.threshold_amount-b.threshold_amount).map(mission =>
+        <tbody>{missions.length === 0 ? <tr><td colSpan={6}>Nenhum mimo cadastrado.</td></tr> : [...missions].sort((a,b) => a.threshold_amount-b.threshold_amount).map(mission =>
           <tr key={mission.id}><td><strong>{mission.title}</strong><br />{mission.gift_name}</td><td>{formatMoney(mission.threshold_amount)}</td><td>{mission.gift_stock} ({mission.reserved_gifts} reservados)</td><td>{displayDate(mission.starts_at)} até {displayDate(mission.ends_at)}</td><td>{mission.is_active ? "Ativa" : "Inativa"}</td><td>
             <button className="secondary" type="button" disabled={busy} onClick={() => {
               setEditing(mission);

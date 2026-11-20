@@ -893,7 +893,7 @@ export default function Storefront() {
             <img className="payment-mark" src="/payment-marks/visa.svg" alt="Visa" width={60} height={39} />
             <img className="payment-mark" src="/payment-marks/mc.svg" alt="Mastercard" width={60} height={39} />
             <img className="payment-mark" src="/payment-marks/elo.svg" alt="Elo" width={60} height={39} />
-            <img className="payment-mark payment-mark-amex" src="/payment-marks/amex.svg" alt="American Express" width={60} height={39} />
+            <img className="payment-mark payment-mark-amex" src="/payment-marks/amex.png" alt="American Express" width={60} height={39} />
           </div>
         </div>
         <div className="footer-payment-group footer-digital-payments">
