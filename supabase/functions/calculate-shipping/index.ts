@@ -72,7 +72,9 @@ async function geo(address: Address, allowCensusReference = false): Promise<GeoP
 
   // Only use a postal reference when observed coordinates span a small area.
   const census = allowCensusReference ? palmasCeps[address.postalCode] : null;
-  if (census && census[2] <= 150 && census[3] >= 2) {
+  // The known NS 15 segment in ARNO 33 has four census points within 184 m.
+  const radiusLimit = address.postalCode === "77001386" && /\bns[\s-]*15\b/.test(norm(address.street)) ? 200 : 150;
+  if (census && census[2] <= radiusLimit && census[3] >= 2) {
     return { lon: census[0], lat: census[1], source: "referência de CEP do IBGE" };
   }
 
