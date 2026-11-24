@@ -13,7 +13,7 @@ function merchandiseDiscount(subtotal: number, coupon: AppliedCoupon | null) {
   return 0;
 }
 type ProductReview = { id:string; product_id:number; rating:number; comment:string; display_name:string; created_at:string };
-type StorefrontSettings = { layout_config?:{theme?:string;primary?:string;background?:string;font?:string;decorations?:boolean;banners?:Array<{id:string;url:string;mobile_url?:string;title?:string;enabled:boolean}>}; quick_categories?:string[]; home_section_order?:string[]; hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string; shipping_palmas_enabled:boolean; shipping_palmas_min_subtotal:number; shipping_palmas_free_above:number; shipping_palmas_pickup_enabled:boolean; shipping_origin_postal_code:string; shipping_origin_draft_street?:string; shipping_origin_draft_number?:string; shipping_origin_draft_neighborhood?:string; shipping_origin_draft_city?:string; shipping_origin_draft_state?:string; shipping_palmas_distance_rules:ShippingDistanceRule[]; top_banner_enabled:boolean; top_banner_text:string; top_banner_message:string; top_banner_cta:string; top_banner_cta_url:string };
+type StorefrontSettings = { layout_config?:{theme?:string;primary?:string;background?:string;font?:string;decorations?:boolean;banner_mode?:"auto"|"fixed"|"hover";banner_interval_seconds?:number;fixed_banner_id?:string;banner_arrows?:boolean;banners?:Array<{id:string;url:string;mobile_url?:string;title?:string;enabled:boolean}>}; quick_categories?:string[]; home_section_order?:string[]; hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string; shipping_palmas_enabled:boolean; shipping_palmas_min_subtotal:number; shipping_palmas_free_above:number; shipping_palmas_pickup_enabled:boolean; shipping_origin_postal_code:string; shipping_origin_draft_street?:string; shipping_origin_draft_number?:string; shipping_origin_draft_neighborhood?:string; shipping_origin_draft_city?:string; shipping_origin_draft_state?:string; shipping_palmas_distance_rules:ShippingDistanceRule[]; top_banner_enabled:boolean; top_banner_text:string; top_banner_message:string; top_banner_cta:string; top_banner_cta_url:string };
 import { loadPublicCatalog } from "./lib/publicCatalog";
 import { supabase, customerSupabase } from "./lib/supabase";
 import CustomerAccount from "./CustomerAccount";
@@ -126,14 +126,21 @@ export default function Storefront() {
   const [cartOpen, setCartOpen] = useState(false);
   const [storefrontSettings, setStorefrontSettings] = useState<StorefrontSettings | null>(null);
   const [bannerIndex,setBannerIndex]=useState(0);
+  const bannerTouchStart=useRef<number|null>(null);
   const layout=storefrontSettings?.layout_config;
   const activeBanners=(Array.isArray(layout?.banners)?layout.banners:[]).filter(b=>b.enabled&&/^https:\/\//.test(b.url));
-  const currentBanner=activeBanners[bannerIndex%Math.max(activeBanners.length,1)];
+  const bannerMode=layout?.banner_mode||"auto";
+  const bannerInterval=Math.min(30,Math.max(1,Math.round(Number(layout?.banner_interval_seconds)||6)));
+  const fixedIndex=activeBanners.findIndex(b=>b.id===layout?.fixed_banner_id);
+  const currentIndex=bannerMode==="fixed"&&fixedIndex>=0&&bannerIndex===0?fixedIndex:bannerIndex%Math.max(activeBanners.length,1);
+  const currentBanner=activeBanners[currentIndex];
+  const advanceBanner=(step:number)=>setBannerIndex(i=>(i+step+activeBanners.length)%activeBanners.length);
   useEffect(()=>{
-    if(activeBanners.length<2)return;
-    const timer=window.setInterval(()=>setBannerIndex(i=>(i+1)%activeBanners.length),6500);
+    if(bannerMode!=="auto"||activeBanners.length<2)return;
+    const timer=window.setInterval(()=>setBannerIndex(i=>(i+1)%activeBanners.length),bannerInterval*1000);
     return()=>window.clearInterval(timer);
-  },[activeBanners.length]);
+  },[bannerMode,bannerInterval,activeBanners.length]);
+  useEffect(()=>{setBannerIndex(0);},[layout?.fixed_banner_id,bannerMode]);
 
   const [catalogReady, setCatalogReady] = useState(false);
   const catalogRequest = useRef(0);
@@ -803,10 +810,16 @@ export default function Storefront() {
           <p className="store-hero-text">{storefrontSettings?.hero_subtitle || "Descubra peças escolhidas para valorizar cada detalhe. Elegância, delicadeza e personalidade em uma só vitrine."}</p>
           <div className="store-hero-actions"><a className="store-primary-cta" href={products.length ? (launches.length ? "#lancamentos" : "#colecao") : "#em-breve"}>{products.length ? (storefrontSettings?.hero_cta || "Comprar agora") : "Em breve"} <ArrowRight size={16} /></a><a className="store-text-link" href="#categorias">Ver categorias</a></div>
         </div>
-        <div className="store-hero-art" style={currentBanner ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url("${currentBanner.url}")` } : storefrontSettings?.hero_image_url ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${storefrontSettings.hero_image_url})` } : (latest[0]?.imageUrl || launches[0]?.imageUrl) ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${latest[0]?.imageUrl || launches[0]?.imageUrl})` } : undefined}>
+        <div className="store-hero-art" onMouseEnter={()=>{if(bannerMode==="hover"&&activeBanners.length>1)advanceBanner(1);}} onTouchStart={e=>{bannerTouchStart.current=e.touches[0]?.clientX??null;}} onTouchEnd={e=>{if(bannerTouchStart.current===null||activeBanners.length<2)return;const delta=e.changedTouches[0].clientX-bannerTouchStart.current;bannerTouchStart.current=null;if(Math.abs(delta)>45)advanceBanner(delta<0?1:-1);}} style={currentBanner ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url("${currentBanner.url}")` } : storefrontSettings?.hero_image_url ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${storefrontSettings.hero_image_url})` } : (latest[0]?.imageUrl || launches[0]?.imageUrl) ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${latest[0]?.imageUrl || launches[0]?.imageUrl})` } : undefined}>
           {currentBanner&&<picture className="violetta-banner-picture">{currentBanner.mobile_url&&<source media="(max-width: 700px)" srcSet={currentBanner.mobile_url}/>}<img src={currentBanner.url} alt={currentBanner.title||"Banner da Violetta"} loading="eager"/></picture>}
           {!currentBanner && !storefrontSettings?.hero_image_url && !latest[0]?.imageUrl && <><div className="hero-orbit orbit-one" /><div className="hero-orbit orbit-two" /><div className="hero-gem"><Gem size={82} strokeWidth={1} /></div></>}
-          {currentBanner && activeBanners.length>1 && <div className="violetta-banner-controls" aria-label="Escolher banner">{activeBanners.map((b,i)=><button type="button" key={b.id} className={i===bannerIndex?"selected":""} aria-label={`Banner ${i+1}`} onClick={()=>setBannerIndex(i)}/>)}</div>}
+          {currentBanner && activeBanners.length>1 && <>
+           {layout?.banner_arrows!==false&&<div style={{position:"absolute",inset:"50% 10px auto",transform:"translateY(-50%)",zIndex:4,display:"flex",justifyContent:"space-between",pointerEvents:"none"}}>
+             <button type="button" aria-label="Banner anterior" onClick={()=>advanceBanner(-1)} style={{pointerEvents:"auto",border:0,borderRadius:"50%",background:"rgba(255,255,255,.88)",color:"#40332e",width:38,height:38,cursor:"pointer"}}><ArrowLeft size={19}/></button>
+             <button type="button" aria-label="Próximo banner" onClick={()=>advanceBanner(1)} style={{pointerEvents:"auto",border:0,borderRadius:"50%",background:"rgba(255,255,255,.88)",color:"#40332e",width:38,height:38,cursor:"pointer"}}><ArrowRight size={19}/></button>
+           </div>}
+           <div className="violetta-banner-controls" aria-label="Escolher banner">{activeBanners.map((b,i)=><button type="button" key={b.id} className={i===currentIndex?"selected":""} aria-label={`Banner ${i+1}`} aria-current={i===currentIndex?"true":undefined} onClick={()=>setBannerIndex(i)}/>)}</div>
+          </>}
           <span className="hero-stamp"><Heart size={18} strokeWidth={1.5} /><strong>Violetta</strong><b>PRATA 925 · SEMIJOIAS</b></span>
         </div>
       </section>
