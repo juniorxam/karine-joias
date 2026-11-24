@@ -46,6 +46,9 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
   const [orders,setOrders]=useState<Order[]>([]);
   const [giftMissions,setGiftMissions]=useState<AccountGiftMission[]>([]);
   const [giftClaims,setGiftClaims]=useState<AccountGiftClaim[]>([]);
+  const [welcomeCoupon,setWelcomeCoupon]=useState("");
+  const [welcomeMessage,setWelcomeMessage]=useState("");
+  const [welcomeRefresh,setWelcomeRefresh]=useState(0);
   const [selected,setSelected]=useState<Order|null>(null);
   const shipment = selected?.shipments?.[0];
   const manualTracking = selected?.tracking_code?.trim();
@@ -189,6 +192,26 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
     })();
     return()=>{cancelled=true;};
   },[session?.user?.id]);
+
+  useEffect(()=>{
+    if(!customerSupabase||!session?.user?.id)return;
+    let cancelled=false;
+    customerSupabase.functions.invoke("customer-welcome-coupon",{body:{}}).then(({data,error})=>{
+      if(cancelled)return;
+      if(!error&&data?.ready&&data.coupon_code){
+        const code=String(data.coupon_code);
+        setWelcomeCoupon(code);
+        setWelcomeMessage("Seu cupom de primeira compra está reservado para você e não expira. Use-o na sua primeira compra paga.");
+        try{localStorage.setItem("kj-first-purchase-coupon",code);}catch{}
+      }else if(!error&&data?.message){
+        setWelcomeMessage(String(data.message));
+        setWelcomeCoupon("");
+      }else if(error){
+        setWelcomeMessage("Não foi possível consultar o cupom agora. Tente novamente mais tarde.");
+      }
+    });
+    return()=>{cancelled=true;};
+  },[session?.user?.id,session?.user?.user_metadata?.phone,session?.user?.user_metadata?.full_name,welcomeRefresh]);
 
   useEffect(()=>{
     if(!session?.user?.id||!customerSupabase){setGiftClaims([]);return;}
@@ -470,6 +493,6 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
       <div className="customer-orders-toolbar"><input placeholder="Buscar por número do pedido..." value={search} onChange={e=>setSearch(e.target.value)}/><select value={orderFilter} onChange={e=>setOrderFilter(e.target.value)}><option value="ALL">Todos os status</option>{Object.entries(statusLabels).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></div>
       {!filteredOrders.length?<div className="customer-empty"><Package size={28}/><h3>Nenhum pedido encontrado.</h3><p>Tente alterar a busca ou o filtro.</p></div>:<div className="customer-orders-list">{filteredOrders.map(order=><button className="customer-order-row" key={order.id} onClick={()=>setSelected(order)}><span className="customer-order-icon"><Package size={19}/></span><span className="customer-order-main"><strong>{order.order_number}</strong><small>{new Date(order.created_at).toLocaleDateString("pt-BR")} · {displayStatus(order.status)}</small></span><strong>{money(order.total_amount)}</strong><span className="customer-order-arrow">›</span></button>)}</div>}
     </div>
-    :<div className="customer-profile-panel"><div className="customer-detail-panel"><p className="store-kicker">DADOS DA CONTA</p><h2>Meu perfil</h2><div className="customer-form"><label>Nome completo<input value={profileName} onChange={e=>setProfileName(e.target.value)} autoComplete="name"/></label><label>WhatsApp<input value={profilePhone} onChange={e=>setProfilePhone(e.target.value)} autoComplete="tel"/></label><label>Data de nascimento<input type="date" value={profileBirthday} onChange={e=>setProfileBirthday(e.target.value)} autoComplete="bday"/></label><label>E-mail<input value={session.user.email||""} readOnly/></label><label style={{display:"flex",flexDirection:"row",alignItems:"flex-start",gap:10,fontWeight:400,lineHeight:1.5}}><input type="checkbox" checked={marketingConsent} onChange={e=>setMarketingConsent(e.target.checked)} style={{width:18,height:18,marginTop:2,flexShrink:0}}/><span>Quero receber novidades, promoções e ofertas especiais da Violetta, incluindo uma surpresa no meu aniversário. Posso cancelar esse recebimento quando quiser.</span></label><button className="store-primary-cta" onClick={saveProfile} disabled={profileBusy}><Save size={16}/>{profileBusy?"Salvando…":"Salvar dados"}</button></div></div><CustomerCpf key={session.user.id} customerId={session.user.id}/><div className="customer-detail-panel"><p className="store-kicker">SEGURANÇA</p><h2>Sua conta</h2><p>Você pode sair da conta a qualquer momento ou usar a recuperação de senha na tela de login.</p><div className="customer-security-badge"><LockKeyhole size={17}/><span>Autenticação por e-mail e senha</span></div><button className="customer-logout customer-logout-wide" onClick={async()=>{await customerSupabase?.auth.signOut();setSelected(null);}}><LogOut size={16}/> Sair da conta</button></div></div>}
+    :<div className="customer-profile-panel"><div className="customer-detail-panel"><p className="store-kicker">DADOS DA CONTA</p><h2>Meu perfil</h2><div className="customer-form"><label>Nome completo<input value={profileName} onChange={e=>setProfileName(e.target.value)} autoComplete="name"/></label><label>WhatsApp<input value={profilePhone} onChange={e=>setProfilePhone(e.target.value)} autoComplete="tel"/></label><label>Data de nascimento<input type="date" value={profileBirthday} onChange={e=>setProfileBirthday(e.target.value)} autoComplete="bday"/></label><label>E-mail<input value={session.user.email||""} readOnly/></label><label style={{display:"flex",flexDirection:"row",alignItems:"flex-start",gap:10,fontWeight:400,lineHeight:1.5}}><input type="checkbox" checked={marketingConsent} onChange={e=>setMarketingConsent(e.target.checked)} style={{width:18,height:18,marginTop:2,flexShrink:0}}/><span>Quero receber novidades, promoções e ofertas especiais da Violetta, incluindo uma surpresa no meu aniversário. Posso cancelar esse recebimento quando quiser.</span></label><button className="store-primary-cta" onClick={saveProfile} disabled={profileBusy}><Save size={16}/>{profileBusy?"Salvando…":"Salvar dados"}</button></div></div><div className="customer-detail-panel"><p className="store-kicker">BOAS-VINDAS VIOLETTA</p><h2>Meu cupom de primeira compra</h2><p>{welcomeMessage||"Estamos verificando seu benefício."}</p>{welcomeCoupon&&<div className="customer-security-badge"><Gift size={17}/><strong>{welcomeCoupon}</strong><button type="button" onClick={()=>{navigator.clipboard?.writeText(welcomeCoupon);toast.success("Código copiado");}}>Copiar cupom</button></div>}<button type="button" className="secondary" onClick={()=>setWelcomeRefresh(v=>v+1)}>Consultar meu cupom</button></div><CustomerCpf key={session.user.id} customerId={session.user.id} onSaved={()=>setWelcomeRefresh(v=>v+1)}/><div className="customer-detail-panel"><p className="store-kicker">SEGURANÇA</p><h2>Sua conta</h2><p>Você pode sair da conta a qualquer momento ou usar a recuperação de senha na tela de login.</p><div className="customer-security-badge"><LockKeyhole size={17}/><span>Autenticação por e-mail e senha</span></div><button className="customer-logout customer-logout-wide" onClick={async()=>{await customerSupabase?.auth.signOut();setSelected(null);}}><LogOut size={16}/> Sair da conta</button></div></div>}
   </section></main>;
 }
