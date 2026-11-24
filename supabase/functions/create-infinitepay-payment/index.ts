@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
       webhook_url: supabaseUrl + "/functions/v1/infinitepay-webhook",
       items: paymentItems,
       options: {
-        assured_installments: 3,
+        assured_installments: expectedCents < 15000 ? 2 : 3,
         single_payment: true,
         valid_until: expiresAt.toISOString(),
         payment_methods_enabled: ["credit_card", "pix"],
