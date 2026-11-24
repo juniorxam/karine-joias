@@ -750,7 +750,7 @@ export default function Storefront() {
     }} onReview={submitReview} paymentLoading={paymentLoading} trackingLoading={trackingLoading} />;
   }
 
-  return <div className={`storefront violetta-theme-${["christmas","newyear","romantic"].includes(layout?.theme||"")?layout?.theme:"original"}`} style={{...(layout?.background?{"--violetta-bg":layout.background}:{}),...(layout?.primary?{"--violetta-primary":layout.primary}:{}),fontFamily:layout?.font==="modern"?"Arial, sans-serif":layout?.font==="soft"?"Trebuchet MS, sans-serif":undefined} as React.CSSProperties}><FirstPurchasePopup eligible={view === "store" && customerAuthResolved && !customerSignedIn && firstPurchaseCheckComplete && !hasMadeFirstPurchase}/>
+  return <div className={`storefront violetta-theme-${layout?.decorations!==false&&["christmas","newyear","romantic"].includes(layout?.theme||"")?layout?.theme:"original"}`} style={{...(layout?.background?{"--violetta-bg":layout.background}:{}),...(layout?.primary?{"--violetta-primary":layout.primary}:{}),fontFamily:layout?.font==="modern"?"Arial, sans-serif":layout?.font==="soft"?"Trebuchet MS, sans-serif":undefined} as React.CSSProperties}><FirstPurchasePopup eligible={view === "store" && customerAuthResolved && !customerSignedIn && firstPurchaseCheckComplete && !hasMadeFirstPurchase}/>
     <header className="store-header">
       <a className="store-logo" href="/loja" onClick={(e) => { e.preventDefault(); backToStore(); }}>
         <img className="store-logo-image" src={logoSrc} alt="Violetta Prata 925 e Semijoias" />
