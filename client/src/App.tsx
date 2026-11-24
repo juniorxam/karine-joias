@@ -338,6 +338,8 @@ function StoreSettings({ownerId,accessRole,layoutOnly=false}:{ownerId?:string;ac
    shipping_palmas_min_subtotal:50,
    shipping_palmas_free_above:149.90,
    shipping_palmas_pickup_enabled:true,
+   layout_config:{theme:"original",primary:"#a47775",background:"#fffaf8",font:"classic",decorations:true,banners:[]},
+   hero_title:"",hero_subtitle:"",hero_cta:"Comprar agora",hero_image_url:"",
    top_banner_enabled:true,
    top_banner_text:"FRETE GRÁTIS",
    top_banner_message:"Nas compras acima de R$ 149,00 · somente Palmas-TO",
@@ -351,7 +353,7 @@ function StoreSettings({ownerId,accessRole,layoutOnly=false}:{ownerId?:string;ac
    ]
  };
  const [settings,setSettings]=useState<any>(defaults),[busy,setBusy]=useState(false),[originBusy,setOriginBusy]=useState(false),[health,setHealth]=useState<any>(null),[healthBusy,setHealthBusy]=useState(false),[accessEmail,setAccessEmail]=useState(""),[accessBusy,setAccessBusy]=useState(false),[accessMembers,setAccessMembers]=useState<any[]>([]),[accessLoading,setAccessLoading]=useState(false),[accessAction,setAccessAction]=useState("");
- const loadSettings=async()=>{if(!supabase||!ownerId)return;const {data,error}=await supabase.from("storefront_settings").select("shipping_palmas_enabled,shipping_palmas_min_subtotal,shipping_palmas_free_above,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_origin_draft_postal_code,shipping_origin_draft_street,shipping_origin_draft_number,shipping_origin_draft_neighborhood,shipping_origin_draft_city,shipping_origin_draft_state,shipping_origin_address_confirmed,shipping_palmas_distance_rules,top_banner_enabled,top_banner_text,top_banner_message,top_banner_cta,top_banner_cta_url").eq("owner_id",ownerId).eq("store_slug","violetta").maybeSingle();if(error){console.error(error);return;}if(data)setSettings({...defaults,...data,shipping_palmas_distance_rules:Array.isArray(data.shipping_palmas_distance_rules)&&data.shipping_palmas_distance_rules.length?data.shipping_palmas_distance_rules:defaults.shipping_palmas_distance_rules});};
+ const loadSettings=async()=>{if(!supabase||!ownerId)return;const {data,error}=await supabase.from("storefront_settings").select("shipping_palmas_enabled,shipping_palmas_min_subtotal,shipping_palmas_free_above,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_origin_draft_postal_code,shipping_origin_draft_street,shipping_origin_draft_number,shipping_origin_draft_neighborhood,shipping_origin_draft_city,shipping_origin_draft_state,shipping_origin_address_confirmed,shipping_palmas_distance_rules,top_banner_enabled,top_banner_text,top_banner_message,top_banner_cta,top_banner_cta_url,hero_title,hero_subtitle,hero_cta,hero_image_url,layout_config").eq("owner_id",ownerId).eq("store_slug","violetta").maybeSingle();if(error){console.error(error);return;}if(data)setSettings({...defaults,...data,shipping_palmas_distance_rules:Array.isArray(data.shipping_palmas_distance_rules)&&data.shipping_palmas_distance_rules.length?data.shipping_palmas_distance_rules:defaults.shipping_palmas_distance_rules});};
  useEffect(()=>{loadSettings();},[ownerId]);
  const loadAccess=async()=>{if(!supabase||!ownerId||!["owner","developer"].includes(accessRole||""))return;setAccessLoading(true);try{const {data,error}=await supabase.functions.invoke("manage-store-access",{body:{action:"list",owner_id:ownerId}});if(error)throw error;if(data?.error)throw new Error(data.error);setAccessMembers(data?.members||[]);}catch(e){console.error(e);toast.error("Não foi possível carregar os acessos",{description:e instanceof Error?e.message:"Erro"});}finally{setAccessLoading(false);}};
  useEffect(()=>{loadAccess();},[ownerId,accessRole]);
@@ -371,17 +373,90 @@ setOriginBusy(true);try{if(!currentlyActive){const postal=String(settings.shippi
  const check=(name:string)=>health?.checks?.find((x:any)=>x.name===name);
  const statusLabel=(c:any, fallback:string)=>c?(c.ok?"Configurado":"Aguardando configuração"):fallback;
  const rules=settings.shipping_palmas_distance_rules||[];
- const saveLayout=async()=>{if(!supabase||!ownerId)return;setBusy(true);try{const {error}=await supabase.from("storefront_settings").upsert({owner_id:ownerId,store_slug:"violetta",top_banner_enabled:Boolean(settings.top_banner_enabled),top_banner_text:String(settings.top_banner_text||"").trim().slice(0,80),top_banner_message:String(settings.top_banner_message||"").trim().slice(0,180),top_banner_cta:String(settings.top_banner_cta||"").trim().slice(0,60),top_banner_cta_url:String(settings.top_banner_cta_url||"#novidades").trim().slice(0,240)},{onConflict:"owner_id,store_slug"});if(error)throw error;toast.success("Layout da loja salvo");}catch(e){toast.error("Não foi possível salvar o layout",{description:e instanceof Error?e.message:"Tente novamente."});}finally{setBusy(false);}};
- if(layoutOnly)return <><Head k="APARÊNCIA" title="Layout da loja" d="Personalize a apresentação e a comunicação visual da vitrine."/>
-  <section className="panel" style={{marginBottom:20}}><div className="panel-title"><div><p className="eyebrow">🎨 APARÊNCIA E VITRINE</p><h3>Banner superior</h3><p>Controle a comunicação promocional exibida no topo da loja sem alterar o código.</p></div><Sparkles size={20} className="gold-icon"/></div>
+
+ const layout=settings.layout_config||defaults.layout_config;
+ const banners:Array<{id:string;url:string;mobile_url?:string;title?:string;enabled:boolean}>=Array.isArray(layout.banners)?layout.banners:[];
+ const setLayout=(key:string,value:any)=>setSettings((prev:any)=>({...prev,layout_config:{...defaults.layout_config,...prev.layout_config,[key]:value}}));
+ const updateBanner=(id:string,patch:Record<string,unknown>)=>setLayout("banners",banners.map(b=>b.id===id?{...b,...patch}:b));
+ const uploadBanner=async(file:File, id?:string, mobile=false)=>{
+   if(!supabase||!ownerId)return;
+   if(!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>8*1024*1024){toast.error("Envie JPG, PNG ou WebP com até 8 MB.");return;}
+   setBusy(true);
+   try{
+     const ext=file.type==="image/png"?"png":file.type==="image/webp"?"webp":"jpg";
+     const key=`${ownerId}/${crypto.randomUUID()}.${ext}`;
+     const {error}=await supabase.storage.from("violetta-banners").upload(key,file,{contentType:file.type,upsert:false});
+     if(error)throw error;
+     const url=supabase.storage.from("violetta-banners").getPublicUrl(key).data.publicUrl;
+     if(id)updateBanner(id,mobile?{mobile_url:url}:{url});
+     else setLayout("banners",[...banners,{id:crypto.randomUUID(),url,enabled:true,title:""}]);
+     toast.success("Imagem enviada. Clique em Publicar layout para exibir na loja.");
+   }catch(e){toast.error("Não foi possível enviar a imagem",{description:e instanceof Error?e.message:"Tente novamente."});}
+   finally{setBusy(false);}
+ };
+ const saveLayout=async()=>{
+   if(!supabase||!ownerId)return;
+   setBusy(true);
+   try{
+     const config={...defaults.layout_config,...layout,banners:banners.slice(0,12)};
+     const {error}=await supabase.from("storefront_settings").update({
+       layout_config:config,
+       hero_title:String(settings.hero_title||"").slice(0,120),
+       hero_subtitle:String(settings.hero_subtitle||"").slice(0,300),
+       hero_cta:String(settings.hero_cta||"Comprar agora").slice(0,60),
+       top_banner_enabled:Boolean(settings.top_banner_enabled),
+       top_banner_text:String(settings.top_banner_text||"").slice(0,80),
+       top_banner_message:String(settings.top_banner_message||"").slice(0,180),
+       top_banner_cta:String(settings.top_banner_cta||"").slice(0,60),
+       top_banner_cta_url:String(settings.top_banner_cta_url||"#novidades").slice(0,240)
+     }).eq("owner_id",ownerId).eq("store_slug","violetta");
+     if(error)throw error;
+     toast.success("Layout publicado com sucesso!");
+   }catch(e){toast.error("Não foi possível publicar o layout",{description:e instanceof Error?e.message:"Tente novamente."});}
+   finally{setBusy(false);}
+ };
+ if(layoutOnly)return <><Head k="APARÊNCIA" title="Layout da loja" d="Personalize banners, cores, fontes e temas. As mudanças só entram na loja após publicar."/>
+ <section className="panel" style={{marginBottom:20}}>
+ <div className="panel-title"><div><p className="eyebrow">IMAGENS PRINCIPAIS</p><h3>Gerenciador de banners</h3><p>Envie imagens próprias, mesmo que não sejam produtos. Até 12 banners, com versões para celular.</p></div><Sparkles size={20}/></div>
+ <div className="form-grid"><label className="full">Adicionar banner (JPG, PNG ou WebP, até 8 MB)<input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy||banners.length>=12} onChange={e=>{const file=e.target.files?.[0];if(file)void uploadBanner(file);e.target.value="";}}/></label></div>
+ {banners.map((b,i)=><div key={b.id} style={{border:"1px solid #ddd",borderRadius:12,padding:12,marginTop:12,display:"grid",gap:10}}>
+  <img src={b.url} alt={b.title||"Banner da loja"} style={{width:"100%",maxHeight:230,objectFit:"contain",borderRadius:8}}/>
+  <div className="form-grid">
+   <label>Título interno<input value={b.title||""} maxLength={80} onChange={e=>updateBanner(b.id,{title:e.target.value})}/></label>
+   <label className="settings-toggle"><input type="checkbox" checked={b.enabled} onChange={e=>updateBanner(b.id,{enabled:e.target.checked})}/> Exibir banner</label>
+   <label>Imagem para celular<input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{const f=e.target.files?.[0];if(f)void uploadBanner(f,b.id,true);e.target.value="";}}/></label>
+  </div>
+  {b.mobile_url&&<img src={b.mobile_url} alt="Versão para celular" style={{width:110,maxHeight:160,objectFit:"contain"}}/>}
+  <div className="modal-actions">
+   <button className="secondary" disabled={i===0} onClick={()=>{const arr=[...banners];[arr[i-1],arr[i]]=[arr[i],arr[i-1]];setLayout("banners",arr);}}>↑ Subir</button>
+   <button className="secondary" disabled={i===banners.length-1} onClick={()=>{const arr=[...banners];[arr[i+1],arr[i]]=[arr[i],arr[i+1]];setLayout("banners",arr);}}>↓ Descer</button>
+   <button className="secondary" onClick={()=>setLayout("banners",banners.filter(item=>item.id!==b.id))}>Remover da vitrine</button>
+  </div>
+ </div>)}
+ <p style={{marginTop:12}}>Sem banners ativos, a loja mantém a imagem principal atual.</p>
+ </section>
+ <section className="panel" style={{marginBottom:20}}><div className="panel-title"><div><p className="eyebrow">IDENTIDADE VISUAL</p><h3>Cores e fontes</h3></div></div>
  <div className="form-grid">
-  <label className="full settings-toggle"><input type="checkbox" checked={settings.top_banner_enabled} onChange={e=>u("top_banner_enabled",e.target.checked)}/> Exibir banner no topo da loja</label>
-  <label>Texto em destaque<input value={settings.top_banner_text} maxLength={80} onChange={e=>u("top_banner_text",e.target.value)}/></label>
-  <label>Mensagem<input value={settings.top_banner_message} maxLength={180} onChange={e=>u("top_banner_message",e.target.value)}/></label>
-  <label>Texto do botão<input value={settings.top_banner_cta} maxLength={60} onChange={e=>u("top_banner_cta",e.target.value)} placeholder="Ex.: Comprar agora"/></label>
-  <label>Destino do botão<input value={settings.top_banner_cta_url} maxLength={240} onChange={e=>u("top_banner_cta_url",e.target.value)} placeholder="Ex.: #novidades ou /loja"/></label>
- </div>
- <div className="modal-actions"><button className="primary" onClick={saveLayout} disabled={busy}>{busy?"Salvando…":"Salvar aparência e vitrine"}</button></div></section></>;
+ <label>Cor principal<input type="color" value={layout.primary||"#a47775"} onChange={e=>setLayout("primary",e.target.value)}/></label>
+ <label>Cor de fundo<input type="color" value={layout.background||"#fffaf8"} onChange={e=>setLayout("background",e.target.value)}/></label>
+ <label>Fonte da loja<select value={layout.font||"classic"} onChange={e=>setLayout("font",e.target.value)}><option value="classic">Clássica e elegante</option><option value="modern">Moderna</option><option value="soft">Suave e delicada</option></select></label>
+ </div></section>
+ <section className="panel" style={{marginBottom:20}}><div className="panel-title"><div><p className="eyebrow">TEMAS E DECORAÇÕES</p><h3>Tema sazonal</h3><p>Nenhuma decoração será ativada automaticamente. Escolha, visualize e publique.</p></div></div>
+ <div className="form-grid"><label>Escolher tema<select value={layout.theme||"original"} onChange={e=>setLayout("theme",e.target.value)}><option value="original">Visual original</option><option value="christmas">Natal Encantado</option><option value="newyear">Ano-Novo</option><option value="romantic">Dia dos Namorados</option></select></label>
+ <label className="settings-toggle"><input type="checkbox" checked={layout.decorations!==false} onChange={e=>setLayout("decorations",e.target.checked)}/> Mostrar decorações do tema selecionado</label></div>
+ </section>
+ <section className="panel" style={{marginBottom:20}}><div className="panel-title"><div><p className="eyebrow">TEXTO DA VITRINE</p><h3>Mensagem principal</h3></div></div>
+ <div className="form-grid"><label>Título<input value={settings.hero_title||""} maxLength={120} onChange={e=>u("hero_title",e.target.value)}/></label><label>Texto<input value={settings.hero_subtitle||""} maxLength={300} onChange={e=>u("hero_subtitle",e.target.value)}/></label><label>Botão<input value={settings.hero_cta||""} maxLength={60} onChange={e=>u("hero_cta",e.target.value)}/></label></div>
+ </section>
+ <section className="panel" style={{marginBottom:20}}><div className="panel-title"><div><p className="eyebrow">FAIXA PROMOCIONAL</p><h3>Banner superior</h3></div></div>
+ <div className="form-grid"><label className="full settings-toggle"><input type="checkbox" checked={settings.top_banner_enabled} onChange={e=>u("top_banner_enabled",e.target.checked)}/> Exibir faixa no topo</label><label>Texto<input value={settings.top_banner_text} onChange={e=>u("top_banner_text",e.target.value)}/></label><label>Mensagem<input value={settings.top_banner_message} onChange={e=>u("top_banner_message",e.target.value)}/></label><label>Botão<input value={settings.top_banner_cta} onChange={e=>u("top_banner_cta",e.target.value)}/></label><label>Link<input value={settings.top_banner_cta_url} onChange={e=>u("top_banner_cta_url",e.target.value)}/></label></div></section>
+ <section className="panel" style={{marginBottom:20}}><div className="panel-title"><div><h3>Pré-visualização</h3><p>Confira a aparência antes de publicar.</p></div></div>
+ <div style={{background:layout.background||"#fffaf8",borderRadius:14,padding:24,color:layout.primary||"#a47775",fontFamily:layout.font==="modern"?"Arial,sans-serif":layout.font==="soft"?"Trebuchet MS,sans-serif":"Georgia,serif",textAlign:"center"}}>
+ <h2 style={{color:layout.primary||"#a47775"}}>{settings.hero_title||"Violetta Joias"}</h2><p>{settings.hero_subtitle||"Elegância em cada detalhe"}</p>
+ {banners.find(b=>b.enabled)&&<img src={banners.find(b=>b.enabled)?.url} alt="Prévia do banner" style={{maxWidth:"100%",maxHeight:280,objectFit:"contain"}}/>}
+ <p>{layout.theme==="christmas"?"✦ 🎄 ✦ Natal Encantado ✦":layout.theme==="newyear"?"✦ ✨ ✦ Ano-Novo ✦":layout.theme==="romantic"?"♡ Dia dos Namorados ♡":""}</p>
+ </div><div className="modal-actions"><button className="primary" disabled={busy} onClick={saveLayout}>{busy?"Publicando…":"Publicar layout na loja"}</button><button className="secondary" disabled={busy} onClick={()=>void loadSettings()}>Descartar alterações</button></div></section>
+ </>;
  return <><Head k="CONFIGURAÇÕES" title="Configurações" d="Centralize as preferências de entrega e integrações."/>
  <section className="panel" style={{marginBottom:20}}><div className="panel-title"><div><p className="eyebrow">VISÃO GERAL</p><h3>Configurações da loja</h3><p>Organizamos as opções por área para facilitar a manutenção da Violetta.</p></div><Settings size={20} className="gold-icon"/></div>
  <div className="integration-status-grid">
