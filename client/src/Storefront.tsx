@@ -13,7 +13,7 @@ function merchandiseDiscount(subtotal: number, coupon: AppliedCoupon | null) {
   return 0;
 }
 type ProductReview = { id:string; product_id:number; rating:number; comment:string; display_name:string; created_at:string };
-type StorefrontSettings = { quick_categories?:string[]; home_section_order?:string[]; hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string; shipping_palmas_enabled:boolean; shipping_palmas_min_subtotal:number; shipping_palmas_free_above:number; shipping_palmas_pickup_enabled:boolean; shipping_origin_postal_code:string; shipping_origin_draft_street?:string; shipping_origin_draft_number?:string; shipping_origin_draft_neighborhood?:string; shipping_origin_draft_city?:string; shipping_origin_draft_state?:string; shipping_palmas_distance_rules:ShippingDistanceRule[]; top_banner_enabled:boolean; top_banner_text:string; top_banner_message:string; top_banner_cta:string; top_banner_cta_url:string };
+type StorefrontSettings = { layout_config?:{theme?:string;primary?:string;background?:string;font?:string;decorations?:boolean;banners?:Array<{id:string;url:string;mobile_url?:string;title?:string;enabled:boolean}>}; quick_categories?:string[]; home_section_order?:string[]; hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string; shipping_palmas_enabled:boolean; shipping_palmas_min_subtotal:number; shipping_palmas_free_above:number; shipping_palmas_pickup_enabled:boolean; shipping_origin_postal_code:string; shipping_origin_draft_street?:string; shipping_origin_draft_number?:string; shipping_origin_draft_neighborhood?:string; shipping_origin_draft_city?:string; shipping_origin_draft_state?:string; shipping_palmas_distance_rules:ShippingDistanceRule[]; top_banner_enabled:boolean; top_banner_text:string; top_banner_message:string; top_banner_cta:string; top_banner_cta_url:string };
 import { loadPublicCatalog } from "./lib/publicCatalog";
 import { supabase, customerSupabase } from "./lib/supabase";
 import CustomerAccount from "./CustomerAccount";
@@ -119,6 +119,16 @@ export default function Storefront() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [storefrontSettings, setStorefrontSettings] = useState<StorefrontSettings | null>(null);
+  const [bannerIndex,setBannerIndex]=useState(0);
+  const layout=storefrontSettings?.layout_config;
+  const activeBanners=(Array.isArray(layout?.banners)?layout.banners:[]).filter(b=>b.enabled&&/^https:\/\//.test(b.url));
+  const currentBanner=activeBanners[bannerIndex%Math.max(activeBanners.length,1)];
+  useEffect(()=>{
+    if(activeBanners.length<2)return;
+    const timer=window.setInterval(()=>setBannerIndex(i=>(i+1)%activeBanners.length),6500);
+    return()=>window.clearInterval(timer);
+  },[activeBanners.length]);
+
   const [catalogReady, setCatalogReady] = useState(false);
   const catalogRequest = useRef(0);
   const refreshPublicCatalog = async () => {
@@ -141,7 +151,7 @@ export default function Storefront() {
       return null;
     }
     const { data, error } = await supabase.from("storefront_settings")
-      .select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled,collection_enabled,collection_title,collection_subtitle,collection_image_url,collection_cta,shipping_palmas_enabled,shipping_palmas_min_subtotal,shipping_palmas_free_above,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_origin_draft_street,shipping_origin_draft_number,shipping_origin_draft_neighborhood,shipping_origin_draft_city,shipping_origin_draft_state,shipping_palmas_distance_rules,top_banner_enabled,top_banner_text,top_banner_message,top_banner_cta,top_banner_cta_url")
+      .select("hero_title,hero_subtitle,hero_image_url,hero_cta,featured_title,featured_enabled,latest_enabled,category_enabled,collection_enabled,collection_title,collection_subtitle,collection_image_url,collection_cta,shipping_palmas_enabled,shipping_palmas_min_subtotal,shipping_palmas_free_above,shipping_palmas_pickup_enabled,shipping_origin_postal_code,shipping_origin_draft_street,shipping_origin_draft_number,shipping_origin_draft_neighborhood,shipping_origin_draft_city,shipping_origin_draft_state,shipping_palmas_distance_rules,top_banner_enabled,top_banner_text,top_banner_message,top_banner_cta,top_banner_cta_url,layout_config")
       .eq("store_slug","violetta")
       .limit(1)
       .maybeSingle();
@@ -740,7 +750,7 @@ export default function Storefront() {
     }} onReview={submitReview} paymentLoading={paymentLoading} trackingLoading={trackingLoading} />;
   }
 
-  return <div className="storefront"><FirstPurchasePopup eligible={view === "store" && customerAuthResolved && !customerSignedIn && firstPurchaseCheckComplete && !hasMadeFirstPurchase}/>
+  return <div className={`storefront violetta-theme-${["christmas","newyear","romantic"].includes(layout?.theme||"")?layout?.theme:"original"}`} style={{...(layout?.background?{"--violetta-bg":layout.background}:{}),...(layout?.primary?{"--violetta-primary":layout.primary}:{}),fontFamily:layout?.font==="modern"?"Arial, sans-serif":layout?.font==="soft"?"Trebuchet MS, sans-serif":undefined} as React.CSSProperties}><FirstPurchasePopup eligible={view === "store" && customerAuthResolved && !customerSignedIn && firstPurchaseCheckComplete && !hasMadeFirstPurchase}/>
     <header className="store-header">
       <a className="store-logo" href="/loja" onClick={(e) => { e.preventDefault(); backToStore(); }}>
         <img className="store-logo-image" src={logoSrc} alt="Violetta Prata 925 e Semijoias" />
@@ -777,6 +787,9 @@ export default function Storefront() {
     <main>
       {storefrontSettings?.top_banner_enabled && <div className="store-promo-bar"><span><Truck size={14}/> {storefrontSettings.top_banner_text}</span><b>{storefrontSettings.top_banner_message}</b>{storefrontSettings.top_banner_cta && <a href={storefrontSettings.top_banner_cta_url || "#novidades"}>{storefrontSettings.top_banner_cta} <ArrowRight size={12}/></a>}</div>}
 
+      {layout?.decorations!==false && layout?.theme==="christmas"&&<div className="violetta-seasonal" aria-label="Decoração de Natal">✦ ✨ 🎄 Natal Encantado ✨ ✦</div>}
+      {layout?.decorations!==false && layout?.theme==="newyear"&&<div className="violetta-seasonal" aria-label="Decoração de Ano-Novo">✦ ✨ Celebre um novo ano ✨ ✦</div>}
+      {layout?.decorations!==false && layout?.theme==="romantic"&&<div className="violetta-seasonal" aria-label="Decoração romântica">♡ ✨ Celebre o amor ✨ ♡</div>}
       <section className="store-hero" id="inicio">
         <div className="store-hero-copy">
           <p className="store-kicker"><Sparkles size={13} /> NOVA COLEÇÃO VIOLETTA JOIAS</p>
@@ -784,8 +797,9 @@ export default function Storefront() {
           <p className="store-hero-text">{storefrontSettings?.hero_subtitle || "Descubra peças escolhidas para valorizar cada detalhe. Elegância, delicadeza e personalidade em uma só vitrine."}</p>
           <div className="store-hero-actions"><a className="store-primary-cta" href={products.length ? (launches.length ? "#lancamentos" : "#colecao") : "#em-breve"}>{products.length ? (storefrontSettings?.hero_cta || "Comprar agora") : "Em breve"} <ArrowRight size={16} /></a><a className="store-text-link" href="#categorias">Ver categorias</a></div>
         </div>
-        <div className="store-hero-art" style={storefrontSettings?.hero_image_url ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${storefrontSettings.hero_image_url})` } : (latest[0]?.imageUrl || launches[0]?.imageUrl) ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${latest[0]?.imageUrl || launches[0]?.imageUrl})` } : undefined}>
-          {!storefrontSettings?.hero_image_url && !latest[0]?.imageUrl && <><div className="hero-orbit orbit-one" /><div className="hero-orbit orbit-two" /><div className="hero-gem"><Gem size={82} strokeWidth={1} /></div></>}
+        <div className="store-hero-art" style={currentBanner ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url("${currentBanner.url}")` } : storefrontSettings?.hero_image_url ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${storefrontSettings.hero_image_url})` } : (latest[0]?.imageUrl || launches[0]?.imageUrl) ? { backgroundImage: `linear-gradient(90deg, #332e2a22, transparent), url(${latest[0]?.imageUrl || launches[0]?.imageUrl})` } : undefined}>
+          {!currentBanner && !storefrontSettings?.hero_image_url && !latest[0]?.imageUrl && <><div className="hero-orbit orbit-one" /><div className="hero-orbit orbit-two" /><div className="hero-gem"><Gem size={82} strokeWidth={1} /></div></>}
+          {currentBanner && activeBanners.length>1 && <div className="violetta-banner-controls" aria-label="Escolher banner">{activeBanners.map((b,i)=><button type="button" key={b.id} className={i===bannerIndex?"selected":""} aria-label={`Banner ${i+1}`} onClick={()=>setBannerIndex(i)}/>)}</div>}
           <span className="hero-stamp"><Heart size={18} strokeWidth={1.5} /><strong>Violetta</strong><b>PRATA 925 · SEMIJOIAS</b></span>
         </div>
       </section>
