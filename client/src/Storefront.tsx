@@ -1325,7 +1325,7 @@ function Checkout({ checkoutBlocked, ownsCurrentReservation, onRemove, onCouponC
     setCouponBusy(true);
     const timer = window.setTimeout(() => { void applyCoupon(false); }, 300);
     return () => window.clearTimeout(timer);
-  }, [cartSignature, shippingPrice, customer.email, customer.phone, customer.recipient_code]);
+  }, [cartSignature, shippingPrice, customer.email, customer.phone, customer.recipient_code, couponCode]);
   const claimFirstPurchase=async(silent=false)=>{
     const name=customer.name.trim();
     const phone=normalizePhone(customer.phone);
