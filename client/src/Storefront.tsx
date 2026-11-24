@@ -132,7 +132,7 @@ export default function Storefront() {
   const bannerMode=layout?.banner_mode||"auto";
   const bannerInterval=Math.min(30,Math.max(1,Math.round(Number(layout?.banner_interval_seconds)||6)));
   const fixedIndex=activeBanners.findIndex(b=>b.id===layout?.fixed_banner_id);
-  const currentIndex=bannerMode==="fixed"&&fixedIndex>=0&&bannerIndex===0?fixedIndex:bannerIndex%Math.max(activeBanners.length,1);
+  const currentIndex=bannerIndex%Math.max(activeBanners.length,1);
   const currentBanner=activeBanners[currentIndex];
   const advanceBanner=(step:number)=>setBannerIndex(i=>(i+step+activeBanners.length)%activeBanners.length);
   useEffect(()=>{
@@ -140,7 +140,7 @@ export default function Storefront() {
     const timer=window.setInterval(()=>setBannerIndex(i=>(i+1)%activeBanners.length),bannerInterval*1000);
     return()=>window.clearInterval(timer);
   },[bannerMode,bannerInterval,activeBanners.length]);
-  useEffect(()=>{setBannerIndex(0);},[layout?.fixed_banner_id,bannerMode]);
+  useEffect(()=>{setBannerIndex(bannerMode==="fixed"&&fixedIndex>=0?fixedIndex:0);},[layout?.fixed_banner_id,bannerMode,activeBanners.length]);
 
   const [catalogReady, setCatalogReady] = useState(false);
   const catalogRequest = useRef(0);
