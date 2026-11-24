@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { formatCPF, isValidCPF } from "./lib/cpf";
 import { customerSupabase } from "./lib/supabase";
 
-export default function CustomerCpf({ customerId }: { customerId: string }) {
+export default function CustomerCpf({ customerId, onSaved }: { customerId: string; onSaved?: () => void }) {
   const [ending, setEnding] = useState("");
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState(false);
@@ -43,6 +43,7 @@ export default function CustomerCpf({ customerId }: { customerId: string }) {
       setDraft("");
       setEditing(false);
       setMessage("CPF salvo para as próximas compras.");
+      onSaved?.();
     } catch {
       setError("Não foi possível salvar o CPF. Tente novamente.");
     } finally { setBusy(false); }
