@@ -338,7 +338,7 @@ function StoreSettings({ownerId,accessRole,layoutOnly=false}:{ownerId?:string;ac
    shipping_palmas_min_subtotal:50,
    shipping_palmas_free_above:149.90,
    shipping_palmas_pickup_enabled:true,
-   layout_config:{theme:"original",primary:"#a47775",background:"#fffaf8",font:"classic",decorations:true,banners:[]},
+   layout_config:{theme:"original",primary:"",background:"",font:"classic",decorations:true,banners:[]},
    hero_title:"",hero_subtitle:"",hero_cta:"Comprar agora",hero_image_url:"",
    top_banner_enabled:true,
    top_banner_text:"FRETE GRÁTIS",
