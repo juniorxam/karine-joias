@@ -1146,3 +1146,6 @@
 @media(prefers-reduced-motion:reduce){.violetta-banner-controls button{transition:none}}
 
 .violetta-banner-picture{position:absolute;inset:0;display:block;width:100%;height:100%;z-index:0}.violetta-banner-picture img{width:100%;height:100%;object-fit:cover;display:block}.store-hero-art:has(.violetta-banner-picture) .hero-stamp{position:relative;z-index:1}
+
+/* Decorações sazonais discretas, ativadas somente pela gestão */
+.violetta-theme-christmas .store-hero-copy::before{content:"✦  ✧  ✦";display:block;color:#b18a4b;letter-spacing:1.2em;margin-bottom:14px;font-size:18px}.violetta-theme-christmas .store-hero-art::after{content:"✧";position:absolute;top:12px;right:22px;color:#e8d39a;font-size:34px;text-shadow:0 0 15px #fff;pointer-events:none}.violetta-theme-newyear .store-hero-copy::before{content:"✦  ✧  ✦";display:block;color:#b18a4b;letter-spacing:1em;margin-bottom:14px}.violetta-theme-romantic .store-hero-copy::before{content:"♡  ♡  ♡";display:block;color:#c9829e;letter-spacing:1em;margin-bottom:14px}
