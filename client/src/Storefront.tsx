@@ -1052,6 +1052,9 @@ function Checkout({ checkoutBlocked, ownsCurrentReservation, onRemove, onCouponC
   const zipRequest = useRef(0);
   const [couponCode, setCouponCode] = useState(draft.couponCode || (() => { try { return localStorage.getItem("kj-first-purchase-coupon") || ""; } catch { return ""; } })());
   const [couponBusy, setCouponBusy] = useState(false);
+  const [firstPurchaseBusy,setFirstPurchaseBusy]=useState(false);
+  const [firstPurchaseNotice,setFirstPurchaseNotice]=useState("");
+  const firstPurchaseRequested=useRef("");
   const [couponError, setCouponError] = useState("");
   const couponRequest = useRef(0);
   const [couponType, setCouponType] = useState("");
@@ -1323,6 +1326,39 @@ function Checkout({ checkoutBlocked, ownsCurrentReservation, onRemove, onCouponC
     const timer = window.setTimeout(() => { void applyCoupon(false); }, 300);
     return () => window.clearTimeout(timer);
   }, [cartSignature, shippingPrice, customer.email, customer.phone, customer.recipient_code]);
+  const claimFirstPurchase=async(silent=false)=>{
+    const name=customer.name.trim();
+    const phone=normalizePhone(customer.phone);
+    if(name.length<2||phone.length<10||phone.length>11){
+      if(!silent)toast.info("Informe seu nome e WhatsApp para liberar o cupom de primeira compra.");
+      return;
+    }
+    if(!supabase)return;
+    setFirstPurchaseBusy(true);
+    try{
+      const {data,error}=await (customerSupabase??supabase).functions.invoke("first-purchase-gift",{body:{name,phone}});
+      if(error||!data?.coupon_code)throw new Error(await getFunctionErrorMessage(error,data,"Não foi possível liberar o cupom."));
+      const code=String(data.coupon_code).toUpperCase();
+      localStorage.setItem("kj-first-purchase-coupon",code);
+      setCouponCode(code);
+      setFirstPurchaseNotice("Seu cupom de primeira compra está disponível. O desconto será validado antes de finalizar o pedido.");
+      if(!silent)toast.success("Cupom de primeira compra liberado!");
+    }catch(e){
+      const message=e instanceof Error?e.message:"Não foi possível verificar o benefício.";
+      setFirstPurchaseNotice(/exclusivo para a primeira compra/i.test(message)?"O benefício é exclusivo para quem ainda não realizou uma compra paga.":message);
+      if(!silent)toast.error("Não foi possível liberar o cupom",{description:message});
+    }finally{setFirstPurchaseBusy(false);}
+  };
+  useEffect(()=>{
+    if(couponCode.trim()||firstPurchaseBusy||!cart.length)return;
+    const phone=normalizePhone(customer.phone);
+    const name=customer.name.trim();
+    if(name.length<2||phone.length<10||phone.length>11)return;
+    const identity=phone;
+    if(firstPurchaseRequested.current===identity)return;
+    const timer=window.setTimeout(()=>{firstPurchaseRequested.current=identity;void claimFirstPurchase(true);},1200);
+    return()=>window.clearTimeout(timer);
+  },[customer.name,customer.phone,couponCode,cart.length,firstPurchaseBusy]);
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!cart.length) return toast.error("Seu carrinho está vazio");
@@ -1384,7 +1420,11 @@ function Checkout({ checkoutBlocked, ownsCurrentReservation, onRemove, onCouponC
         {<div className="checkout-final-note"><Truck size={16}/><span><strong>{(quotePending || distanceLoading)?"Calculando frete e distância pela rota viária…":distanceKmValue!==null?`${serverShippingQuote?.precision === "lot" ? "Distância até o lote" : serverShippingQuote?.precision === "cep" ? "Distância estimada pelo CEP" : "Distância estimada pelo endereço"}: ${distanceKmValue.toFixed(2).replace(".", ",")} km`:distanceError||"Preencha os dados do endereço e clique em Calcular frete."}</strong></span></div>}<button type="button" className="shipping-quote-button" onClick={handleCalculateShipping} disabled={distanceLoading}>{distanceLoading?"Calculando frete…":"Calcular frete"}</button>{beyondDeliveryRadius&&<div className="checkout-final-note"><Truck size={16}/><span>Entrega acima da faixa automática de 17,9 km. O frete será combinado diretamente com a loja.</span></div>}{shippingOptions.length>0&&<div className="shipping-options">{shippingOptions.map(option=><label className={"shipping-option "+(shippingOption?.id===option.id?"selected":"")} key={String(option.id)}><input type="radio" name="shipping-option" checked={shippingOption?.id===option.id} onChange={()=>setShipping(v=>({...v,shipping_option:option}))}/><span><strong>{option.company} · {option.service}</strong><small>{option.service === "Retirada no local" ? "Retire seu pedido no endereço da Violetta, sem cobrança de frete." : isPalmas && option.service !== "Frete a combinar" ? "Frete calculado pela rota viária entre a loja e o seu endereço." : "Para este endereço, o frete será negociado separadamente com a loja."}</small></span><b>{option.service === "Frete a combinar" ? "À parte" : option.price > 0 ? formatMoney(option.price) : "Grátis"}</b></label>)}</div>}
         {!shippingOption&&!isPalmas&&<div className="checkout-final-note"><Truck size={16}/><span>Informe cidade e UF para visualizar como o frete será tratado.</span></div>}
       </section>
-      <section className="checkout-section"><h2><Tag size={17}/> Cupom de desconto</h2><div className="checkout-grid"><label className="wide">Código do cupom<input value={couponCode} onChange={e=>{++couponRequest.current;onCouponChange(null);setCouponBusy(false);setCouponCode(e.target.value.toUpperCase());setCouponDiscount(0);setCouponApplied(false);setCouponGiftDescription("");setCouponError("")}} placeholder="EX.: BEMVINDO10"/></label><button type="button" className="shipping-quote-button" onClick={() => void applyCoupon()} disabled={couponBusy}>{couponBusy?"Validando...":"Aplicar cupom"}</button></div>{couponError&&<small>{couponError}</small>}{couponApplied&&<small>Cupom aplicado: {couponGiftDescription || (couponDiscount>0 ? "desconto de "+formatMoney(couponDiscount) : "benefício de primeira compra")}</small>}</section>
+      <section className="checkout-section"><h2><Tag size={17}/> Cupom de desconto</h2>
+      <div className="checkout-first-purchase"><strong>🎁 Sua primeira compra merece um presente!</strong><p>Se esta for sua primeira compra na Violetta, você tem direito ao cupom de boas-vindas, mesmo sem preencher o pop-up. Informe nome e WhatsApp para liberar o benefício.</p>
+      <button type="button" className="shipping-quote-button" onClick={()=>void claimFirstPurchase()} disabled={firstPurchaseBusy||couponBusy}>{firstPurchaseBusy?"Verificando benefício...":"Liberar meu cupom de primeira compra"}</button>
+      {firstPurchaseNotice&&<small role="status">{firstPurchaseNotice}</small>}</div>
+      <div className="checkout-grid"><label className="wide">Código do cupom<input value={couponCode} onChange={e=>{++couponRequest.current;onCouponChange(null);setCouponBusy(false);setCouponCode(e.target.value.toUpperCase());setCouponDiscount(0);setCouponApplied(false);setCouponGiftDescription("");setCouponError("")}} placeholder="EX.: BEMVINDO10"/></label><button type="button" className="shipping-quote-button" onClick={() => void applyCoupon()} disabled={couponBusy}>{couponBusy?"Validando...":"Aplicar cupom"}</button></div>{couponError&&<small>{couponError}</small>}{couponApplied&&<small>Cupom aplicado: {couponGiftDescription || (couponDiscount>0 ? "desconto de "+formatMoney(couponDiscount) : "benefício de primeira compra")}</small>}</section>
       <section className="checkout-section"><h2><ShieldCheck size={17}/> Pagamento</h2><div className="payment-placeholder"><ShoppingBag size={18}/><div><strong>Pagamento seguro pelo InfinitePay</strong><p>Ao confirmar o pedido, você será direcionada ao InfinitePay. A modalidade e o valor do frete serão definidos conforme o endereço informado.</p><div className="payment-methods"><span>PIX</span><span>Cartão</span><span>Ambiente seguro</span></div></div></div></section>
       <div className="checkout-final-note"><ShieldCheck size={16}/><span>{shippingOption?.service === "Retirada no local" ? "Retirada no local sem cobrança de frete." : shippingOption?.service === "Frete a combinar" ? (isPalmas ? "O frete será combinado diretamente com o vendedor e pago separadamente. Ele não está incluído no pagamento desta compra." : "Para entregas fora de Palmas, o frete será combinado diretamente com o vendedor e pago separadamente.") : isPalmas&&shippingOption ? "Frete de "+formatMoney(shippingPrice)+" calculado automaticamente pela distância." : !shipping.city.trim() || !shipping.state.trim() ? "Informe o CEP, número, bairro, cidade e UF para calcular ou confirmar o frete." : "O frete será confirmado pela loja para este endereço."}</span></div>
       <button className="checkout-submit" disabled={busy||couponBusy||checkoutBlocked||!customerAuthResolved||(Boolean(cpfOwner)&&!customer.recipient_code)||!cart.length||!shippingOption}>{busy?"Criando pedido...":"Ir para o pagamento"}</button>
