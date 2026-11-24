@@ -338,7 +338,7 @@ function StoreSettings({ownerId,accessRole,layoutOnly=false}:{ownerId?:string;ac
    shipping_palmas_min_subtotal:50,
    shipping_palmas_free_above:149.90,
    shipping_palmas_pickup_enabled:true,
-   layout_config:{theme:"original",primary:"",background:"",font:"classic",decorations:true,banners:[]},
+   layout_config:{theme:"original",primary:"",background:"",font:"classic",decorations:true,banners:[],banner_mode:"auto",banner_interval_seconds:6, fixed_banner_id:"",banner_arrows:true},
    hero_title:"",hero_subtitle:"",hero_cta:"Comprar agora",hero_image_url:"",
    top_banner_enabled:true,
    top_banner_text:"FRETE GRÁTIS",
@@ -398,7 +398,7 @@ setOriginBusy(true);try{if(!currentlyActive){const postal=String(settings.shippi
    if(!supabase||!ownerId)return;
    setBusy(true);
    try{
-     const config={...defaults.layout_config,...layout,banners:banners.slice(0,12)};
+     const config={...defaults.layout_config,...layout,banner_mode:["fixed","auto","hover"].includes(layout.banner_mode)?layout.banner_mode:"auto",banner_interval_seconds:Math.min(30,Math.max(1,Math.round(Number(layout.banner_interval_seconds)||6))),fixed_banner_id:banners.some(b=>b.id===layout.fixed_banner_id&&b.enabled)?layout.fixed_banner_id:"",banner_arrows:layout.banner_arrows!==false,banners:banners.slice(0,12)};
      const {error}=await supabase.from("storefront_settings").update({
        layout_config:config,
        hero_title:String(settings.hero_title||"").slice(0,120),
@@ -433,6 +433,15 @@ setOriginBusy(true);try{if(!currentlyActive){const postal=String(settings.shippi
    <button className="secondary" onClick={()=>setLayout("banners",banners.filter(item=>item.id!==b.id))}>Remover da vitrine</button>
   </div>
  </div>)}
+ <div className="form-grid" style={{marginTop:16}}>
+  <label>Como exibir os banners<select value={layout.banner_mode||"auto"} onChange={e=>setLayout("banner_mode",e.target.value)}>
+   <option value="auto">Carrossel automático</option><option value="fixed">Imagem fixa (sem troca automática)</option><option value="hover">Trocar ao passar o mouse</option>
+  </select></label>
+  {layout.banner_mode==="fixed"&&<label>Imagem principal fixa<select value={layout.fixed_banner_id||banners.find(b=>b.enabled)?.id||""} onChange={e=>setLayout("fixed_banner_id",e.target.value)}>{banners.filter(b=>b.enabled).map((b,i)=><option key={b.id} value={b.id}>{b.title||`Banner ${i+1}`}</option>)}</select></label>}
+  {(layout.banner_mode||"auto")==="auto"&&<label>Intervalo entre as imagens (segundos)<input type="number" min={1} max={30} step={1} value={layout.banner_interval_seconds??6} onChange={e=>setLayout("banner_interval_seconds",Math.max(1,Math.min(30,Number(e.target.value)||1)))}/></label>}
+  <label className="settings-toggle"><input type="checkbox" checked={layout.banner_arrows!==false} onChange={e=>setLayout("banner_arrows",e.target.checked)}/> Mostrar setas para passar os banners manualmente</label>
+ </div>
+ <p style={{fontSize:13,marginTop:10,color:"var(--muted)"}}>No celular, o visitante também poderá deslizar o banner para os lados. O modo "passar o mouse" troca uma vez ao entrar na imagem; as setas e os indicadores continuam disponíveis.</p>
  <p style={{marginTop:12}}>Sem banners ativos, a loja mantém a imagem principal atual.</p>
  </section>
  <section className="panel" style={{marginBottom:20}}><div className="panel-title"><div><p className="eyebrow">IDENTIDADE VISUAL</p><h3>Cores e fontes</h3></div></div>
