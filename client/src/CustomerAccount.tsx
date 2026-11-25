@@ -455,12 +455,12 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
         {paymentError && <p className="customer-payment-error" role="alert">{paymentError}</p>}
       </section>}
       {!reservation && paymentError && <p role="alert">{paymentError}</p>}
-      <div className="customer-timeline">{[["PENDING_PAYMENT","Pedido recebido",Package],["PAID","Pagamento confirmado",CreditCard],["PROCESSING","Em preparação",Clock3],["READY_TO_SHIP","Pronto para envio",Package],["SHIPPED","Enviado",Truck],["DELIVERED","Entregue",Check]].map(([key,label,Icon],i)=>{
+      <div className="customer-timeline">{[["PENDING_PAYMENT","Pedido recebido",Package],["PAID","Pagamento confirmado",CreditCard],["PROCESSING","Em preparação",Clock3],["READY_TO_SHIP","Pronto para envio",Package],["SHIPPED","Saiu para entrega / enviado",Truck],["DELIVERED","Entregue",Check]].map(([key,label,Icon],i)=>{
         const history=selected.order_status_history||[];
         const event=history.find(item=>item.status===key);
         const current=orderSteps.indexOf(selected.status);
-        const done=i<=current;
-        return <div className={"customer-step "+(done?"done":"")} key={String(key)}><span className="customer-step-dot"><Icon size={15}/></span><div><strong>{String(label)}</strong><small>{event?new Date(event.created_at).toLocaleString("pt-BR"):done?"Concluído":"Aguardando"}</small></div>{i<5&&<span className="customer-step-line"/>}</div>;
+        const done=Boolean(event)||key===selected.status||(key==="PAID"&&["PAID","PROCESSING","READY_TO_SHIP","SHIPPED","DELIVERED"].includes(selected.status));
+        return <div className={"customer-step "+(done?"done":"")} key={String(key)}><span className="customer-step-dot"><Icon size={15}/></span><div><strong>{String(label)}</strong><small>{event?new Date(event.created_at).toLocaleString("pt-BR"):done?"Concluído":i<current?"Etapa não utilizada":"Aguardando"}</small></div>{i<5&&<span className="customer-step-line"/>}</div>;
       })}</div>
       <div className="customer-status-box"><strong>{displayStatus(selected.status,selected)}</strong><span>{paymentLabels[selected.payment_status]||selected.payment_status}</span></div>
 
