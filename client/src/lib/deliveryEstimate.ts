@@ -1,7 +1,7 @@
 /** Regra única da Violetta para entregas locais, no fuso de Palmas (UTC-3). */
 export const DELIVERY_TIME_ZONE = "America/Araguaina";
 export const DELIVERY_CUTOFF_HOUR = 11;
-export const DELIVERY_POLICY_TEXT = "Entrega em até 1 dia útil. Pedidos feitos até as 11h (horário de Palmas), em dias úteis, têm previsão para o mesmo dia; após as 11h, no próximo dia útil. Sujeito à confirmação do pagamento e à área atendida.";
+export const DELIVERY_POLICY_TEXT = "Para entregas locais em Palmas, previsão de até 1 dia útil após a confirmação do pagamento. Pedidos feitos até as 11h (horário de Palmas), em dias úteis, têm previsão para o mesmo dia; após as 11h, no próximo dia útil. Sujeito à confirmação do pagamento e à área atendida.";
 
 type DeliveryAddress = { city?: string; state?: string; shipping_option?: { service?: string } } | null | undefined;
 function localParts(value: Date) {
@@ -13,7 +13,7 @@ function isWeekday(day:Date){const n=day.getUTCDay();return n!==0&&n!==6;}
 function localDate(value:Date) {
   const p=localParts(value);
   const day=new Date(Date.UTC(p.year,p.month-1,p.day));
-  const sameDay=isWeekday(day)&&p.hour<DELIVERY_CUTOFF_HOUR+1&&(p.hour<DELIVERY_CUTOFF_HOUR||p.minute===0);
+  const sameDay=isWeekday(day)&&(p.hour<DELIVERY_CUTOFF_HOUR||(p.hour===DELIVERY_CUTOFF_HOUR&&p.minute===0));
   if(!sameDay)do{day.setUTCDate(day.getUTCDate()+1)}while(!isWeekday(day));
   return {date:day,sameDay};
 }
@@ -22,7 +22,7 @@ export function deliveryEstimate(value:Date|string|number=new Date()){
   if(Number.isNaN(input.getTime()))return null;
   const {date,sameDay}=localDate(input);
   const dateLabel=new Intl.DateTimeFormat("pt-BR",{day:"2-digit",month:"long",year:"numeric",timeZone:"UTC"}).format(date);
-  return {date:date.toISOString().slice(0,10),dateLabel,sameDay,label:sameDay?"Entrega prevista para hoje":"Entrega prevista para o próximo dia útil"};
+  return {date:date.toISOString().slice(0,10),dateLabel,sameDay,label:"Previsão de entrega: "+dateLabel};
 }
 export function isLocalDelivery(address:DeliveryAddress){
   if(!address)return false;
@@ -32,5 +32,5 @@ export function isLocalDelivery(address:DeliveryAddress){
 export function deliveryMessage(address:DeliveryAddress,createdAt:Date|string|number=new Date()){
   if(!isLocalDelivery(address))return null;
   const estimate=deliveryEstimate(createdAt);
-  return estimate?estimate.label+" ("+estimate.dateLabel+"), considerando o horário de Palmas. Sujeito à confirmação do pagamento e ao funcionamento da loja.":null;
+  return estimate?estimate.label+". Prazo sujeito à confirmação do pagamento e ao funcionamento da loja (horário de Palmas).":null;
 }
