@@ -1,6 +1,7 @@
 import CustomerCpf from "./CustomerCpf";
 import "./customer-payment.css";
 import { useReservationCountdown } from "./lib/reservation";
+import { deliveryMessage, DELIVERY_POLICY_TEXT } from "./lib/deliveryEstimate";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Clock3, CreditCard, Gift, Eye, LogOut, Package, ShieldCheck, Truck, UserRound, X, Save, LockKeyhole } from "lucide-react";
 import { toast } from "sonner";
@@ -20,7 +21,7 @@ type Order = {
   order_status_history?: StatusHistory[];
 };
 
-const statusLabels:Record<string,string>={PENDING_PAYMENT:"Aguardando pagamento",PAID:"Pagamento confirmado",PROCESSING:"Em preparação",READY_TO_SHIP:"Pronto para envio",SHIPPED:"Pedido enviado",DELIVERED:"Entregue",CANCELLED:"Pedido cancelado",REFUNDED:"Pedido reembolsado"};
+const statusLabels:Record<string,string>={PENDING_PAYMENT:"Aguardando pagamento",PAID:"Em preparação",PROCESSING:"Em preparação",READY_TO_SHIP:"Pronto para envio",SHIPPED:"Pedido enviado",DELIVERED:"Entregue",CANCELLED:"Pedido cancelado",REFUNDED:"Pedido reembolsado"};
 const paymentLabels:Record<string,string>={PENDING:"Pagamento pendente",PAID:"Pagamento confirmado",APPROVED:"Pagamento confirmado",IN_PROCESS:"Pagamento em análise",REFUNDED:"Pagamento reembolsado",FAILED:"Pagamento recusado",REJECTED:"Pagamento recusado"};
 const money=(value:number)=>Number(value||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 const isValidBirthday=(value:string)=>{
@@ -467,7 +468,7 @@ export default function CustomerAccount({onBack}:{onBack:()=>void}){
         <div className="customer-detail-panel"><h3>Produtos</h3><div className="customer-order-items">{(selected.order_items||[]).map(item=><div key={item.id}><span>{item.quantity}× {item.product_name}</span><strong>{money(Number(item.total_price||item.unit_price*item.quantity))}</strong></div>)}</div></div>
         <div className="customer-detail-panel"><h3>Resumo</h3><div className="customer-summary-row"><span>Subtotal</span><strong>{money(selected.subtotal_amount)}</strong></div><div className="customer-summary-row"><span>Frete</span><strong>{Number(selected.shipping_amount)>0?money(selected.shipping_amount):selected.shipping_address?.shipping_option?.service?.includes("Retirada") ? "Retirada no local" : selected.shipping_address?.shipping_option?.service?.includes("frete grátis") ? "Grátis" : "A combinar"}</strong></div>{Number(selected.discount_amount)>0&&<div className="customer-summary-row"><span>Desconto</span><strong>- {money(selected.discount_amount)}</strong></div>}<div className="customer-total"><span>Total</span><strong>{money(selected.total_amount)}</strong></div></div>
       </div>
-      {selected.shipping_address&&<div className="customer-detail-panel" style={{marginTop:14}}><h3>Entrega</h3><p>{selected.shipping_address.shipping_option?.service||"Entrega"} · {selected.shipping_address.address||""}{selected.shipping_address.number?", "+selected.shipping_address.number:""}{selected.shipping_address.complement?" · "+selected.shipping_address.complement:""}</p><small>{selected.shipping_address.neighborhood||""} · {selected.shipping_address.city||""}/{selected.shipping_address.state||""} · CEP {selected.shipping_address.postal_code||""}</small></div>}
+      {selected.shipping_address&&<div className="customer-detail-panel" style={{marginTop:14}}><h3>Entrega</h3>{deliveryMessage(selected.shipping_address,selected.created_at)&&<p role="status"><strong>{deliveryMessage(selected.shipping_address,selected.created_at)}</strong></p>}<p>{selected.shipping_address.shipping_option?.service||"Entrega"} · {selected.shipping_address.address||""}{selected.shipping_address.number?", "+selected.shipping_address.number:""}{selected.shipping_address.complement?" · "+selected.shipping_address.complement:""}</p><small>{selected.shipping_address.neighborhood||""} · {selected.shipping_address.city||""}/{selected.shipping_address.state||""} · CEP {selected.shipping_address.postal_code||""}</small></div>}
       {selected.order_status_history?.length&&<div className="customer-detail-panel" style={{marginTop:14}}><h3>Histórico do pedido</h3>{selected.order_status_history.map(event=><div className="customer-summary-row" key={event.id}><span>{displayStatus(event.status)}{event.note?" · "+event.note:""}</span><small>{new Date(event.created_at).toLocaleString("pt-BR")}</small></div>)}</div>}
       {tracking?.tracking_code&&<div className="customer-tracking"><Truck size={20}/><div><strong>{tracking.carrier||"Entrega"}</strong><span>{tracking.tracking_code}</span>{tracking.tracking_url&&<a href={tracking.tracking_url} target="_blank" rel="noreferrer">Acompanhar entrega ↗</a>}</div></div>}
     </div>
