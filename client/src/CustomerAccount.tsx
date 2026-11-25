@@ -1,7 +1,7 @@
 import CustomerCpf from "./CustomerCpf";
 import "./customer-payment.css";
 import { useReservationCountdown } from "./lib/reservation";
-import { deliveryMessage, DELIVERY_POLICY_TEXT } from "./lib/deliveryEstimate";
+import { deliveryMessage } from "./lib/deliveryEstimate";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Clock3, CreditCard, Gift, Eye, LogOut, Package, ShieldCheck, Truck, UserRound, X, Save, LockKeyhole } from "lucide-react";
 import { toast } from "sonner";
