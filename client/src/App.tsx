@@ -535,12 +535,13 @@ function Reports({sales,clients,products,ownerId}:any){
  const [onlineOrders,setOnlineOrders]=useState<any[]>([]);
  const [onlineItems,setOnlineItems]=useState<any[]>([]);
  const [onlineLoading,setOnlineLoading]=useState(false);
+ const [onlineError,setOnlineError]=useState("");
  const [channel,setChannel]=useState<"ALL"|"SITE"|"PRESENCIAL">("ALL");
 
  useEffect(()=>{
    let cancelled=false;
    if(!supabase||!ownerId){setOnlineOrders([]);setOnlineItems([]);return;}
-   setOnlineLoading(true);
+   setOnlineLoading(true);setOnlineError("");
    (async()=>{
      const {data:orders,error:ordersError}=await supabase
        .from("orders")
@@ -566,7 +567,7 @@ function Reports({sales,clients,products,ownerId}:any){
      setOnlineItems(items);
    })().catch(error=>{
      console.error("Falha ao carregar vendas online para os relatórios",error);
-     if(!cancelled){setOnlineOrders([]);setOnlineItems([]);}
+     if(!cancelled){setOnlineOrders([]);setOnlineItems([]);setOnlineError("Não foi possível consultar os pedidos online. Os totais abaixo podem estar incompletos. Atualize a página ou tente novamente.");}
    }).finally(()=>{if(!cancelled)setOnlineLoading(false);});
    return()=>{cancelled=true;};
  },[ownerId,from,to]);
@@ -710,6 +711,7 @@ function Reports({sales,clients,products,ownerId}:any){
  };
  return <>
   <Head k="INTELIGÊNCIA" title="Relatórios gerenciais" d="Uma visão única das vendas presenciais e online."/>
+  {onlineError&&<div role="alert" style={{padding:14,marginBottom:16,border:"1px solid #c2410c",borderRadius:10,color:"#9a3412",background:"#fff7ed"}}><strong>Atenção: relatório parcial.</strong> {onlineError}</div>}
   <section className="panel" style={{marginBottom:18}}>
    <div className="form-grid">
     <label>De<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label>
