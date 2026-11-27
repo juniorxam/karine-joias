@@ -47,14 +47,13 @@ export function useSyncedCollection<T extends Record<string, any>>(
   initial: T[],
   ownerId?: string,
 ): [T[], Dispatch<SetStateAction<T[]>>, boolean] {
-  // In production, the server is the source of truth. Never hydrate an authenticated
-  // account from another browser/session's localStorage before the owner's rows load.
   const [value, setValue] = useState<T[]>(() => (!isSupabaseConfigured ? readLocal(localKey, initial) : []));
   const [ready, setReady] = useState(!isSupabaseConfigured || !ownerId);
   const [serverLoadSucceeded, setServerLoadSucceeded] = useState(!isSupabaseConfigured || !ownerId);
+  const [baseline, setBaseline] = useState<T[] | null>(null);
 
   useEffect(() => {
-    localStorage.setItem(localKey, JSON.stringify(value));
+    if (!isSupabaseConfigured) localStorage.setItem(localKey, JSON.stringify(value));
   }, [localKey, value]);
 
   useEffect(() => {
@@ -65,59 +64,70 @@ export function useSyncedCollection<T extends Record<string, any>>(
       setReady(true);
       return;
     }
-    if (!ownerId) {
-      setServerLoadSucceeded(false);
-      setValue([]);
-      setReady(false);
-      return;
-    }
     setServerLoadSucceeded(false);
     setReady(false);
+    setBaseline(null);
+    if (!ownerId) {
+      setValue([]);
+      return;
+    }
     (async () => {
       const { data, error } = await client.from(table).select("*").eq("owner_id", ownerId).order("id");
       if (error) throw error;
       if (cancelled) return;
-      // An authenticated account with no rows must stay empty. Do not automatically
-      // copy local/demo data into the production database.
-      if (data?.length) {
-        setValue(data.map((row) => fromDb(table, row)) as T[]);
-      } else {
-        setValue([]);
-      }
-      if (!cancelled) {
-        setServerLoadSucceeded(true);
-        setReady(true);
-      }
+      const loaded = (data || []).map((row) => fromDb(table, row)) as T[];
+      setValue(loaded);
+      setBaseline(loaded);
+      setServerLoadSucceeded(true);
+      setReady(true);
     })().catch((error) => {
       console.error(`Falha ao carregar ${table} no Supabase`, error);
       if (!cancelled) setReady(true);
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [table, localKey, ownerId]);
+    return () => { cancelled = true; };
+  }, [table, ownerId]);
 
   useEffect(() => {
     const client = supabase;
-    if (!client || !ownerId || !ready || !serverLoadSucceeded) return;
+    if (!client || !ownerId || !ready || !serverLoadSucceeded || !baseline) return;
+    const oldById = new Map(baseline.map((item) => [String(item.id), item]));
+    const newById = new Map(value.map((item) => [String(item.id), item]));
+    const changed = value.filter((item) => JSON.stringify(item) !== JSON.stringify(oldById.get(String(item.id))));
+    const deleted = baseline.filter((item) => !newById.has(String(item.id)));
+    if (!changed.length && !deleted.length) return;
+    let cancelled = false;
     const sync = async () => {
-      const rows = value.map((item) => toDb(table, item, ownerId));
-      const { data: existing, error: readError } = await client.from(table).select("id").eq("owner_id", ownerId);
-      if (readError) return console.error(`Falha ao consultar ${table}`, readError);
-      const ids = new Set(value.map((item) => item.id));
-      const removed = (existing ?? []).map((row) => row.id).filter((id) => !ids.has(id));
-      if (removed.length) await client.from(table).delete().eq("owner_id", ownerId).in("id", removed);
-      if (rows.length) {
-        const { error } = await client.from(table).upsert(rows, { onConflict: "id" });
-        if (error) console.error(`Falha ao sincronizar ${table}`, error);
+      const { data: current, error: readError } = await client.from(table).select("*").eq("owner_id", ownerId);
+      if (readError) throw readError;
+      const serverById = new Map((current || []).map((row) => [String(row.id), fromDb(table, row)]));
+      const conflicts = [...changed, ...deleted].filter((item) => {
+        const id = String(item.id);
+        const previous = oldById.get(id);
+        const server = serverById.get(id);
+        const desired = newById.get(id);
+        // A server-side RPC may already have committed the desired value.
+        if (desired && JSON.stringify(server) === JSON.stringify(desired)) return false;
+        return previous ? JSON.stringify(previous) !== JSON.stringify(server) : server !== undefined;
+      });
+      if (conflicts.length) throw new Error(`Conflito de sincronização em ${table}. Atualize a página antes de continuar.`);
+      for (const item of deleted) {
+        if (!serverById.has(String(item.id))) continue;
+        const { error } = await client.from(table).delete().eq("owner_id", ownerId).eq("id", item.id);
+        if (error) throw error;
       }
+      const pending = changed.filter((item) => JSON.stringify(serverById.get(String(item.id))) !== JSON.stringify(item));
+      if (pending.length) {
+        const { error } = await client.from(table).upsert(pending.map((item) => toDb(table, item, ownerId)), { onConflict: "id" });
+        if (error) throw error;
+      }
+      if (!cancelled) setBaseline(value);
     };
-    void sync();
-  }, [table, ownerId, ready, serverLoadSucceeded, value]);
+    void sync().catch((error) => console.error(`Falha ao sincronizar ${table}`, error));
+    return () => { cancelled = true; };
+  }, [table, ownerId, ready, serverLoadSucceeded, value, baseline]);
 
   return [value, setValue, ready];
 }
-
 
 export async function createManualSale(input: {
   date: string;
