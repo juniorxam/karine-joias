@@ -717,8 +717,9 @@ function Reports({sales,clients,products,ownerId}:any){
     <label>De<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label>
     <label>Até<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label>
     <label>Canal<select value={channel} onChange={e=>setChannel(e.target.value as "ALL"|"SITE"|"PRESENCIAL")}><option value="ALL">Todos os canais</option><option value="SITE">Somente site</option><option value="PRESENCIAL">Somente presencial</option></select></label>
-    <div style={{display:"flex",alignItems:"end",gap:8}}><button className="primary" onClick={exportExcel} disabled={from>to}>Excel (.xls)</button><button className="secondary" onClick={exportPdf} disabled={from>to}>Gerar PDF</button></div>
+    <div style={{display:"flex",alignItems:"end",gap:8}}><button className="primary" onClick={exportExcel} disabled={from>to||onlineLoading||Boolean(onlineError)}>Excel (.xls)</button><button className="secondary" onClick={exportPdf} disabled={from>to||onlineLoading||Boolean(onlineError)}>Gerar PDF</button></div>
    </div>
+   {onlineLoading&&<p role="status" style={{margin:"10px 0",color:"var(--muted)"}}>Consultando pedidos online antes de liberar a exportação…</p>}
    {from>to&&<p style={{margin:"10px 0 0",color:"var(--danger,#b42318)",fontSize:13}}>O período informado é inválido: a data inicial não pode ser posterior à data final.</p>}
    {onlineLoading&&<p style={{margin:"10px 0 0",color:"var(--muted)",fontSize:13}}>Atualizando vendas online…</p>}
   </section>
@@ -778,7 +779,7 @@ function Reports({sales,clients,products,ownerId}:any){
     <div className="integration-status-card" style={{display:"block"}}><strong>Maior faturamento</strong><div style={{fontSize:17,fontWeight:700,marginTop:8}}>{topByRevenue?.name||"N/D"}</div><small>{topByRevenue?money(topByRevenue.value):"Sem vendas"}</small></div>
     <div className="integration-status-card" style={{display:"block"}}><strong>Lucro bruto estimado</strong><div style={{fontSize:20,fontWeight:700,marginTop:8}}>{productsWithCost?money(estimatedProductProfit):"N/D"}</div><small>{productsWithCost+" produto(s) com custo conhecido"}{topByProfit?" · maior lucro: "+topByProfit.name:""}</small></div>
    </div>
-   <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:14,flexWrap:"wrap"}}><button className="secondary" onClick={exportProductReport} disabled={from>to}>Exportar produtos para Excel</button></div>
+   <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:14,flexWrap:"wrap"}}><button className="secondary" onClick={exportProductReport} disabled={from>to||onlineLoading||Boolean(onlineError)}>Exportar produtos para Excel</button></div>
    <div style={{overflowX:"auto",marginTop:14}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:900}}><thead><tr>{["Produto","Unidades","Faturamento","Custo estimado","Lucro bruto","Margem","Estoque","Recomendação"].map((h:string)=><th key={h} style={{textAlign:"left",padding:"10px 8px",borderBottom:"1px solid var(--border,#ddd)"}}>{h}</th>)}</tr></thead><tbody>{productPerformance.length?productPerformance.map((p:any)=><tr key={p.name}>{[p.name,String(p.qty),money(p.value),p.costKnown?money(p.cost):"N/D",p.costKnown?money(p.profit):"N/D",p.margin===null?"N/D":p.margin.toFixed(1)+"%",p.stock===null?"N/D":String(p.stock),p.recommendation].map((v:string,i:number)=><td key={i} style={{padding:"10px 8px",borderBottom:"1px solid var(--border,#eee)",whiteSpace:i===0?"normal":"nowrap"}}>{v}</td>)}</tr>):<tr><td colSpan={8} style={{padding:14,color:"var(--muted)"}}>Nenhuma venda de produto no período selecionado.</td></tr>}</tbody></table></div>
    <p style={{fontSize:12,color:"var(--muted)",marginTop:10}}>“Repor estoque” é um alerta indicativo quando o estoque atual é igual ou menor que as unidades vendidas no período. Confira a contagem física antes de comprar. Produto sem custo cadastrado aparece como N/D.</p>
   </section>
