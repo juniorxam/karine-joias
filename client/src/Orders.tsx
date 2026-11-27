@@ -267,6 +267,13 @@ export default function Orders({ ownerId }: { ownerId?: string }) {
       return;
     }
 
+    const currentLabel=orderStatusLabel(order);
+    const nextLabel=status==="SHIPPED"&&localDelivery(order)?"Saiu para entrega":statusLabel[status]||status;
+    const confirmation=status==="DELIVERED"
+      ? "ATENÇÃO: confirmar a entrega do pedido "+order.order_number+"?\\n\\nSelecione OK SOMENTE se o cliente realmente recebeu o pedido. Essa ação registra o pedido como ENTREGUE e não deve ser usada para pedidos apenas enviados ou em rota."
+      : "Confirma a alteração do pedido "+order.order_number+"?\\n\\nStatus atual: "+currentLabel+"\\nNovo status: "+nextLabel+"\\n\\nClique em Cancelar para manter o status atual.";
+    if(!window.confirm(confirmation))return;
+
     // A loja só pode iniciar a preparação depois da confirmação do pagamento.
     if(status==="PROCESSING" && !["PAID","APPROVED"].includes(String(order.payment_status||"").toUpperCase())){
       toast.error("Pagamento ainda não confirmado");
