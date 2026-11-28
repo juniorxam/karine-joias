@@ -56,7 +56,7 @@ export default function SellerSales({ ownerId }: { ownerId: string }) {
 
   return <div className="content seller-sales" style={{maxWidth:1600}}>
     <div className="page-head sales-page-head" style={{alignItems:"center",marginBottom:24}}>
-      <div><p className="eyebrow">VIOLETTA · PAINEL DE INTELIGÊNCIA</p><h2 style={{marginBottom:8}}>Visão geral das vendas</h2><p>Acompanhe faturamento, pagamentos e pedidos em um só lugar.</p></div>
+      <div><p className="eyebrow">VIOLETTA · OPERAÇÃO DE PEDIDOS</p><h2 style={{marginBottom:8}}>Pedidos da loja</h2><p>Acompanhe os pedidos e prepare as entregas da loja.</p></div>
       <button className="ghost" type="button" onClick={()=>void load(true)} disabled={refreshing} style={{display:"inline-flex",alignItems:"center",gap:8,borderRadius:10,padding:"11px 15px"}}><RefreshCw size={16} className={refreshing?"animate-spin":""}/>{refreshing?"Atualizando…":"Atualizar dados"}</button>
     </div>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:14}}>
@@ -65,24 +65,7 @@ export default function SellerSales({ ownerId }: { ownerId: string }) {
         {([{v:7,l:"7 dias"},{v:30,l:"30 dias"},{v:0,l:"Todo período"}] as const).map(p=><button key={p.v} type="button" onClick={()=>setPeriod(p.v)} style={{border:0,borderRadius:8,padding:"8px 12px",fontSize:12,fontWeight:700,background:period===p.v?"#fff":"transparent",color:period===p.v?"#a85474":"#84777c",boxShadow:period===p.v?"0 2px 8px #5d31400c":"none"}}>{p.l}</button>)}
       </div>
     </div>
-    <div className="sales-metrics-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(205px,1fr))",gap:14,marginBottom:18}}>
-      <div style={css.card}><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center"}}><span style={css.label}>Faturamento confirmado</span><div style={css.icon}><CircleDollarSign size={21}/></div></div><strong style={css.value}>{money(revenue)}</strong><div style={{...css.muted,marginTop:8}}>Pagamentos aprovados no período</div></div>
-      <div style={css.card}><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center"}}><span style={css.label}>Pedidos recebidos</span><div style={{...css.icon,background:"#f1f1fb",color:"#7776b2"}}><ShoppingBag size={21}/></div></div><strong style={css.value}>{periodOrders.length}</strong><div style={{...css.muted,marginTop:8}}>Dentro do período selecionado</div></div>
-      <div style={css.card}><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center"}}><span style={css.label}>Ticket médio pago</span><div style={{...css.icon,background:"#edf6ef",color:"#6c9477"}}><TrendingUp size={21}/></div></div><strong style={css.value}>{money(average)}</strong><div style={{...css.muted,marginTop:8}}>{paidOrders.length} pedido(s) com pagamento confirmado</div></div>
-      <div style={css.card}><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center"}}><span style={css.label}>Precisam de atenção</span><div style={{...css.icon,background:"#fff4e7",color:"#c18a42"}}><Clock3 size={21}/></div></div><strong style={css.value}>{openCount}</strong><div style={{...css.muted,marginTop:8}}>{pending} pagamento(s) aguardando confirmação no período</div></div>
-    </div>
-
-    <div className="sales-charts-grid" style={{display:"grid",gridTemplateColumns:"minmax(0,1.65fr) minmax(260px,1fr)",gap:16,marginBottom:18}}>
-      <section style={css.card}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:18}}><div><h3 style={{fontSize:16,margin:"0 0 5px",color:"#3c2e34"}}>Evolução do faturamento</h3><p style={{...css.muted,margin:0}}>Somente pedidos com pagamento aprovado</p></div><span style={{...css.pill,color:"#7d8d79",background:"#edf4ed"}}><TrendingUp size={13}/> Confirmado</span></div>
-        <div style={{height:245,width:"100%"}}>{loading?<p style={css.muted}>Carregando gráfico…</p>:<ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData} margin={{top:8,right:8,left:0,bottom:0}}><defs><linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#c77896" stopOpacity={0.24}/><stop offset="95%" stopColor="#c77896" stopOpacity={0.01}/></linearGradient></defs><CartesianGrid stroke="#f0e9ec" strokeDasharray="4 4" vertical={false}/><XAxis dataKey="label" tick={{fontSize:11,fill:"#9b8d93"}} axisLine={false} tickLine={false} minTickGap={18}/><YAxis tick={{fontSize:11,fill:"#9b8d93"}} axisLine={false} tickLine={false} width={48} tickFormatter={v=>v===0?"R$ 0":`R$${v>=1000?(v/1000).toFixed(1)+"k":v}`}/><Tooltip formatter={(v:any)=>[money(Number(v)),"Faturamento"]} labelStyle={{color:"#59424b"}} contentStyle={{border:"1px solid #eee2e7",borderRadius:12,fontSize:12,boxShadow:"0 8px 25px #512b3a12"}}/><Area type="monotone" dataKey="total" stroke="#bd6d8a" strokeWidth={2.5} fill="url(#salesGradient)" activeDot={{r:5,strokeWidth:0}}/></AreaChart></ResponsiveContainer>}</div>
-      </section>
-      <section style={css.card}>
-        <div style={{marginBottom:22}}><h3 style={{fontSize:16,margin:"0 0 5px",color:"#3c2e34"}}>Situação dos pedidos</h3><p style={{...css.muted,margin:0}}>Distribuição dos últimos 200 pedidos</p></div>
-        <div style={{display:"grid",gap:19}}>{statusCounts.map(s=>{const total=Math.max(orders.length,1);const pct=Math.round(s.count/total*100);return <div key={s.label}><div style={{display:"flex",justifyContent:"space-between",gap:8,marginBottom:8,fontSize:12}}><span style={{color:"#6c5e64"}}>{s.label}</span><strong style={{color:"#3c2e34"}}>{s.count} <span style={{fontWeight:500,color:"#9b8d93"}}>({pct}%)</span></strong></div><div style={{height:7,borderRadius:9,background:"#f3edf0",overflow:"hidden"}}><div style={{height:"100%",width:pct+"%",background:s.color,borderRadius:9,transition:"width .3s"}}/></div></div>})}</div>
-        <div style={{marginTop:24,padding:13,borderRadius:12,background:"#fff6f9",display:"flex",gap:10,alignItems:"center"}}><Eye size={17} color="#b86685"/><span style={{fontSize:11,lineHeight:1.5,color:"#8c6574"}}>Painel de acompanhamento em modo de leitura. Alterações operacionais continuam no painel administrativo.</span></div>
-      </section>
-    </div>
+    <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:18}}><div style={css.card}><strong>Pedidos recebidos: {periodOrders.length}</strong></div><div style={css.card}><strong>Pedidos em aberto: {openCount}</strong></div><div style={css.card}><strong>Aguardando pagamento: {pending}</strong></div></div>
 
     <section style={{...css.card,padding:0,overflow:"hidden"}}>
       <div style={{padding:"21px 22px 17px",borderBottom:"1px solid #f0e8eb",display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,flexWrap:"wrap"}}>
