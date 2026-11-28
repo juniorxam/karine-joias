@@ -180,6 +180,26 @@ function Head({k,title,d,action}:{k:string;t?:string;title:string;d:string;actio
 function Dashboard({sales,clients,products,cash,promos,inTotal,outTotal,go,ownerId}:any){
  const [onlineOrders,setOnlineOrders]=useState<any[]>([]);
  const [registeredBirthdays,setRegisteredBirthdays]=useState<any[]>([]);
+ const [visitorStats,setVisitorStats]=useState<{
+   unique_today:number;unique_last_7_days:number;unique_month:number;unique_total:number;
+   views_today:number;views_month:number;
+ }|null>(null);
+ const [visitorError,setVisitorError]=useState(false);
+ useEffect(()=>{
+   if(!supabase||!ownerId){setVisitorStats(null);return;}
+   let active=true;
+   const refresh=async()=>{
+     const {data,error}=await supabase!.rpc("get_violetta_visitor_stats",{p_owner_id:ownerId});
+     if(!active)return;
+     if(error){setVisitorError(true);console.error("Não foi possível consultar as visitas",error);return;}
+     setVisitorError(false);
+     setVisitorStats(data as typeof visitorStats);
+   };
+   void refresh();
+   const timer=window.setInterval(()=>void refresh(),60000);
+   return()=>{active=false;window.clearInterval(timer)};
+ },[ownerId]);
+
  useEffect(()=>{if(!supabase||!ownerId)return;let active=true;supabase.rpc("list_violetta_registered_customers").then(({data,error})=>{if(active&&!error)setRegisteredBirthdays((data||[]).filter((c:any)=>/^\d{4}-\d{2}-\d{2}$/.test(c.birthday||"")));});return()=>{active=false};},[ownerId]);
  useEffect(()=>{
    let cancelled=false;
@@ -198,6 +218,18 @@ function Dashboard({sales,clients,products,cash,promos,inTotal,outTotal,go,owner
  const stockValue=products.reduce((a:number,p:Product)=>a+p.stock*p.cost,0); const retailValue=products.reduce((a:number,p:Product)=>a+p.stock*p.price,0); const low=products.filter((p:Product)=>p.stock<=3).length; const outOfStock=products.filter((p:Product)=>p.stock<=0).length; const totalUnits=products.reduce((a:number,p:Product)=>a+Number(p.stock||0),0); const estimatedGrossProfit=products.reduce((a:number,p:Product)=>a+Number(p.stock||0)*(Number(p.price||0)-Number(p.cost||0)),0); const topProducts=[...products].sort((a:any,b:any)=>Number(b.soldQuantity||0)-Number(a.soldQuantity||0)).slice(0,5); const pendingOrders=onlineOrders.filter((o:any)=>String(o.payment_status||"").toUpperCase()!=="PAID").length; const birthdayClients=[...clients.filter((c:Client)=>c.birthday?.slice(5,7)===month).map((c:Client)=>({...c,displayKey:`manual-${c.id}`})),...registeredBirthdays.filter((c:any)=>c.birthday?.slice(5,7)===month).map((c:any)=>({id:c.customer_id,displayKey:`online-${c.customer_id}`,name:c.full_name,phone:c.phone,birthday:c.birthday}))].sort((a:any,b:any)=>a.birthday.slice(8).localeCompare(b.birthday.slice(8))).slice(0,6);
  return <><Head k="VISÃO GERAL" title="Sua operação, mais brilhante." d="Acompanhe o que importa e cuide de cada detalhe da sua marca." action={<button className="primary" onClick={()=>go('sales')}><Plus size={16}/> Registrar venda</button>}/>
  <div className="stat-grid"><Stat icon={<CircleDollarSign/>} label="Saldo dos lançamentos" value={money(inTotal-outTotal)} note="entradas e saídas registradas no caixa; não inclui automaticamente pedidos online" accent/><Stat icon={<TrendingUp/>} label="Faturamento do mês" value={money(manualMonth+onlineRevenue)} note={`${sales.filter((s:Sale)=>s.date.slice(0,7)===monthPrefix).length+onlineOrders.length} vendas · presencial + online`}/><Stat icon={<Users/>} label="Clientes" value={clients.length} note={`${onlineOrders.length} pedidos online pagos`}/><Stat icon={<Package/>} label="Estoque crítico" value={low} note={`${outOfStock} zerados · ${totalUnits} unidades no catálogo`} warning/></div>
+
+ <section className="panel" style={{marginBottom:20}}>
+   <div className="panel-title"><div><p className="eyebrow">ACESSOS À LOJA</p><h3>Visitantes do site</h3></div><span className="period-pill">Atualização automática</span></div>
+   {visitorError?<p style={{color:"var(--muted)",fontSize:13}}>Não foi possível consultar as visitas agora. Atualize a página ou tente novamente mais tarde.</p>:
+     <div className="stat-grid" style={{marginTop:16}}>
+       <Stat icon={<Eye/>} label="Visitantes hoje" value={visitorStats?visitorStats.unique_today.toLocaleString("pt-BR"):"—"} note="Navegadores únicos hoje"/>
+       <Stat icon={<Users/>} label="Últimos 7 dias" value={visitorStats?visitorStats.unique_last_7_days.toLocaleString("pt-BR"):"—"} note="Navegadores únicos no período"/>
+       <Stat icon={<BarChart3/>} label="Este mês" value={visitorStats?visitorStats.unique_month.toLocaleString("pt-BR"):"—"} note="Navegadores únicos no mês"/>
+       <Stat icon={<Globe2/>} label="Desde a ativação" value={visitorStats?visitorStats.unique_total.toLocaleString("pt-BR"):"—"} note="Navegadores únicos acumulados"/>
+     </div>}
+   <p style={{margin:"12px 0 0",fontSize:12,color:"var(--muted)"}}>Visualizações hoje: <strong>{visitorStats?visitorStats.views_today.toLocaleString("pt-BR"):"—"}</strong> · No mês: <strong>{visitorStats?visitorStats.views_month.toLocaleString("pt-BR"):"—"}</strong>. Contagem anônima aproximada por navegador, iniciada após a publicação do recurso. Não inclui visitas históricas.</p>
+ </section>
  <div className="dashboard-grid"><section className="panel"><div className="panel-title"><div><p className="eyebrow">MOVIMENTO RECENTE</p><h3>Entradas de vendas</h3></div><span className="period-pill">Últimos 7 dias</span></div><div className="chart"><div className="chart-y"><span>R$ 2k</span><span>R$ 1k</span><span>R$ 0</span></div><div className="bars">{Array.from({length:7},(_,i)=>{const val=sales.filter((s:Sale)=>s.date===ago(6-i)).reduce((a:number,s:Sale)=>a+s.amount,0)+onlineOrders.filter((o:any)=>String(o.created_at||"").slice(0,10)===ago(6-i)).reduce((a:number,o:any)=>a+Number(o.total_amount||0),0);return <div className="bar-col" key={i}><div className="bar" style={{height:`${Math.max(8,val/max*150)}px`}}/><small>{ago(6-i).slice(8)}</small></div>})}</div></div></section>
  <section className="panel"><div className="panel-title"><div><p className="eyebrow">CLIENTES</p><h3>Aniversariantes de {monthName}</h3></div><Cake size={20} className="gold-icon"/></div>{birthdayClients.length?birthdayClients.map((c:Client)=><div className="list-row" key={c.displayKey}><div className="avatar small">{initials(c.name)}</div><div><strong>{c.name}</strong><span>{br(c.birthday)}</span></div>{c.phone?<a href={`https://wa.me/${String(c.phone).replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer"><MessageCircle size={16}/></a>:null}</div>):<p style={{color:"var(--muted)",fontSize:13}}>Nenhum aniversariante cadastrado neste mês.</p>}<button className="subtle-link" onClick={()=>go('clients')}>Ver todos os clientes →</button></section></div>
  <div className="dashboard-bottom"><section className="panel"><div className="panel-title"><div><p className="eyebrow">ESTOQUE</p><h3>Patrimônio do catálogo</h3></div><Package size={20} className="gold-icon"/></div><div className="activity-row"><div className="activity-icon in"><Package size={15}/></div><div><strong>Valor de custo</strong><span>capital aplicado nas peças</span></div><b>{money(stockValue)}</b></div><div className="activity-row"><div className="activity-icon in"><TrendingUp size={15}/></div><div><strong>Venda potencial</strong><span>se todo o estoque for vendido</span></div><b className="positive">{money(retailValue)}</b></div><button className="subtle-link" onClick={()=>go('products')}>Gerenciar estoque →</button></section>
