@@ -16,6 +16,7 @@ type ProductReview = { id:string; product_id:number; rating:number; comment:stri
 type StorefrontSettings = { layout_config?:{theme?:string;primary?:string;background?:string;font?:string;decorations?:boolean;banner_mode?:"auto"|"fixed"|"hover";banner_interval_seconds?:number;fixed_banner_id?:string;banner_arrows?:boolean;banners?:Array<{id:string;url:string;mobile_url?:string;title?:string;enabled:boolean}>}; quick_categories?:string[]; home_section_order?:string[]; hero_title:string; hero_subtitle:string; hero_image_url?:string|null; hero_cta:string; featured_title:string; featured_enabled:boolean; latest_enabled:boolean; category_enabled:boolean; collection_enabled:boolean; collection_title:string; collection_subtitle:string; collection_image_url?:string|null; collection_cta:string; shipping_palmas_enabled:boolean; shipping_palmas_min_subtotal:number; shipping_palmas_free_above:number; shipping_palmas_pickup_enabled:boolean; shipping_origin_postal_code:string; shipping_origin_draft_street?:string; shipping_origin_draft_number?:string; shipping_origin_draft_neighborhood?:string; shipping_origin_draft_city?:string; shipping_origin_draft_state?:string; shipping_palmas_distance_rules:ShippingDistanceRule[]; top_banner_enabled:boolean; top_banner_text:string; top_banner_message:string; top_banner_cta:string; top_banner_cta_url:string };
 import { loadPublicCatalog } from "./lib/publicCatalog";
 import { supabase, customerSupabase } from "./lib/supabase";
+import { recordViolettaPageView } from "./lib/visitorAnalytics";
 import CustomerAccount from "./CustomerAccount";
 import CartGiftProgress, { type GiftMission } from "./CartGiftProgress";
 import { useReservationCountdown } from "./lib/reservation";
@@ -240,6 +241,13 @@ export default function Storefront() {
   const [view, setView] = useState<"store" | "checkout" | "success" | "product" | "account">(
     window.location.pathname.includes("/checkout") ? "checkout" : window.location.pathname.includes("/pedido") ? "success" : window.location.pathname.includes("/produto/") ? "product" : window.location.pathname.includes("/minha-conta") ? "account" : "store"
   );
+  useEffect(() => {
+    // Conta acessos à vitrine e aos produtos; não contabiliza páginas de conta ou checkout.
+    if (view === "store" || view === "product") {
+      void recordViolettaPageView();
+    }
+  }, [view]);
+
   const [order, setOrder] = useState<{ order_number: string; total_amount: number; created_at?: string; payment_status?: string; payment_url?: string; status?: string; shipment?: { carrier?: string | null; service?: string | null; tracking_code?: string | null; tracking_url?: string | null; shipping_status?: string | null } | null; items?: Array<{ id:string; product_id:number; product_name:string; quantity:number; unit_price:number; total_price:number }>; reviews?: Array<{ order_item_id:string; status:string }> } | null>(
     returnedOrder ? { order_number: returnedOrder, total_amount: 0, payment_status: returnParams.get("status") || "success" } : null
   );
